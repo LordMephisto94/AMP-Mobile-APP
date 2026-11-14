@@ -152,7 +152,7 @@ export function ShardsScreen(props: { serverId: string }) {
               <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
             </View>
           </If>
-          <View class="gap-4 md:flex-row md:flex-wrap">
+          <View class={`gap-4 md:flex-row md:flex-wrap ${shards()?.length === 1 ? "md:justify-center" : ""}`}>
           <Each of={shards()} key={(s: DeployedShard) => s.id}>
             {(shard) => (
               <View class="md:w-[48.5%] xl:w-[32.2%]">
