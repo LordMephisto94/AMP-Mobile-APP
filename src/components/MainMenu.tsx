@@ -26,7 +26,7 @@ const ENTRIES: Entry[] = [
   { id: "overview", label: "Overview", icon: overview, route: (serverId) => ({ name: "overview", serverId }) },
   { id: "shards", label: "Shards", icon: shards, route: (serverId) => ({ name: "shards", serverId }) },
   { id: "spires", label: "Spires", icon: spires, route: (serverId) => ({ name: "spires", serverId }) },
-  { id: "networking", label: "Networking", icon: networking },
+  { id: "networking", label: "Networking", icon: networking, route: (serverId) => ({ name: "networking", serverId }) },
   { id: "analytics", label: "Analytics", icon: analytics, route: (serverId) => ({ name: "analytics", serverId }) },
   { id: "activity", label: "Activity", icon: activity, route: (serverId) => ({ name: "activity", serverId }) },
   { id: "access", label: "Access", icon: access },

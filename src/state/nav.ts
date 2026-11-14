@@ -26,6 +26,8 @@ export type Route =
   /** A server's machines, and one machine. */
   | { name: "spires"; serverId: string }
   | { name: "spire"; serverId: string; id: string; title: string }
+  /** How a server is reached: panel address, ports, publications, tunnels, firewall. */
+  | { name: "networking"; serverId: string }
   /** The panel's audit log for a server. */
   | { name: "activity"; serverId: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };

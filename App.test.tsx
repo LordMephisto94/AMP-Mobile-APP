@@ -682,7 +682,7 @@ test("shows player analytics, finds a player and opens their history", async () 
   await app.waitFor("text:203.0.113.7:2001"); // the address on the card
   await app.press("main-menu");
   await app.waitFor("text:Main Menu");
-  await app.press("nav-networking").catch(() => {}); // not in the app yet: stays open
+  await app.press("nav-access").catch(() => {}); // not in the app yet: stays open
   expect(app.texts()).toContain("Main Menu");
   await app.press("nav-analytics");
   await app.waitFor("text:TOP PLAYERS");
@@ -1013,4 +1013,114 @@ test("spires list the machines, and a machine shows its hardware, addresses, sto
 
   await app.press("spire-shard-Minecraft SMP");
   await app.waitFor("text:PERFORMANCE");
+});
+
+test("networking shows the panel's address, ports, publications, tunnels and firewall, and changes access", async () => {
+  const accessCalls: string[] = [];
+  const pubCalls: string[] = [];
+  let ports = [
+    { ref: "Main", name: "Game port", protocol: "Tcp", port: 25565, isPublic: true, custom: false, primary: true },
+    { ref: "Rcon", name: "RCON", protocol: "Tcp", port: 25575, isPublic: true, custom: false, primary: false },
+  ];
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/https`]: {
+        body: {
+          mode: "managed",
+          hostName: "panel.example.test",
+          url: "https://panel.example.test",
+          certificateVerified: true,
+          agentPresent: true,
+          panelExposed: true,
+          entryNode: false,
+          externalAddress: "203.0.113.7",
+          reachability: "Nat",
+          internalAddress: "192.168.1.20",
+          ipv6Address: null,
+          trustedProxies: [],
+        },
+      },
+      [`GET ${SERVER}/api/networking/publications`]: {
+        body: [
+          {
+            id: "p1",
+            frontSpireId: "sp2",
+            publicPort: 30000,
+            protocol: "Udp",
+            shardId: "a1",
+            portRef: "Main",
+            enabled: true,
+            createdAt: "",
+            status: { state: "Active", activeFlows: 3, bytesIn: 1572864, bytesOut: 204800 },
+          },
+        ],
+      },
+      [`PUT ${SERVER}/api/networking/publications/p1`]: (r) => (pubCalls.push(r.body!), { body: {} }),
+      [`GET ${SERVER}/api/networking/gateways`]: { body: [] },
+      [`GET ${SERVER}/api/networking/tunnels`]: {
+        body: [
+          {
+            id: "t1",
+            frontSpireId: "sp2",
+            backSpireId: "sp1",
+            frontEndpointHost: "vps.example.test",
+            interfaceName: "wg0",
+            listenPort: 51820,
+            front: { spireId: "sp2", spireName: "melb-vps", keyPublished: true, agentInstalled: true, agentReachable: true, agentError: null },
+            back: { spireId: "sp1", spireName: "amp3", keyPublished: true, agentInstalled: true, agentReachable: true, agentError: null },
+            status: { up: true, rttMs: 14.2, phase: "Up" },
+          },
+        ],
+      },
+      [`GET ${SERVER}/api/networking/firewall`]: {
+        body: {
+          running: true,
+          status: { backend: "nftables", healthy: true, applied: [{ port: 25565, protocol: "TCP", label: "Minecraft SMP" }], rejected: [], advisories: [] },
+          withheld: [{ shardId: "a1", shardName: "Minecraft SMP", source: "Shard", port: 2222, protocol: "TCP", kind: "Sftp" }],
+        },
+      },
+      [`GET ${SERVER}/api/Shards/a1/ports`]: () => ({ body: ports }),
+      [`PUT ${SERVER}/api/Shards/a1/ports/Rcon/access`]: (r) => {
+        accessCalls.push(r.body!);
+        ports = ports.map((p) => (p.ref === "Rcon" ? { ...p, isPublic: JSON.parse(r.body!).public } : p));
+        return { body: ports };
+      },
+      [`GET ${SERVER}/api/Spires`]: { body: [{ id: "sp2", displayName: "melb-vps", publicHost: "vps.example.test" }] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-networking");
+  await app.waitFor("text:HTTPS by AMP");
+  expect(app.texts()).toContain("Certificate OK");
+  expect(app.texts()).toContain("Behind NAT: forward ports on your router");
+  expect(app.texts()).toContain("This machine: point port forwards here");
+
+  await app.waitFor("text:Published on vps.example.test:30000");
+  expect(app.texts()).toContain("vps.example.test:30000");
+  expect(app.texts()).toContain("3 connections · ↓ 1.5 MB · ↑ 200 KB");
+  expect(app.texts()).toContain("amp3 ⇄ melb-vps");
+  expect(app.texts()).toContain("vps.example.test:51820 · 14 ms");
+  expect(app.texts()).toContain("nftables");
+  expect(app.texts()).toContain("Minecraft SMP: port 2222 is held by AMP's SFTP server, so it's unreachable until moved.");
+
+  // RCON private, confirmed first; the main port has no menu.
+  expect(app.count("port-more-Main")).toBe(0);
+  await app.press("port-more-Rcon");
+  await app.press("menu-private");
+  await app.waitFor("text:Make RCON private?");
+  await app.press("confirm-go");
+  await app.waitFor("text:RCON is now private.");
+  expect(accessCalls).toEqual(['{"public":false}']);
+
+  // Pause the publication.
+  await app.press("pub-more-30000");
+  await app.press("menu-pause");
+  await app.waitUntil(() => pubCalls.length === 1);
+  expect(JSON.parse(pubCalls[0])).toEqual({ enabled: false, publicPort: 30000 });
 });

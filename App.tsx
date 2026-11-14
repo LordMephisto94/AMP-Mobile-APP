@@ -7,6 +7,7 @@ import { ConsoleScreen } from "./src/screens/ConsoleScreen";
 import { CreateShardScreen } from "./src/screens/CreateShardScreen";
 import { FileEditScreen } from "./src/screens/FileEditScreen";
 import { FilesScreen } from "./src/screens/FilesScreen";
+import { NetworkingScreen } from "./src/screens/NetworkingScreen";
 import { OverviewScreen } from "./src/screens/OverviewScreen";
 import { PlayerScreen } from "./src/screens/PlayerScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
@@ -49,6 +50,8 @@ function screen(route: Route) {
       return <SpiresScreen serverId={route.serverId} />;
     case "spire":
       return <SpireScreen serverId={route.serverId} id={route.id} title={route.title} />;
+    case "networking":
+      return <NetworkingScreen serverId={route.serverId} />;
     case "activity":
       return <ActivityScreen serverId={route.serverId} />;
     case "fileEdit":
