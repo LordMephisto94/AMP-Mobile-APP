@@ -131,7 +131,7 @@ export function OverviewScreen(props: { serverId: string }) {
               <View class="flex-row flex-wrap justify-between gap-y-3">
                 <Total icon="▶" label="Running" value={String(running())} valueClass="text-success" iconClass="text-success" />
                 <Total icon="■" label="Stopped" value={String(stopped())} valueClass="text-card-foreground" iconClass="text-muted-foreground" />
-                <Total icon="▤" label="Total RAM" value={size(ramMb())} valueClass="text-card-foreground" iconClass="text-violet-300" />
+                <Total icon="▤" label="Total Shard Usage" value={size(ramMb())} valueClass="text-card-foreground" iconClass="text-violet-300" />
                 <Total icon="👥" label="Players" value={String(players())} valueClass="text-card-foreground" iconClass="text-sky-300" />
               </View>
             </View>
