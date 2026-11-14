@@ -6,6 +6,7 @@ import { panelText } from "../api/panelText";
 import { getShardState, listShards } from "../api/shards";
 import { type DeployedShard, type ShardState, stateTone } from "../api/types";
 import { ago } from "../components/analyticsUi";
+import { HostCard, num, size } from "../components/HostCard";
 import { Screen } from "../components/backdrop";
 import { goTo, MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
@@ -15,24 +16,6 @@ import { clearServerSession, clientFor, serverById } from "../state/servers";
 
 const REFRESH_MS = 30_000;
 const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
-
-const n = (v: number | string | null | undefined) => {
-  const x = typeof v === "number" ? v : Number(v ?? 0);
-  return Number.isFinite(x) ? x : 0;
-};
-
-/** KB/s (as AMP reports, ×1000) as the panel writes it: "82 KiB/s", "1.4 MiB/s". */
-function rate(kbps: number | string): string {
-  const bytes = n(kbps) * 1000;
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MiB/s`;
-  return `${Math.round(bytes / 1024)} KiB/s`;
-}
-
-function size(mb: number): string {
-  if (mb >= 1024 * 1024) return `${(mb / 1024 / 1024).toFixed(1)} TB`;
-  if (mb >= 1024) return `${(mb / 1024).toFixed(mb >= 10 * 1024 ? 0 : 1)} GB`;
-  return `${Math.round(mb)} MB`;
-}
 
 /** A server at a glance, as the panel's Overview: totals, its machines, and what happened lately. */
 export function OverviewScreen(props: { serverId: string }) {
@@ -102,8 +85,8 @@ export function OverviewScreen(props: { serverId: string }) {
   const stopped = () => tones().filter((t) => t === "stopped" || t === "error").length;
   const liveMetrics = () =>
     (shards() ?? []).map((s) => states()[s.id]).filter((st) => st && stateTone(st) === "running").map((st) => st!.metrics);
-  const ramMb = () => liveMetrics().reduce((sum, m) => sum + n(m?.memoryUsageMB), 0);
-  const players = () => liveMetrics().reduce((sum, m) => sum + Math.max(0, n(m?.activeConnections)), 0);
+  const ramMb = () => liveMetrics().reduce((sum, m) => sum + num(m?.memoryUsageMB), 0);
+  const players = () => liveMetrics().reduce((sum, m) => sum + Math.max(0, num(m?.activeConnections)), 0);
 
   const showActivity = () => goTo(props.serverId, { name: "activity", serverId: props.serverId });
 
@@ -143,7 +126,11 @@ export function OverviewScreen(props: { serverId: string }) {
                   <Each of={spires()} key={(s: SpireDefinition) => s.id}>
                     {(spire) => (
                       <View class="md:w-[48.5%] xl:w-[32.3%]">
-                        <HostCard spire={spire()} state={spireStates()[spire().id]} />
+                        <HostCard
+                          spire={spire()}
+                          state={spireStates()[spire().id]}
+                          onPress={() => nav.push({ name: "spire", serverId: props.serverId, id: spire().id, title: spire().displayName || spire().id })}
+                        />
                       </View>
                     )}
                   </Each>
@@ -204,65 +191,6 @@ function Total(props: { icon: string; label: string; value: string; valueClass: 
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
         <Text class={`text-xl font-bold tabular-nums ${props.valueClass}`}>{props.value}</Text>
       </View>
-    </View>
-  );
-}
-
-/** A machine, as the panel's host card: online, shard count, CPU and RAM, network and free disk. */
-function HostCard(props: { spire: SpireDefinition; state?: SpireState }) {
-  const s = () => props.state;
-  const online = () => s()?.online ?? false;
-  const cpu = () => n(s()?.cpuUsagePercent);
-  const used = () => n(s()?.memoryUsedMb);
-  const total = () => n(s()?.memoryTotalMb);
-  const ram = () => (total() > 0 ? (used() / total()) * 100 : 0);
-  const free = () => n(s()?.platform?.freeDiskMb);
-  return (
-    <View testID={`host-${props.spire.displayName ?? props.spire.id}`} class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
-      <View class="flex-row items-center gap-2.5 bg-linear-to-r from-hero-from/60 to-hero-to/40 px-4 py-3">
-        <View class={`h-6 w-6 items-center justify-center rounded-full border-2 ${online() ? "border-success" : "border-destructive"}`}>
-          <Text class={`text-xs font-bold ${online() ? "text-success" : "text-destructive"}`}>{online() ? "✓" : "!"}</Text>
-        </View>
-        <Text class="line-clamp-1 flex-1 text-base font-semibold text-white">{props.spire.displayName || props.spire.id}</Text>
-        <Text class="text-xs text-white/75">{s() ? `${s()!.shardCount} shard${s()!.shardCount === 1 ? "" : "s"}` : ""}</Text>
-      </View>
-      <View class="gap-2.5 p-4">
-        <If when={s()} else={<Text class="text-sm text-muted-foreground">{online() ? "Loading…" : "No report yet"}</Text>}>
-          <Bar label="CPU" percent={cpu()} value={`${cpu().toFixed(0)}%`} barClass="bg-sky-400" />
-          <Bar
-            label="RAM"
-            percent={ram()}
-            value={total() > 0 ? `${size(used())} / ${size(total())}` : "–"}
-            barClass="bg-violet-400"
-          />
-          <View class="flex-row flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-            <Text class="text-sm text-card-foreground tabular-nums">{`↓ ${rate(s()!.networkInKBps)}`}</Text>
-            <Text class="text-sm text-card-foreground tabular-nums">{`↑ ${rate(s()!.networkOutKBps)}`}</Text>
-            <If when={free() > 0}>
-              <Text class="text-sm text-card-foreground tabular-nums">
-                <Text class="text-xs text-muted-foreground">Free </Text>
-                {size(free())}
-              </Text>
-            </If>
-          </View>
-          <If when={!online()}>
-            <Text class="text-xs text-destructive">{`Offline${s()!.lastHeartbeat ? ` · last seen ${ago(s()!.lastHeartbeat)}` : ""}`}</Text>
-          </If>
-        </If>
-      </View>
-    </View>
-  );
-}
-
-function Bar(props: { label: string; percent: number; value: string; barClass: string }) {
-  const width = (): `${number}%` => `${Math.max(2, Math.min(100, props.percent))}%`;
-  return (
-    <View class="flex-row items-center gap-3">
-      <Text class="w-9 text-xs font-semibold text-muted-foreground">{props.label}</Text>
-      <View class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-        <View class={`h-full rounded-full ${props.barClass}`} style={{ width: width() }} />
-      </View>
-      <Text class="text-right text-xs text-card-foreground tabular-nums">{props.value}</Text>
     </View>
   );
 }

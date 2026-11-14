@@ -651,7 +651,7 @@ test("shows player analytics, finds a player and opens their history", async () 
   await app.waitFor("text:203.0.113.7:2001"); // the address on the card
   await app.press("main-menu");
   await app.waitFor("text:Main Menu");
-  await app.press("nav-spires").catch(() => {}); // not in the app yet: stays open
+  await app.press("nav-networking").catch(() => {}); // not in the app yet: stays open
   expect(app.texts()).toContain("Main Menu");
   await app.press("nav-analytics");
   await app.waitFor("text:TOP PLAYERS");
@@ -881,4 +881,104 @@ test("the overview shows totals, hosts and recent activity in the panel's wordin
   await app.press("view-all-activity");
   await app.waitFor("filter-all");
   await app.waitFor("text:Stopped a server");
+});
+
+test("spires list the machines, and a machine shows its hardware, addresses, storage, instances and ports", async () => {
+  const spireState = {
+    spireId: "sp1",
+    online: true,
+    lastHeartbeat: "2026-11-15T03:00:00Z",
+    shardCount: 2,
+    cpuUsagePercent: 8,
+    memoryUsedMb: 2600,
+    memoryTotalMb: 32000,
+    networkInKBps: 84,
+    networkOutKBps: 12,
+    diskActivePercent: 3,
+    busLatencyMs: 1.2,
+    platform: {
+      osName: "Ubuntu 24.04",
+      architecture: "X64",
+      hostname: "amp3",
+      cpu: { modelName: "AMD Ryzen 9 5950X", totalCores: 16, totalThreads: 32 },
+      installedRamMb: 32768,
+      virtualization: "None",
+      reportedIps: [
+        { address: "192.168.1.20", isV6: false, isInternal: true, isPrimary: true, isTunnel: false, interfaceName: "eth0" },
+      ],
+      externalIp: "203.0.113.7",
+      reachability: "Nat",
+      freeDiskMb: 457728,
+      totalDiskMb: 950000,
+      loadAvgPercent: 45,
+    },
+  };
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Spires/roster`]: {
+        body: [{ spire: { id: "sp1", displayName: "amp3", isLocal: true }, online: true, lastSeen: null, version: "3.0.1", behind: false, installationVersion: "3.0.1" }],
+      },
+      [`GET ${SERVER}/api/Spires/sp1/state`]: { body: spireState },
+      [`GET ${SERVER}/api/Spires/sp1/startup`]: {
+        body: [
+          { shardId: "a1", shardName: "Minecraft SMP", startOnBoot: true, order: 100 },
+          { shardId: "c3", shardName: "Valheim", startOnBoot: false, order: 50 },
+        ],
+      },
+      [`GET ${SERVER}/api/Spires/sp1/ports`]: {
+        body: [
+          { port: 25565, protocol: "Tcp", ref: "Main", name: "Game port", shardId: "a1", shardName: "Minecraft SMP", ipBinding: "0.0.0.0", running: true, listening: true, conflict: false },
+          { port: 2456, protocol: "Udp", ref: "Main", name: "Game port", shardId: "c3", shardName: "Valheim", ipBinding: "0.0.0.0", running: false, listening: false, conflict: true },
+        ],
+      },
+      [`GET ${SERVER}/api/Spires/sp1/datastores`]: { body: [{ id: "d1", name: "Default", path: "/home/amp/shards", isDefault: true, enabled: true, tags: ["NVMe"] }] },
+      [`GET ${SERVER}/api/Spires/sp1/usage`]: {
+        body: {
+          spireId: "sp1",
+          scannedAt: "2026-11-15T03:00:00Z",
+          datastores: [
+            {
+              datastoreId: "d1",
+              totalUsedMb: 20480,
+              driveFreeMb: 457728,
+              driveTotalMb: 950000,
+              shards: [{ kind: "Shard", shardId: "a1", name: "minecraft-smp", sizeMb: 15360, deleted: false, displayName: "Minecraft SMP" }],
+            },
+          ],
+        },
+      },
+      [`GET ${SERVER}/api/Spires`]: { body: [{ id: "sp1", displayName: "amp3", isLocal: true, sftpEnabled: true, sftpPort: 2222, tags: ["Melbourne"] }] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-spires");
+  await app.waitFor("host-amp3");
+  await app.waitFor("text:v3.0.1");
+  expect(app.texts()).toContain("Panel host");
+
+  await app.press("host-amp3");
+  await app.waitFor("text:AMD Ryzen 9 5950X · 16 cores / 32 threads");
+  expect(app.texts()).toContain("Ubuntu 24.04 · X64");
+  expect(app.texts()).not.toContain("None"); // bare metal says nothing
+  await app.waitFor("text:203.0.113.7");
+  expect(app.texts()).toContain("Internet sees · Behind NAT");
+  expect(app.texts()).toContain("eth0 · primary · private");
+  await app.waitFor("text:SFTP on port 2222");
+  await app.waitUntil(() => app.texts().includes("/home/amp/shards"));
+  expect(app.texts()).toContain("15 GB");
+  await app.waitFor("text:Starts on boot");
+  expect(app.texts()).toContain("Clash");
+  // Boot order: Valheim (50) before Minecraft (100).
+  const t = app.texts();
+  const section = t.slice(t.indexOf("INSTANCES"), t.indexOf("PORTS"));
+  expect(section.indexOf("Valheim")).toBeLessThan(section.indexOf("Minecraft SMP"));
+
+  await app.press("spire-shard-Minecraft SMP");
+  await app.waitFor("text:PERFORMANCE");
 });

@@ -23,6 +23,9 @@ export type Route =
   | { name: "player"; serverId: string; userKey: string; playerName?: string | null; shardId?: string }
   /** A server at a glance: totals, machines, recent activity. */
   | { name: "overview"; serverId: string }
+  /** A server's machines, and one machine. */
+  | { name: "spires"; serverId: string }
+  | { name: "spire"; serverId: string; id: string; title: string }
   /** The panel's audit log for a server. */
   | { name: "activity"; serverId: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };

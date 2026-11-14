@@ -44,6 +44,13 @@ export interface SpireDefinition {
   canHostShards?: boolean;
   acceptsNewShards?: boolean;
   isPublicEntryNode?: boolean;
+  tags?: string[];
+  publicHost?: string;
+  maxShards?: number;
+  acceptsDeployments?: boolean;
+  sftpEnabled?: boolean;
+  sftpPort?: number;
+  createdAt?: string;
 }
 
 /** `GET /api/Spires`: the machines the caller can see. */
@@ -63,12 +70,38 @@ export interface SpireState {
   /** Inbound NIC throughput, KB/s. */
   networkInKBps: number | string;
   networkOutKBps: number | string;
-  platform?: {
-    osName?: string;
-    hostname?: string;
-    freeDiskMb?: number | string;
-    totalDiskMb?: number | string;
-  } | null;
+  diskActivePercent?: number | string | null;
+  busLatencyMs?: number | string;
+  platform?: SpirePlatformInfo | null;
+}
+
+/** `SpirePlatformInfo`: what a machine reports about itself. Enums may come as names or numbers. */
+export interface SpirePlatformInfo {
+  os?: string | number;
+  architecture?: string | number;
+  osName?: string;
+  hardwareName?: string;
+  hostname?: string;
+  cpu?: { modelName?: string; vendor?: string; sockets?: number; totalCores?: number; totalThreads?: number } | null;
+  installedRamMb?: number;
+  virtualization?: string | number;
+  reportedIps?: {
+    address: string;
+    isV6: boolean;
+    isInternal: boolean;
+    isPrimary: boolean;
+    isTunnel: boolean;
+    interfaceName?: string;
+  }[];
+  externalIp?: string;
+  /** Unknown, Direct, Nat or Cgnat. */
+  reachability?: string | number;
+  freeDiskMb?: number | string;
+  totalDiskMb?: number | string;
+  freeRamMb?: number;
+  /** Linux 1-minute load ×100; -1 when unavailable. */
+  loadAvgPercent?: number;
+  reportedAt?: string;
 }
 
 /** `GET /api/Spires/{id}/state`: a machine's live state (online, CPU, RAM, network, disk). */

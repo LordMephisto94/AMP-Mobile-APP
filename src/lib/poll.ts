@@ -1,7 +1,8 @@
 import { cleanup, effect, lifecycle } from "nsh";
 
 /**
- * Runs `load` now and every `intervalMs` while the app is in the foreground and
+ * Runs `load` now and every `intervalMs` while the app is visible (not in the background;
+ * a visible window without the focus, such as split screen, still refreshes) and
  * `visible()` holds (the page is on top of its stack). Stops when the component goes.
  * Coming back to the page or the app loads at once.
  *
@@ -11,7 +12,7 @@ import { cleanup, effect, lifecycle } from "nsh";
  */
 export function poll(load: () => void | Promise<void>, intervalMs: number, visible: () => boolean = () => true): void {
   effect(() => {
-    if (lifecycle() !== "active" || !visible()) return;
+    if (lifecycle() === "background" || !visible()) return;
     let running = false;
     const tick = async () => {
       if (running) return;

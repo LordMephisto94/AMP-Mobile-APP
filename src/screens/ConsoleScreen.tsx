@@ -82,13 +82,13 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
     }
   };
 
-  // While the page shows and the app is in front: the live hub, and polling until it is up.
+  // While the page shows and the app is visible: the live hub, and polling until it is up.
   const onTop = () => {
     const top = nav.routes().at(-1);
     return top?.name === "console" && top.id === props.id;
   };
   effect(() => {
-    if (lifecycle() !== "active" || !onTop()) return;
+    if (lifecycle() === "background" || !onTop()) return;
     loadNewest();
 
     const hub = new HubConnection({

@@ -14,6 +14,8 @@ import { ServersScreen } from "./src/screens/ServersScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
 import { ShardSettingsScreen } from "./src/screens/ShardSettingsScreen";
 import { ShardsScreen } from "./src/screens/ShardsScreen";
+import { SpireScreen } from "./src/screens/SpireScreen";
+import { SpiresScreen } from "./src/screens/SpiresScreen";
 import { nav, type Route } from "./src/state/nav";
 import { loadServers, serversReady } from "./src/state/servers";
 
@@ -43,6 +45,10 @@ function screen(route: Route) {
       return <PlayerScreen serverId={route.serverId} userKey={route.userKey} name={route.playerName} shardId={route.shardId} />;
     case "overview":
       return <OverviewScreen serverId={route.serverId} />;
+    case "spires":
+      return <SpiresScreen serverId={route.serverId} />;
+    case "spire":
+      return <SpireScreen serverId={route.serverId} id={route.id} title={route.title} />;
     case "activity":
       return <ActivityScreen serverId={route.serverId} />;
     case "fileEdit":
