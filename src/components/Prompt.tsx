@@ -8,6 +8,8 @@ export interface PromptRequest {
   value?: string;
   placeholder?: string;
   confirm: string;
+  /** Hide what's typed (a password). */
+  masked?: boolean;
   /** An emoji shown in a tinted circle above the title. */
   icon?: string;
   /** Returns an error to show, or nothing to close. */
@@ -119,6 +121,7 @@ export function Prompt(props: { request: PromptRequest | null; onClose: () => vo
                   submitBehavior="submit"
                   returnKeyType="done"
                   placeholder={request().placeholder}
+                  masked={request().masked}
                   autoCapitalize="none"
                   autoCorrect={false}
                   class="p-0 text-base text-foreground placeholder:text-muted-foreground"

@@ -29,7 +29,7 @@ const ENTRIES: Entry[] = [
   { id: "networking", label: "Networking", icon: networking, route: (serverId) => ({ name: "networking", serverId }) },
   { id: "analytics", label: "Analytics", icon: analytics, route: (serverId) => ({ name: "analytics", serverId }) },
   { id: "activity", label: "Activity", icon: activity, route: (serverId) => ({ name: "activity", serverId }) },
-  { id: "access", label: "Access", icon: access },
+  { id: "access", label: "Access", icon: access, route: (serverId) => ({ name: "access", serverId }) },
   { id: "settings", label: "Settings", icon: settings },
 ];
 

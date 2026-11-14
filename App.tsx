@@ -1,12 +1,14 @@
 import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConfirmHost } from "./src/components/Confirm";
+import { AccessScreen } from "./src/screens/AccessScreen";
 import { ActivityScreen } from "./src/screens/ActivityScreen";
 import { AnalyticsScreen } from "./src/screens/AnalyticsScreen";
 import { ConsoleScreen } from "./src/screens/ConsoleScreen";
 import { CreateShardScreen } from "./src/screens/CreateShardScreen";
 import { FileEditScreen } from "./src/screens/FileEditScreen";
 import { FilesScreen } from "./src/screens/FilesScreen";
+import { InviteScreen } from "./src/screens/InviteScreen";
 import { NetworkingScreen } from "./src/screens/NetworkingScreen";
 import { OverviewScreen } from "./src/screens/OverviewScreen";
 import { PlayerScreen } from "./src/screens/PlayerScreen";
@@ -17,6 +19,7 @@ import { ShardSettingsScreen } from "./src/screens/ShardSettingsScreen";
 import { ShardsScreen } from "./src/screens/ShardsScreen";
 import { SpireScreen } from "./src/screens/SpireScreen";
 import { SpiresScreen } from "./src/screens/SpiresScreen";
+import { UserScreen } from "./src/screens/UserScreen";
 import { nav, type Route } from "./src/state/nav";
 import { loadServers, serversReady } from "./src/state/servers";
 
@@ -52,6 +55,12 @@ function screen(route: Route) {
       return <SpireScreen serverId={route.serverId} id={route.id} title={route.title} />;
     case "networking":
       return <NetworkingScreen serverId={route.serverId} />;
+    case "access":
+      return <AccessScreen serverId={route.serverId} tab={route.tab} />;
+    case "user":
+      return <UserScreen serverId={route.serverId} userId={route.userId} />;
+    case "invite":
+      return <InviteScreen serverId={route.serverId} />;
     case "activity":
       return <ActivityScreen serverId={route.serverId} />;
     case "fileEdit":

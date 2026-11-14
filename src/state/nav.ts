@@ -28,6 +28,10 @@ export type Route =
   | { name: "spire"; serverId: string; id: string; title: string }
   /** How a server is reached: panel address, ports, publications, tunnels, firewall. */
   | { name: "networking"; serverId: string }
+  /** Who can use the panel: users, roles, invites; one user (none: a new one); a new invite. */
+  | { name: "access"; serverId: string; tab?: "users" | "roles" | "invites" }
+  | { name: "user"; serverId: string; userId?: string }
+  | { name: "invite"; serverId: string }
   /** The panel's audit log for a server. */
   | { name: "activity"; serverId: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };

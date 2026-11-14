@@ -85,9 +85,9 @@ export function Field(props: {
 }
 
 /** A tappable checkbox with a label. */
-export function Checkbox(props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+export function Checkbox(props: { label: string; checked: boolean; onChange: (checked: boolean) => void; testID?: string }) {
   return (
-    <View role="checkbox" onPress={() => props.onChange(!props.checked)} class="flex-row items-center gap-3 py-1">
+    <View role="checkbox" testID={props.testID} onPress={() => props.onChange(!props.checked)} class="flex-row items-center gap-3 py-1">
       <View
         class={`h-6 w-6 items-center justify-center rounded-md border-2 ${props.checked ? "border-primary bg-primary" : "border-input bg-card"}`}
       >

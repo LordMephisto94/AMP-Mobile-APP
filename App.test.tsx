@@ -682,7 +682,7 @@ test("shows player analytics, finds a player and opens their history", async () 
   await app.waitFor("text:203.0.113.7:2001"); // the address on the card
   await app.press("main-menu");
   await app.waitFor("text:Main Menu");
-  await app.press("nav-access").catch(() => {}); // not in the app yet: stays open
+  await app.press("nav-settings").catch(() => {}); // not in the app yet: stays open
   expect(app.texts()).toContain("Main Menu");
   await app.press("nav-analytics");
   await app.waitFor("text:TOP PLAYERS");
@@ -1123,4 +1123,158 @@ test("networking shows the panel's address, ports, publications, tunnels and fir
   await app.press("menu-pause");
   await app.waitUntil(() => pubCalls.length === 1);
   expect(JSON.parse(pubCalls[0])).toEqual({ enabled: false, publicPort: 30000 });
+});
+
+test("access lists users, roles and invites; edits a user, resets a password and sends an invite", async () => {
+  const puts: unknown[] = [];
+  const resets: unknown[] = [];
+  const created: unknown[] = [];
+  let bob = {
+    id: "u2",
+    userName: "bob",
+    displayName: "Bob",
+    email: null,
+    roleIds: ["r2"],
+    isAdmin: false,
+    suspended: false,
+    passwordExpires: false,
+    requirePasswordChange: false,
+    createdAt: "2026-10-01T00:00:00Z",
+    lastLoginAt: null,
+  };
+  const admin = { ...bob, id: "u1", userName: "admin", displayName: null, roleIds: ["r1"], isAdmin: true, lastLoginAt: "2026-11-15T01:00:00Z" };
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/users`]: () => ({ body: [admin, bob] }),
+      [`GET ${SERVER}/api/users/u2`]: () => ({ body: bob }),
+      [`PUT ${SERVER}/api/users/u2`]: (r) => {
+        const body = JSON.parse(r.body!);
+        puts.push(body);
+        bob = { ...bob, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== null)) };
+        return { body: bob };
+      },
+      [`POST ${SERVER}/api/users/u2/reset-password`]: (r) => (resets.push(JSON.parse(r.body!)), { status: 204 }),
+      [`GET ${SERVER}/api/roles`]: {
+        body: [
+          { id: "r1", name: "Administrators", description: "Everything", permissions: ["*"], createdAt: "" },
+          { id: "r2", name: "Moderators", description: "Start and stop", permissions: ["shard.*.view", "shard.*.power", "-shard.*.delete"], createdAt: "" },
+        ],
+      },
+      [`GET ${SERVER}/api/invites`]: {
+        body: [
+          {
+            id: "i1",
+            userName: "carol",
+            displayName: null,
+            roleIds: ["r2"],
+            createdByName: "admin",
+            createdAt: "2026-11-14T00:00:00Z",
+            expiresAt: "2026-11-17T00:00:00Z",
+            accepted: false,
+            acceptedAt: null,
+            status: "pending",
+          },
+        ],
+      },
+      [`POST ${SERVER}/api/invites`]: (r) => {
+        const body = JSON.parse(r.body!);
+        created.push(body);
+        return { body: { invite: { id: "i2", userName: body.userName, roleIds: body.roleIds, status: "pending", createdAt: "", expiresAt: "" }, token: "abc 123" } };
+      },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-access");
+  await app.waitFor("user-bob");
+  expect(app.texts()).toContain("(you)"); // signed in as admin
+  expect(app.texts()).toContain("Moderators");
+  expect(app.texts()).toContain("bob · never signed in");
+
+  // Roles: members and permissions.
+  await app.press("tab-roles");
+  await app.waitFor("text:Members: Bob");
+  await app.press("role-Moderators");
+  await app.waitFor("text:-shard.*.delete");
+
+  // Invites: one pending; a new one shows its link once.
+  await app.press("tab-invites");
+  // The date is in the device's own format.
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Moderators · expires ") && t.endsWith(" · by admin")));
+  await app.press("text:New invite");
+  await app.type("invite-username", "dave");
+  await app.press("text:Create invite");
+  await app.waitFor("text:Pick at least one role: an account with none can't do anything.");
+  await app.press("invite-role-Moderators");
+  await app.press("expiry-168");
+  await app.press("text:Create invite");
+  await app.waitFor("text:Invite link for dave");
+  expect(app.texts()).toContain(`${SERVER}/invite?token=abc%20123`);
+  expect(created).toEqual([{ userName: "dave", displayName: null, roleIds: ["r2"], expiresInHours: 168 }]);
+  await app.press("invite-done");
+  await app.waitFor("tab-invites");
+
+  // A user: add a role and suspend (confirmed), then reset the password.
+  await app.press("tab-users");
+  await app.press("user-bob");
+  await app.waitFor("role-check-Administrators");
+  await app.press("role-check-Administrators");
+  await app.press("text:Suspended (can't sign in)");
+  await app.press("text:Save 2 changes");
+  await app.waitFor("text:Suspend Bob?");
+  await app.press("confirm-go");
+  await app.waitFor("text:Saved.");
+  expect(puts).toEqual([
+    { displayName: null, email: null, roleIds: ["r2", "r1"], suspended: true, passwordExpires: null, requirePasswordChange: null },
+  ]);
+
+  await app.press("reset-password");
+  await app.type("prompt-input", "n3w-pass!");
+  await app.press("prompt-confirm");
+  await app.waitFor("text:Password changed. They've been signed out.");
+  expect(resets).toEqual([{ newPassword: "n3w-pass!" }]);
+});
+
+test("adding a user sends the form and opens the new account", async () => {
+  const posted: unknown[] = [];
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/users`]: { body: [] },
+      [`GET ${SERVER}/api/roles`]: { body: [{ id: "r2", name: "Moderators", description: null, permissions: [], createdAt: "" }] },
+      [`GET ${SERVER}/api/invites`]: { status: 403 },
+      [`POST ${SERVER}/api/users`]: (r) => {
+        posted.push(JSON.parse(r.body!));
+        return { body: { id: "u9", userName: "erin", displayName: "Erin", email: null, roleIds: ["r2"], isAdmin: false, suspended: false, passwordExpires: false, requirePasswordChange: true, createdAt: null, lastLoginAt: null } };
+      },
+      [`GET ${SERVER}/api/users/u9`]: {
+        body: { id: "u9", userName: "erin", displayName: "Erin", email: null, roleIds: ["r2"], isAdmin: false, suspended: false, passwordExpires: false, requirePasswordChange: true, createdAt: null, lastLoginAt: null },
+      },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-access");
+  await app.press("text:Add user");
+  await app.type("new-username", "erin");
+  await app.type("new-password", "Temp-pass-1");
+  await app.type("display-name", "Erin");
+  await app.press("role-check-Moderators");
+  await app.press("text:Add user");
+  await app.waitFor("text:Delete user");
+  expect(posted).toEqual([
+    { userName: "erin", password: "Temp-pass-1", displayName: "Erin", email: null, roleIds: ["r2"], passwordExpires: false, requirePasswordChange: true },
+  ]);
+
+  // Invites refused: only that tab says so.
+  await app.back();
+  await app.press("tab-invites");
+  await app.waitFor("text:Your AMP account can't manage invites.");
 });
