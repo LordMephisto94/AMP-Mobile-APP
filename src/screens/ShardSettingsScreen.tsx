@@ -385,7 +385,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
 }
 
 /** One setting: its label, help, the control its input type asks for, and any problem. */
-function SettingRow(props: {
+export function SettingRow(props: {
   spec: SettingSpec;
   label: string;
   description: string;

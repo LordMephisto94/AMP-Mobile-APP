@@ -32,6 +32,8 @@ export type Route =
   | { name: "access"; serverId: string; tab?: "users" | "roles" | "invites" }
   | { name: "user"; serverId: string; userId?: string }
   | { name: "invite"; serverId: string }
+  /** The panel's own settings, updates, licence and your account. */
+  | { name: "settings"; serverId: string }
   /** The panel's audit log for a server. */
   | { name: "activity"; serverId: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };

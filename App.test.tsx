@@ -682,8 +682,7 @@ test("shows player analytics, finds a player and opens their history", async () 
   await app.waitFor("text:203.0.113.7:2001"); // the address on the card
   await app.press("main-menu");
   await app.waitFor("text:Main Menu");
-  await app.press("nav-settings").catch(() => {}); // not in the app yet: stays open
-  expect(app.texts()).toContain("Main Menu");
+  expect(app.texts()).not.toContain("SOON"); // every section is in the app
   await app.press("nav-analytics");
   await app.waitFor("text:TOP PLAYERS");
   // Headline figures (minutes as a string), changes, countries and the busiest time.
@@ -1277,4 +1276,150 @@ test("adding a user sends the form and opens the new account", async () => {
   await app.back();
   await app.press("tab-invites");
   await app.waitFor("text:Your AMP account can't manage invites.");
+});
+
+test("settings shows your account, updates, licence and the panel's settings, and saves changes", async () => {
+  const saved: unknown[] = [];
+  const passwords: unknown[] = [];
+  const actions: string[] = [];
+  let values: Record<string, string> = { "smtp.enabled": "false", "smtp.host": "", "smtp.password": "", "security.minLength": "8" };
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/assets/i18n/en.json`]: {
+        body: {
+          settings: {
+            category: { email: "Email", security: "Security" },
+            smtp: { enabled: "Send email", host: "SMTP server", password: "SMTP password", hostHelp: "Where mail is sent from" },
+            security: { minLength: "Minimum password length" },
+            actions: { "smtp.test": "Send a test email" },
+          },
+        },
+      },
+      [`GET ${SERVER}/api/settings/manifest`]: () => ({
+        body: {
+          specs: [
+            { fieldName: "smtp.enabled", displayName: "settings.smtp.enabled", category: "settings.category.email", inputType: "checkbox", order: 1 },
+            {
+              fieldName: "smtp.host",
+              displayName: "settings.smtp.host",
+              description: "settings.smtp.hostHelp",
+              category: "settings.category.email",
+              inputType: "text",
+              order: 2,
+              conditionSetting: "smtp.enabled",
+              conditionValue: "true",
+            },
+            {
+              fieldName: "smtp.password",
+              displayName: "settings.smtp.password",
+              category: "settings.category.email",
+              inputType: "password",
+              isSecret: true,
+              order: 3,
+              conditionSetting: "smtp.enabled",
+              conditionValue: "true",
+            },
+            { fieldName: "security.minLength", displayName: "settings.security.minLength", category: "settings.category.security", inputType: "number", order: 1 },
+          ],
+          values,
+          secretHasValue: { "smtp.password": true },
+          actions: [{ id: "smtp.test", category: "settings.category.email", subcategory: "" }],
+          unavailable: { "security.minLength": "settings.lockedHere" },
+        },
+      }),
+      [`POST ${SERVER}/api/settings/values`]: (r) => {
+        const body = JSON.parse(r.body!);
+        saved.push(body);
+        values = { ...values, ...body };
+        return { body: { notices: [] } };
+      },
+      [`POST ${SERVER}/api/settings/actions/smtp.test`]: () => (actions.push("smtp.test"), { body: { message: "Sent to admin@example.test" } }),
+      [`GET ${SERVER}/api/Updates/check`]: {
+        body: {
+          currentVersion: "3.0.1",
+          stream: "Mainline",
+          availableStreams: ["Mainline"],
+          latestVersion: "3.0.2",
+          updateAvailable: true,
+          mandatory: false,
+          codename: "Ember",
+          releaseNotesUrl: "https://example.test/notes",
+          supervised: true,
+          canApply: true,
+          note: null,
+          spiresBehind: [{ spireId: "sp2", name: "melb-vps", version: "3.0.0", online: true }],
+          packageManaged: false,
+        },
+      },
+      [`GET ${SERVER}/api/licence`]: {
+        body: {
+          licences: [{ spireName: "amp3", productName: "AMP", gradeName: "Professional", state: "Valid", standing: "Active", expires: null, graceEnds: null, shardLimit: 10 }],
+          shardCount: 4,
+          otherInstallationShards: 0,
+          licensed: true,
+          confirmed: true,
+          shardLimit: 10,
+          lastVerifiedAt: null,
+        },
+      },
+      [`GET ${SERVER}/api/Profile`]: { body: { id: "u1", userName: "admin", displayName: "Ironwing Admin", email: "admin@example.test", emailConfirmed: true } },
+      [`GET ${SERVER}/api/Profile/sessions`]: {
+        body: [
+          { id: "s1", createdAt: "", lastSeenAt: "2026-11-15T03:00:00Z", expiresAt: "", remoteIp: "198.51.100.4", userAgent: "okhttp", isCurrent: true },
+          {
+            id: "s2",
+            createdAt: "",
+            lastSeenAt: "2026-11-14T03:00:00Z",
+            expiresAt: "",
+            remoteIp: "198.51.100.9",
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+            isCurrent: false,
+          },
+        ],
+      },
+      [`POST ${SERVER}/api/Profile/password`]: (r) => (passwords.push(JSON.parse(r.body!)), { status: 204 }),
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-settings");
+  await app.waitFor("text:Ironwing Admin");
+  expect(app.texts()).toContain("Chrome on Windows");
+  expect(app.texts()).toContain("This app");
+  await app.waitFor("text:3.0.2 available");
+  expect(app.texts()).toContain("melb-vps is still on 3.0.0.");
+  expect(app.texts()).toContain("AMP Professional Edition");
+  expect(app.texts()).toContain("4 instances of 10 allowed");
+
+  // Settings in the panel's words; the SMTP fields show once email is on.
+  await app.press("group-Email");
+  await app.waitFor("text:Send email");
+  expect(app.texts()).not.toContain("SMTP server");
+  await app.press("text:Send email");
+  await app.waitFor("text:SMTP server");
+  expect(app.texts()).toContain("Where mail is sent from");
+  await app.type("setting-smtp.host", "mail.example.test");
+  await app.press("text:Save 2 changes");
+  await app.waitFor("text:Saved.");
+  expect(saved).toEqual([{ "smtp.enabled": "true", "smtp.host": "mail.example.test" }]);
+
+  await app.press("action-smtp.test");
+  await app.waitFor("text:Send a test email: Sent to admin@example.test");
+
+  // Your password.
+  await app.press("change-password");
+  await app.type("current-password", "old");
+  await app.type("new-password", "new-1");
+  await app.type("repeat-password", "new-2");
+  await app.press("save-password");
+  await app.waitFor("text:The new passwords don't match.");
+  await clearField(app, "repeat-password");
+  await app.type("repeat-password", "new-1");
+  await app.press("save-password");
+  await app.waitFor("text:Password changed. Your other sessions were signed out.");
+  expect(passwords).toEqual([{ currentPassword: "old", newPassword: "new-1" }]);
 });

@@ -14,6 +14,7 @@ import { OverviewScreen } from "./src/screens/OverviewScreen";
 import { PlayerScreen } from "./src/screens/PlayerScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
+import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
 import { ShardSettingsScreen } from "./src/screens/ShardSettingsScreen";
 import { ShardsScreen } from "./src/screens/ShardsScreen";
@@ -61,6 +62,8 @@ function screen(route: Route) {
       return <UserScreen serverId={route.serverId} userId={route.userId} />;
     case "invite":
       return <InviteScreen serverId={route.serverId} />;
+    case "settings":
+      return <SettingsScreen serverId={route.serverId} />;
     case "activity":
       return <ActivityScreen serverId={route.serverId} />;
     case "fileEdit":
