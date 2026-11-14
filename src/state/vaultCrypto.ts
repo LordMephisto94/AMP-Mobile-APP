@@ -16,7 +16,8 @@ export interface Sealed {
   ct: string;
 }
 
-export interface VaultBlob {
+/** A vault sealed by the PIN alone (devices without a usable key store). */
+export interface VaultBlobV1 {
   v: 1;
   salt: string;
   rounds: number;
@@ -24,11 +25,34 @@ export interface VaultBlob {
   data: Sealed;
 }
 
+/**
+ * A vault bound to this device. A random data key seals the sessions. It's kept twice,
+ * each time sealed by a key in the device's key store that never leaves it:
+ * `pinWrap` also needs the PIN (the data key sealed under the PIN's key first), and
+ * `quickWrap`, when there is one, opens only within a minute of the phone being unlocked.
+ * A copy of this file is useless anywhere else.
+ */
+export interface VaultBlobV2 {
+  v: 2;
+  salt: string;
+  rounds: number;
+  pinWrap: string;
+  quickWrap?: string;
+  data: Sealed;
+}
+
+export type VaultBlob = VaultBlobV1 | VaultBlobV2;
+
+/** The data key of a v2 vault, from its 32 raw bytes. */
+export async function importDataKey(raw: Uint8Array): Promise<VaultKey> {
+  return subtle().importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
 /** An AES-GCM key from WebCrypto; opaque here (NSH's types declare the class, not the type). */
 export type VaultKey = object;
 
 interface Subtle {
-  importKey(format: "raw", data: Uint8Array, algorithm: "PBKDF2", extractable: false, usages: string[]): Promise<VaultKey>;
+  importKey(format: "raw", data: Uint8Array, algorithm: "PBKDF2" | "AES-GCM", extractable: false, usages: string[]): Promise<VaultKey>;
   deriveKey(algorithm: object, base: VaultKey, derived: object, extractable: false, usages: string[]): Promise<VaultKey>;
   encrypt(algorithm: object, key: VaultKey, data: Uint8Array): Promise<ArrayBuffer>;
   decrypt(algorithm: object, key: VaultKey, data: Uint8Array): Promise<ArrayBuffer>;
@@ -78,14 +102,14 @@ export async function unseal<T>(key: VaultKey, box: Sealed): Promise<T> {
 }
 
 /** A new vault for `pin` holding `data`, with the key that opens it. */
-export async function createVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; key: VaultKey }> {
+export async function createVault(pin: string, data: unknown): Promise<{ blob: VaultBlobV1; key: VaultKey }> {
   const salt = randomBytes(16);
   const key = await deriveKey(pin, salt);
   return { key, blob: { v: 1, salt: toB64(salt), rounds: PBKDF2_ROUNDS, check: await seal(key, CHECK), data: await seal(key, data) } };
 }
 
 /** The key for `pin`, or null when the PIN is wrong. Throws only for a damaged vault. */
-export async function keyFor(blob: VaultBlob, pin: string): Promise<VaultKey | null> {
+export async function keyFor(blob: VaultBlobV1, pin: string): Promise<VaultKey | null> {
   const key = await deriveKey(pin, fromB64(blob.salt), blob.rounds);
   try {
     const check = await unseal<string>(key, blob.check);
@@ -98,5 +122,8 @@ export async function keyFor(blob: VaultBlob, pin: string): Promise<VaultKey | n
 export function isVaultBlob(value: unknown): value is VaultBlob {
   const v = value as VaultBlob;
   // A vault claiming fewer rounds than the app uses would make guessing cheaper: refuse it.
-  return !!v && v.v === 1 && typeof v.salt === "string" && typeof v.rounds === "number" && v.rounds >= PBKDF2_ROUNDS && !!v.check?.iv && !!v.data?.iv;
+  if (!v || typeof v.salt !== "string" || typeof v.rounds !== "number" || v.rounds < PBKDF2_ROUNDS || !v.data?.iv) return false;
+  if (v.v === 1) return !!v.check?.iv;
+  if (v.v === 2) return typeof v.pinWrap === "string" && (v.quickWrap === undefined || typeof v.quickWrap === "string");
+  return false;
 }

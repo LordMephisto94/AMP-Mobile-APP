@@ -2,6 +2,7 @@ import { cleanup, effect, Image, type JSX, lifecycle, Overlay, signal, Text, Vie
 import mark from "../../assets/amp-mark.png";
 import {
   autoLockSeconds,
+  canQuickUnlock,
   declinePin,
   eraseVault,
   hasPin,
@@ -10,6 +11,7 @@ import {
   locked,
   MAX_PIN_TRIES,
   pinSetupNeeded,
+  quickUnlock,
   setupPin,
   unlock,
   validatePin,
@@ -78,6 +80,12 @@ function LockScreen() {
   const busy = signal(false);
 
   const tick = async () => wait.set(await lockoutRemaining());
+  // Straight in when the phone was unlocked within the last minute (fingerprint, face or
+  // its own PIN): tried when the lock shows and whenever the app comes back to the front.
+  effect(() => {
+    if (lifecycle() !== "active" || !canQuickUnlock()) return;
+    quickUnlock().catch(() => {});
+  });
   effect(() => {
     tick();
     const t = setInterval(() => wait() > 0 && wait.set(wait() - 1), 1000);
@@ -95,7 +103,19 @@ function LockScreen() {
         message.set(null);
         return;
       }
-      if (result.erased) return; // the app is unlocked, with the saved sign-ins gone
+      if (result.erased) {
+        // The app is unlocked, with the saved sign-ins gone.
+        if (result.deviceLost) {
+          await confirm({
+            title: "Saved sign-ins cleared",
+            message: "They were locked to a phone key that's no longer here (a reset, or a copy from another phone). Sign in to your servers again.",
+            icon: "🔑",
+            cancelLabel: null,
+            actions: [{ id: "ok", label: "OK", tone: "primary" }],
+          });
+        }
+        return;
+      }
       wait.set(result.waitSeconds);
       message.set(
         result.wrong
@@ -126,7 +146,9 @@ function LockScreen() {
         <View class="items-center gap-3">
           <Image src={mark} accessibilityLabel="AMP" class="h-14 w-14 object-contain" />
           <Text class="text-2xl font-bold text-foreground">AMP Mobile is locked</Text>
-          <Text class="text-center text-sm text-muted-foreground">Enter your PIN to open your saved servers.</Text>
+          <Text class="text-center text-sm text-muted-foreground">
+            {canQuickUnlock() ? "Enter your PIN, or unlock your phone and come straight back." : "Enter your PIN to open your saved servers."}
+          </Text>
         </View>
         <If when={message()}>{(m) => <Text testID="lock-message" class="text-center text-sm text-destructive">{m()}</Text>}</If>
         <If when={wait() > 0}>

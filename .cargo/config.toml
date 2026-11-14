@@ -1,0 +1,5 @@
+# NSH builds a test runner and development hosts from source once the app has a Rust
+# crate. Debug-built dependencies make NSH's own crypto far too slow (the vault's PIN key
+# takes 600,000 PBKDF2 rounds), so dependencies are optimized even in development builds.
+[profile.dev.package."*"]
+opt-level = 3

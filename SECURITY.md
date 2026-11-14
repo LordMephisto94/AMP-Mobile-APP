@@ -9,7 +9,7 @@ sensitive).
 | What | Where | Protection |
 |---|---|---|
 | Passwords | Nowhere | Sent once to your panel at sign-in, then dropped |
-| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM, key derived from your app PIN (PBKDF2-SHA-256, 600,000 rounds, random salt). The PIN is never stored |
+| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM. On Android 12+ the data key is locked by keys in the phone's Keystore (secure hardware) that never leave it: one needs your PIN too (PBKDF2-SHA-256, 600,000 rounds), one works only within a minute of unlocking the phone. Elsewhere: PIN-derived key alone. The PIN is never stored |
 | Session tokens you don't keep | Memory only | Gone when the app closes or locks |
 | Server list (name, address, user name) | `amp.servers` in the app's storage | Not secret, so not encrypted |
 | Wrong-PIN count | `amp.vault.lockout` | Survives restarts |
@@ -92,9 +92,11 @@ code in the app. Links and images the panel names are checked before use:
 - **Release signing.** Builds are signed with this computer's debug key. Make a release key (`keytool`), keep it and
   its password safe and backed up, and build with `nsh package --keystore …`. Changing keys later means
   uninstalling the app first.
-- **No hardware keystore.** NSH gives this app no access to Android Keystore or the iOS Keychain, so the vault's
-  strength is your PIN's. Someone holding a copy of the vault file can try PINs offline; at 600,000 rounds a
-  6-digit PIN slows that down but doesn't stop a determined attacker. Use more digits (up to 12).
+- **PIN strength where there's no key store.** On Android 12 and newer the vault is bound to the phone's Keystore,
+  so a copy of the file is useless elsewhere. On older phones (and desktops) the vault is only as strong as the PIN.
+- **No in-app fingerprint prompt.** `nsh package` can't declare Android's `USE_BIOMETRIC` permission, so instead the
+  vault opens without the PIN within a minute of unlocking the phone (by fingerprint, face or the phone's PIN). A
+  real prompt needs the app moved into its own Android Studio project. iOS (Keychain, Face ID) needs a Mac.
 - **Screenshots.** NSH can't block screenshots or screen recording (Android's `FLAG_SECURE`).
 - **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
 - **Permissions.** NSH's Android runtime adds the notifications permission; the app never uses it, and its

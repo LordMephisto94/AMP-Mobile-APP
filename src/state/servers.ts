@@ -2,7 +2,37 @@ import { signal, Storage } from "nsh";
 import { renew, logout as apiLogout } from "../api/auth";
 import { AmpClient, AmpError } from "../api/client";
 import type { AuthResponse } from "../api/types";
-import { createVault, isVaultBlob, keyFor, seal, unseal, type VaultBlob, type VaultKey } from "./vaultCrypto";
+import { DeviceKey } from "ampmobile/native";
+import {
+  createVault,
+  deriveKey,
+  fromB64,
+  importDataKey,
+  isVaultBlob,
+  keyFor,
+  PBKDF2_ROUNDS,
+  randomBytes,
+  type Sealed,
+  seal,
+  toB64,
+  unseal,
+  type VaultBlob,
+  type VaultBlobV2,
+  type VaultKey,
+} from "./vaultCrypto";
+
+/** The device key store's keys for the vault: one used with the PIN, one for quick unlock. */
+const BOUND_ALIAS = "amp.vault.bound";
+const QUICK_ALIAS = "amp.vault.quick";
+
+/** Whether this device keeps keys for the vault (Android 12+); never throws. */
+function deviceAvailable(): boolean {
+  try {
+    return DeviceKey.available();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Saved AMP servers and their sessions.
@@ -58,6 +88,8 @@ export const serversReady = signal(false);
 export const hasPin = signal(false);
 /** The vault is closed: the lock screen shows and no session is in memory. */
 export const locked = signal(false);
+/** The vault is bound to this phone's key store (copies elsewhere can't be opened). */
+export const bound = signal(false);
 /** Sessions the user asked to keep are waiting for a PIN to be set before they can be saved. */
 export const pinSetupNeeded = signal(false);
 /** Seconds in the background before the app locks itself. */
@@ -89,6 +121,8 @@ let pinCheck: Promise<unknown> = Promise.resolve();
 /** Renewals in flight, one per server, shared by everyone who asks. */
 const renewing = new Map<string, Promise<RenewOutcome>>();
 let vaultKey: VaultKey | null = null;
+/** A device-bound vault's data key, while unlocked (to give it its quick way in). */
+let dataKeyRaw: Uint8Array | null = null;
 
 export function serverById(id: string): SavedServer | undefined {
   return servers().find((s) => s.id === id);
@@ -383,12 +417,14 @@ async function countWrongPin(lockout: Lockout): Promise<UnlockResult> {
 /** Sets the first PIN and seals the sessions waiting to be kept. */
 export async function setupPin(pin: string): Promise<void> {
   validatePin(pin);
-  const { blob, key } = await createVault(pin, rememberedSessions());
-  vaultBlob = blob;
-  vaultKey = key;
-  await Storage.setItem(VAULT_KEY, JSON.stringify(blob));
+  const made = await newVault(pin, rememberedSessions());
+  vaultBlob = made.blob;
+  vaultKey = made.key;
+  dataKeyRaw = made.raw;
+  await Storage.setItem(VAULT_KEY, JSON.stringify(made.blob));
   await Storage.removeItem(LOCKOUT_KEY);
   hasPin.set(true);
+  bound.set(made.blob.v === 2);
   pinSetupNeeded.set(false);
 }
 
@@ -399,7 +435,9 @@ export async function declinePin(): Promise<void> {
   await persistServers();
 }
 
-export type UnlockResult = { ok: true } | { ok: false; wrong: boolean; triesLeft: number; waitSeconds: number; erased: boolean };
+export type UnlockResult =
+  | { ok: true }
+  | { ok: false; wrong: boolean; triesLeft: number; waitSeconds: number; erased: boolean; deviceLost?: boolean };
 
 /** Seconds until another PIN may be tried (0: now). */
 export async function lockoutRemaining(): Promise<number> {
@@ -420,27 +458,149 @@ export function unlock(pin: string): Promise<UnlockResult> {
     if (lockout.until > Date.now()) {
       return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES - lockout.failures, waitSeconds: Math.ceil((lockout.until - Date.now()) / 1000), erased: false };
     }
-    const key = await keyFor(blob, pin);
-    if (!key) return countWrongPin(lockout);
-    let saved: Record<string, { token: string; expiration: string }> = {};
+    let opened: { key: VaultKey; raw: Uint8Array | null } | null;
     try {
-      saved = await unseal(key, blob.data);
-    } catch {
-      // The sessions can't be read (altered on disk): start them afresh behind the same PIN.
-      saved = {};
+      opened = await openWithPin(blob, pin);
+    } catch (e) {
+      // The device's key is gone (a reset, or this file came from another phone): what it
+      // sealed can never be opened, so the saved sign-ins are cleared.
+      if (String((e as Error).message).startsWith("device:")) {
+        await eraseVault();
+        return { ok: false, wrong: false, triesLeft: 0, waitSeconds: 0, erased: true, deviceLost: true };
+      }
+      throw e;
     }
+    if (!opened) return countWrongPin(lockout);
     await Storage.removeItem(LOCKOUT_KEY);
-    // Locked again, erased or replaced while the key was being made: stay locked.
     if (epoch !== lockEpoch || vaultBlob !== blob) return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES, waitSeconds: 0, erased: false };
-    vaultKey = key;
-    for (const [id, s] of Object.entries(saved ?? {})) {
-      if (serverById(id) && typeof s?.token === "string" && typeof s?.expiration === "string") applySession(id, s);
-    }
-    locked.set(false);
-    await persistSessions();
-    renewSessions(true);
+    await finishUnlock(blob, opened.key, opened.raw);
+    // A PIN-only vault moves to a device-bound one at the first chance.
+    if (blob.v === 1 && deviceAvailable()) await rebuildVault(pin);
     return { ok: true } as UnlockResult;
   });
+}
+
+/**
+ * Opens the vault without the PIN: works only within a minute of the phone being
+ * unlocked (fingerprint, face or the phone's own PIN), on the phone that sealed it.
+ * False when it can't (the lock screen then asks for the PIN).
+ */
+export function quickUnlock(): Promise<boolean> {
+  return onePinCheckAtATime(async () => {
+    const blob = vaultBlob;
+    if (!blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
+    const epoch = lockEpoch;
+    let raw: Uint8Array;
+    try {
+      raw = fromB64(await DeviceKey.open(QUICK_ALIAS, blob.quickWrap));
+    } catch (e) {
+      const why = String((e as Error)?.message ?? e);
+      // Not unlocked recently: just ask for the PIN. A key that's gone or invalidated
+      // (the phone's lock was changed): drop the quick way in; the PIN still works.
+      if (!why.startsWith("auth")) {
+        const { quickWrap: _gone, ...rest } = blob;
+        vaultBlob = rest;
+        await Storage.setItem(VAULT_KEY, JSON.stringify(rest));
+      }
+      return false;
+    }
+    if (epoch !== lockEpoch || vaultBlob !== blob) return false;
+    await finishUnlock(blob, await importDataKey(raw), raw);
+    return true;
+  });
+}
+
+/** Whether the lock screen may try `quickUnlock`. */
+export function canQuickUnlock(): boolean {
+  return !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
+}
+
+/** The vault's key from the PIN, or null for a wrong PIN; throws "device: …" when the device's key is gone. */
+async function openWithPin(blob: VaultBlob, pin: string): Promise<{ key: VaultKey; raw: Uint8Array | null } | null> {
+  if (blob.v === 1) {
+    const key = await keyFor(blob, pin);
+    return key ? { key, raw: null } : null;
+  }
+  let pinBox: Sealed;
+  try {
+    pinBox = JSON.parse(atob(await DeviceKey.open(BOUND_ALIAS, blob.pinWrap)));
+  } catch (e) {
+    throw new Error(`device: ${String((e as Error)?.message ?? e)}`);
+  }
+  const pinKey = await deriveKey(pin, fromB64(blob.salt), blob.rounds);
+  let rawB64: string;
+  try {
+    rawB64 = await unseal<string>(pinKey, pinBox);
+  } catch {
+    return null; // GCM refuses a wrong key: a wrong PIN
+  }
+  const raw = fromB64(rawB64);
+  return { key: await importDataKey(raw), raw };
+}
+
+/** Takes the sessions out of an opened vault and unlocks the app. */
+async function finishUnlock(blob: VaultBlob, key: VaultKey, raw: Uint8Array | null): Promise<void> {
+  let saved: Record<string, { token: string; expiration: string }> = {};
+  try {
+    saved = await unseal(key, blob.data);
+  } catch {
+    // The sessions can't be read (altered on disk): start them afresh behind the same PIN.
+    saved = {};
+  }
+  vaultKey = key;
+  dataKeyRaw = raw;
+  for (const [id, s] of Object.entries(saved ?? {})) {
+    if (serverById(id) && typeof s?.token === "string" && typeof s?.expiration === "string") applySession(id, s);
+  }
+  locked.set(false);
+  await persistSessions();
+  await addQuickWrap();
+  renewSessions(true);
+}
+
+/**
+ * Gives a device-bound vault its quick way in, if it has none yet. The quick key only
+ * works within a minute of the phone being unlocked, sealing included, so this is tried
+ * at every unlock until it succeeds.
+ */
+async function addQuickWrap(): Promise<void> {
+  const blob = vaultBlob;
+  if (!blob || blob.v !== 2 || blob.quickWrap || !dataKeyRaw) return;
+  try {
+    const quickWrap = await DeviceKey.seal(QUICK_ALIAS, toB64(dataKeyRaw), true);
+    if (vaultBlob !== blob) return;
+    vaultBlob = { ...blob, quickWrap };
+    await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
+  } catch {
+    // Not unlocked recently enough, or no screen lock: next time.
+  }
+}
+
+/** A new vault for `pin`: bound to the device where it can be, PIN-only otherwise. */
+async function newVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; key: VaultKey; raw: Uint8Array | null }> {
+  if (!deviceAvailable()) {
+    const { blob, key } = await createVault(pin, data);
+    return { blob, key, raw: null };
+  }
+  const raw = randomBytes(32);
+  const key = await importDataKey(raw);
+  const salt = randomBytes(16);
+  const pinKey = await deriveKey(pin, salt);
+  const pinBox = await seal(pinKey, toB64(raw));
+  const pinWrap = await DeviceKey.seal(BOUND_ALIAS, btoa(JSON.stringify(pinBox)), false);
+  const blob: VaultBlobV2 = { v: 2, salt: toB64(salt), rounds: PBKDF2_ROUNDS, pinWrap, data: await seal(key, data) };
+  return { blob, key, raw };
+}
+
+/** Re-makes the vault (a new PIN, or moving to a device-bound one), keeping the sessions. */
+async function rebuildVault(pin: string): Promise<void> {
+  const made = await newVault(pin, rememberedSessions());
+  vaultBlob = made.blob;
+  vaultKey = made.key;
+  dataKeyRaw = made.raw;
+  await Storage.setItem(VAULT_KEY, JSON.stringify(made.blob));
+  bound.set(made.blob.v === 2);
+  await addQuickWrap();
 }
 
 /** Closes the vault: every session leaves memory until the PIN is entered again. */
@@ -449,6 +609,7 @@ export function lockNow(): void {
   lockEpoch++;
   generation++;
   vaultKey = null;
+  dataKeyRaw = null;
   sessions.clear();
   clients.clear();
   touched();
@@ -464,17 +625,19 @@ export function changePin(oldPin: string, newPin: string): Promise<boolean> {
     // Wrong current PINs count here too, and wait the same way.
     const lockout = await readLockout();
     if (lockout.until > Date.now()) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil((lockout.until - Date.now()) / 1000)} s.`);
-    const key = await keyFor(current, oldPin);
-    if (!key) {
+    let opened: { key: VaultKey; raw: Uint8Array | null } | null;
+    try {
+      opened = await openWithPin(current, oldPin);
+    } catch {
+      throw new Error("This phone's key for the saved sign-ins is gone. Remove the PIN and sign in again.");
+    }
+    if (!opened) {
       const result = await countWrongPin(lockout);
       if (!result.ok && result.erased) throw new Error("Too many wrong PINs: the PIN and saved sign-ins were erased.");
       return false;
     }
-    const { blob, key: fresh } = await createVault(newPin, rememberedSessions());
     if (vaultBlob !== current) return false;
-    vaultBlob = blob;
-    vaultKey = fresh;
-    await Storage.setItem(VAULT_KEY, JSON.stringify(blob));
+    await rebuildVault(newPin);
     await Storage.removeItem(LOCKOUT_KEY);
     return true;
   });
@@ -489,6 +652,11 @@ export async function eraseVault(): Promise<void> {
   generation++;
   vaultBlob = null;
   vaultKey = null;
+  dataKeyRaw = null;
+  if (deviceAvailable()) {
+    DeviceKey.forget(BOUND_ALIAS).catch(() => {});
+    DeviceKey.forget(QUICK_ALIAS).catch(() => {});
+  }
   sessions.clear();
   clients.clear();
   touched();
@@ -497,6 +665,7 @@ export async function eraseVault(): Promise<void> {
   await Storage.removeItem(LOCKOUT_KEY);
   await persistServers();
   hasPin.set(false);
+  bound.set(false);
   locked.set(false);
   pinSetupNeeded.set(false);
 }
@@ -529,6 +698,7 @@ export async function loadServers(): Promise<void> {
     if (isVaultBlob(parsedVault)) {
       vaultBlob = parsedVault;
       hasPin.set(true);
+      bound.set(parsedVault.v === 2);
       locked.set(true);
     }
   } catch {

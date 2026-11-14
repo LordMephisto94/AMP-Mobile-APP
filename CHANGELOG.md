@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3
+
+- Saved sign-ins are locked to the phone's secure hardware (Android Keystore, Android 12+): a copy of the vault from
+  a backup or another phone can't be opened, even with the PIN. Existing vaults move over at the next PIN unlock.
+- Quick unlock: within a minute of unlocking your phone (fingerprint, face or the phone's PIN), the app opens without
+  its PIN. It turns on at the first PIN unlock made within that minute.
+- If the phone's key is gone (a reset, or a copy from another phone), the saved sign-ins are cleared with a message.
+- The app now includes a small Rust crate (`native/`); building needs Rust (rustup) with the Android targets and the
+  Android NDK.
+
 ## 0.1.2
 
 Bug fixes from a second audit (edge cases and races). See `SECURITY.md` for the list.

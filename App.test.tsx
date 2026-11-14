@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.2");
+  await app.waitFor("text:AMP Mobile 0.1.3");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.2"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.3"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -1885,4 +1885,83 @@ test("typing during a save stays unsaved, and an edit survives the app locking",
   await enterPin(app);
   await app.waitFor("draft-restored");
   expect(app.value("file-content")).toBe("motd=Hello\na=1\nb=2\n");
+});
+
+// ---- The vault bound to the device's key store --------------------------------------------------
+
+/** A stand-in for the phone's key store: sealing is reversible here, and the quick key opens only while `recent` holds. */
+function fakeDeviceKeys(state: { recent: boolean; keys: Set<string> }) {
+  const seal = async (alias: string, data: string, quick: boolean) => {
+    if (quick && !state.recent) throw new Error("auth: not unlocked recently");
+    state.keys.add(alias);
+    return `${alias}:${data}`;
+  };
+  const openIt = async (alias: string, sealed: string) => {
+    if (!state.keys.has(alias)) throw new Error("missing: no such key");
+    if (alias.endsWith("quick") && !state.recent) throw new Error("auth: not unlocked recently");
+    return sealed.slice(alias.length + 1);
+  };
+  return {
+    "ampmobile/native": {
+      "DeviceKey.available": true,
+      "DeviceKey.seal": seal,
+      "DeviceKey.open": openIt,
+      "DeviceKey.forget": async (alias: string) => state.keys.delete(alias),
+    },
+  };
+}
+
+test("on a phone with a key store, the vault is bound to it and opens on a recent phone unlock", async () => {
+  const state = { recent: true, keys: new Set<string>() };
+  const storage = { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) };
+  const app = await open("./App.tsx", { storage, network: unlockedHome, modules: fakeDeviceKeys(state) });
+  await app.waitFor("text:Set a PIN to stay signed in");
+  await enterPin(app, "135790");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 2);
+  const vault = JSON.parse(app.storage()["amp.vault"]!);
+  expect(vault.pinWrap.startsWith("amp.vault.bound:")).toBe(true);
+  expect(app.storage()["amp.vault"]).not.toContain("tok-1");
+
+  // The quick way in appears at the next unlock (the phone was unlocked recently).
+  await app.press("security");
+  await app.waitFor("text:App PIN");
+  expect(app.texts().some((t) => t.includes("locked to this phone's secure hardware"))).toBe(true);
+  await app.press("lock-now");
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => !!JSON.parse(app.storage()["amp.vault"]!).quickWrap);
+
+  // Locked again, then straight back in: no PIN needed.
+  await app.press("lock-now");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  expect(app.texts()).toContain("App PIN");
+});
+
+test("without a recent phone unlock the PIN is asked, and a lost phone key clears the vault", async () => {
+  const state = { recent: false, keys: new Set<string>(["amp.vault.bound", "amp.vault.quick"]) };
+  // Build a bound vault the way the app does, then reopen it.
+  const first = await open("./App.tsx", {
+    storage: { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) },
+    network: unlockedHome,
+    modules: fakeDeviceKeys({ recent: true, keys: state.keys }),
+  });
+  await enterPin(first, "135790");
+  await enterPin(first, "135790");
+  await first.waitUntil(() => JSON.parse(first.storage()["amp.vault"] ?? "{}").v === 2);
+  const saved = first.storage();
+
+  const app = await open("./App.tsx", { storage: saved, network: unlockedHome, modules: fakeDeviceKeys(state) });
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.wait(300);
+  expect(app.texts()).toContain("AMP Mobile is locked"); // no quick way in
+  await enterPin(app, "135790");
+  await app.waitFor("text:Signed in");
+
+  // The same file on a phone without the key (a reset, a copied backup).
+  const elsewhere = await open("./App.tsx", { storage: saved, network: unlockedHome, modules: fakeDeviceKeys({ recent: true, keys: new Set() }) });
+  await elsewhere.waitFor("text:AMP Mobile is locked");
+  await enterPin(elsewhere, "135790");
+  await elsewhere.waitFor("text:Saved sign-ins cleared");
+  expect(elsewhere.storage()["amp.vault"]).toBeUndefined();
 });

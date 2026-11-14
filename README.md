@@ -66,6 +66,13 @@ nsh test    # headless tests (App.test.tsx), network stubbed
   `"statusBar": true`.
 
 
+## Building with the Rust crate
+
+`native/` is a Rust crate (the Android Keystore, through JNI). Building needs Rust from rustup with
+`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android`, and the Android NDK
+(`ANDROID_NDK_HOME`, e.g. `~/Android/Sdk/ndk/30.0.16248370`). `.cargo/config.toml` optimizes dependencies in
+development builds, which the tests need for the vault's crypto to run fast enough.
+
 ## Versions
 
 Versions are `MAJOR.MINOR.PATCH` (semantic versioning), tagged `vMAJOR.MINOR.PATCH`:

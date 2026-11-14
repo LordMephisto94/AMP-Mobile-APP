@@ -2,7 +2,7 @@ import { signal, Text, View } from "nsh";
 import { confirm } from "../components/Confirm";
 import { FullScreen, PinPad, PinSetup } from "../components/Lock";
 import { AppPage, Pill, SecondaryButton } from "../components/ui";
-import { autoLockSeconds, changePin, eraseVault, hasPin, lockNow, servers, setAutoLock, setupPin } from "../state/servers";
+import { autoLockSeconds, bound, changePin, eraseVault, hasPin, lockNow, servers, setAutoLock, setupPin } from "../state/servers";
 
 const AUTO_LOCK = [
   { seconds: 0, label: "Immediately" },
@@ -54,7 +54,9 @@ export function SecurityScreen() {
             </View>
             <Text class="text-sm text-muted-foreground">
               {hasPin()
-                ? `Saved sign-ins (${kept()}) are encrypted with AES-256 under a key made from your PIN. The PIN itself is never stored. Ten wrong PINs erase them.`
+                ? bound()
+                  ? `Saved sign-ins (${kept()}) are encrypted with AES-256 and locked to this phone's secure hardware: they need your PIN, or a phone unlock in the last minute, and can't be opened on any other device. Ten wrong PINs erase them.`
+                  : `Saved sign-ins (${kept()}) are encrypted with AES-256 under a key made from your PIN. The PIN itself is never stored. Ten wrong PINs erase them.`
                 : "Without a PIN, nothing is kept: you sign in again each time the app starts. Set one to stay signed in."}
             </Text>
             <If
