@@ -2,6 +2,25 @@ import { expect, open, test } from "nsh/test";
 
 const SERVER = "https://amp.example.test";
 
+/**
+ * Empties an input and waits until it reads empty. A real window reports the change a
+ * moment later (typing straight after could land first), and a clear made while a closing
+ * menu still fades over the field can miss, so it tries again.
+ */
+async function clearField(
+  app: { clear(s: string): Promise<void>; value(s: string): string | null; wait(ms: number): Promise<void> },
+  selector: string,
+) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await app.clear(selector);
+    for (let i = 0; i < 10; i++) {
+      if ((app.value(selector) ?? "") === "") return;
+      await app.wait(100);
+    }
+  }
+  throw new Error(`${selector} never emptied: ${JSON.stringify(app.value(selector))}`);
+}
+
 const shardsRoute = (request: { url: string; headers: Record<string, string> }) => {
   if (request.headers.authorization !== "Bearer tok-1") return { status: 401 };
   if (request.url.includes("/state")) {
@@ -226,10 +245,10 @@ test("creates an instance from the catalogue", async () => {
 
   await app.type("template-search", "mine");
   await app.waitUntil(() => !app.texts().includes("Valheim"));
-  await app.clear("template-search");
+  await clearField(app, "template-search");
   await app.press("template-valheim");
   await app.waitFor("text:Create instance");
-  await app.clear("instance-name");
+  await clearField(app, "instance-name");
   await app.type("instance-name", "Vikings");
   await app.press("Create instance");
 
@@ -309,7 +328,7 @@ test("edits an instance's details and settings", async () => {
   await app.waitFor("text:Fix the highlighted settings first.");
   expect(patched).toEqual([]);
 
-  await app.clear("setting-MaxPlayers");
+  await clearField(app, "setting-MaxPlayers");
   await app.type("setting-MaxPlayers", "32");
   await app.type("details-description", "Survival world");
   await app.press("Save 4 changes");
@@ -325,7 +344,7 @@ test("edits an instance's details and settings", async () => {
   await app.waitFor("text:Memory limit");
   await app.type("setting-infra.cpuLimit", "12"); // 012 → 12 cores, over the machine's 8
   await app.waitFor("text:At most 8");
-  await app.clear("setting-infra.cpuLimit");
+  await clearField(app, "setting-infra.cpuLimit");
   await app.type("setting-infra.cpuLimit", "2.5");
   await app.press("group-Startup");
   await app.press("text:Restart after a crash");
@@ -482,9 +501,21 @@ test("browses, edits, creates, uploads and deletes files", async () => {
   await app.press("text:Create");
   await app.waitFor("file-mods");
 
-  // Upload through the picker, in chunks.
-  app.onPick(() => [{ name: "mod.jar", data: new Uint8Array([1, 2, 3, 4, 5]) }]);
+  // Upload through the picker, in chunks. Only headless runs can answer the system's
+  // picker (`onPick`); in a real window it reports a cancel, so there the upload and the
+  // delete of the uploaded file are left to the headless run.
+  let picked = false;
+  app.onPick(() => {
+    picked = true;
+    return [{ name: "mod.jar", data: new Uint8Array([1, 2, 3, 4, 5]) }];
+  });
   await app.press("upload");
+  await app.wait(500);
+  if (!picked) {
+    expect(app.texts()).not.toContain("Uploaded.");
+    expect(calls).toEqual(["write server.properties", "folder mods"]);
+    return;
+  }
   await app.waitFor("text:Uploaded.");
   await app.waitFor("file-mod.jar");
   expect(chunks).toEqual([5]);
@@ -671,7 +702,8 @@ test("shows player analytics, finds a player and opens their history", async () 
   await app.type("player-search", "ale");
   await app.waitFor("match-Alex");
 
-  await app.clear("player-search");
+  await clearField(app, "player-search");
+  await app.waitFor("player-Steve"); // the top players are back once the search is empty
   await app.press("player-Steve");
   await app.waitFor("text:Online now");
   await app.waitFor("text:1 VAC ban");
