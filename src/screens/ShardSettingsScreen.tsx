@@ -17,6 +17,7 @@ import {
   patchShardSettings,
   type SettingSpec,
   settingKind,
+  splitCategory,
   type ShardInfraContext,
   type ShardInfraSettings,
   validateSetting,
@@ -28,6 +29,8 @@ import { clearServerSession, clientFor } from "../state/servers";
 
 interface Group {
   name: string;
+  /** An emoji for the category's icon, when AMP gave one. */
+  icon: string | null;
   settings: EffectiveSetting[];
 }
 
@@ -115,17 +118,21 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   const groups = (): Group[] => {
     const q = search().trim().toLowerCase();
     const map = new Map<string, EffectiveSetting[]>();
+    const icons = new Map<string, string | null>();
     for (const s of settings() ?? []) {
       if (!visible(s.spec)) continue;
       if (q) {
         const hay = `${text(s.spec.displayName)} ${s.spec.fieldName} ${text(s.spec.description)} ${s.spec.keywords ?? ""}`.toLowerCase();
         if (!hay.includes(q)) continue;
       }
-      const cat = text(s.spec.category) || "General";
+      const { name: catName, icon } = splitCategory(s.spec.category);
+      const cat = text(catName) || "General";
+      if (!icons.get(cat)) icons.set(cat, icon);
       map.set(cat, [...(map.get(cat) ?? []), s]);
     }
     return [...map.entries()].map(([groupName, list]) => ({
       name: groupName,
+      icon: icons.get(groupName) ?? null,
       settings: list.sort((a, b) => (a.spec.order ?? 0) - (b.spec.order ?? 0)),
     }));
   };
@@ -270,6 +277,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
                     onPress={() => open.set({ ...open(), [group().name]: !open()[group().name] })}
                     class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent"
                   >
+                    <If when={group().icon}>{(i) => <Text class="text-lg">{i()}</Text>}</If>
                     <Text class="flex-1 text-base font-semibold text-card-foreground">{group().name}</Text>
                     <Text class="text-xs text-muted-foreground">{String(group().settings.length)}</Text>
                     <Text class="text-base text-muted-foreground">{open()[group().name] || search().trim() ? "▾" : "▸"}</Text>

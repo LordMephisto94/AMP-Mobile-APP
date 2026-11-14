@@ -244,7 +244,7 @@ test("edits an instance's details and settings", async () => {
         body: [
           { spec: { fieldName: "MaxPlayers", displayName: "Max players", category: "cat.server", inputType: "number", minValue: 1, maxValue: 64 }, value: "16" },
           { spec: { fieldName: "PvP", displayName: "PvP", category: "cat.server", inputType: "checkbox", enumValues: { True: "true", False: "false" } }, value: "false" },
-          { spec: { fieldName: "Difficulty", displayName: "Difficulty", category: "Gameplay", inputType: "enum", enumValues: { easy: "Easy", hard: "Hard" } }, value: "easy" },
+          { spec: { fieldName: "Difficulty", displayName: "Difficulty", category: "Gameplay:stadia_controller", inputType: "enum", enumValues: { easy: "Easy", hard: "Hard" } }, value: "easy" },
           { spec: { fieldName: "Secret", displayName: "Secret", category: "Gameplay", inputType: "text", hidden: true }, value: "x" },
         ],
       },
@@ -269,6 +269,8 @@ test("edits an instance's details and settings", async () => {
   expect(app.texts()).not.toContain("Secret");
 
   // A select opens in place and takes the choice.
+  expect(app.texts()).not.toContain("Gameplay:stadia_controller");
+  expect(app.texts()).toContain("🎮");
   await app.press("group-Gameplay");
   await app.press("text:Easy");
   await app.press("text:Hard");

@@ -347,3 +347,75 @@ export async function restoreShard(client: AmpClient, id: string): Promise<void>
 export async function purgeShard(client: AmpClient, id: string): Promise<void> {
   await client.request<void>(`/api/Shards/${encodeURIComponent(id)}/purge`, { method: "POST", timeoutMs: 60_000 });
 }
+
+/** Material Symbols names AMP templates use for categories, as emoji (the app has no icon font). */
+const CATEGORY_ICONS: Record<string, string> = {
+  stadia_controller: "🎮",
+  sports_esports: "🎮",
+  videogame_asset: "🎮",
+  gamepad: "🎮",
+  settings: "⚙️",
+  tune: "🎛️",
+  dns: "🖥️",
+  storage: "🗄️",
+  computer: "🖥️",
+  memory: "🧠",
+  public: "🌐",
+  language: "🌐",
+  lan: "🔌",
+  router: "📡",
+  wifi: "📶",
+  security: "🛡️",
+  shield: "🛡️",
+  lock: "🔒",
+  key: "🔑",
+  vpn_key: "🔑",
+  group: "👥",
+  people: "👥",
+  person: "👤",
+  admin_panel_settings: "🛡️",
+  schedule: "⏰",
+  timer: "⏱️",
+  update: "🔄",
+  sync: "🔄",
+  extension: "🧩",
+  build: "🔧",
+  construction: "🛠️",
+  map: "🗺️",
+  terrain: "⛰️",
+  public_off: "🚫",
+  chat: "💬",
+  forum: "💬",
+  terminal: "⌨️",
+  code: "💻",
+  description: "📄",
+  folder: "📁",
+  backup: "💾",
+  save: "💾",
+  cloud: "☁️",
+  speed: "⚡",
+  bolt: "⚡",
+  warning: "⚠️",
+  info: "ℹ️",
+  star: "⭐",
+  emoji_events: "🏆",
+  pets: "🐾",
+  agriculture: "🌾",
+  rocket_launch: "🚀",
+  science: "🧪",
+  palette: "🎨",
+  volume_up: "🔊",
+  visibility: "👁️",
+};
+
+/**
+ * AMP writes a category as `Name:icon`, the icon a Material Symbols name the panel draws
+ * beside it (`Arma Reforger:stadia_controller`). Splits it as the panel does: at the first colon.
+ */
+export function splitCategory(raw: string | undefined): { name: string; icon: string | null } {
+  if (!raw) return { name: "", icon: null };
+  const i = raw.indexOf(":");
+  if (i < 0) return { name: raw.trim(), icon: null };
+  const icon = raw.slice(i + 1).trim();
+  return { name: raw.slice(0, i).trim(), icon: icon ? (CATEGORY_ICONS[icon] ?? null) : null };
+}
