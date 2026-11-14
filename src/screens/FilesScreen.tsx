@@ -116,9 +116,14 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
 
   const download = (entry: FileEntry) =>
     act(async () => {
+      // There's no in-app save: the browser downloads it (iOS: Safari → Files › Downloads;
+      // Android: the browser's Downloads). Neither needs a storage permission.
       const url = await downloadUrl(client(), props.id, entry);
-      await openUrl(url);
-      return entry.isDirectory ? "Downloading as a zip in your browser." : "Downloading in your browser.";
+      const { opened } = await openUrl(url);
+      if (!opened) throw new Error("No browser on this device could open the download.");
+      return entry.isDirectory
+        ? "Downloading as a zip in your browser. It will be in your Downloads."
+        : "Downloading in your browser. It will be in your Downloads.";
     });
 
   const remove = async (entry: FileEntry) => {
@@ -259,7 +264,9 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     notice.set(null);
     let picked;
     try {
-      picked = await Picker.pickFiles({ multiple: true });
+      // The system document picker (iOS UIDocumentPickerViewController, Android
+      // ACTION_OPEN_DOCUMENT) hands over only what the user picks: no storage permission.
+      picked = await Picker.pickFiles({ multiple: true, limit: 20 });
     } catch (e) {
       error.set((e as Error).message);
       return;
@@ -302,11 +309,12 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
         <Backdrop dim="strong" />
         <View class="gap-2 border-b border-white/10 bg-card/70 px-4 py-2.5">
           <Text class="font-mono text-xs text-muted-foreground" testID="files-path">{`/${props.path}`}</Text>
-          <View class="flex-row gap-2">
+          <View class="flex-row flex-wrap items-center gap-2">
             <ToolButton testID="new-folder" label="＋ Folder" onPress={newFolder} />
             <ToolButton testID="new-file" label="＋ File" onPress={newFile} />
             <ToolButton testID="upload" label="⇧ Upload" onPress={pickAndUpload} disabled={upload() !== null} />
           </View>
+          <Text class="text-[10px] text-muted-foreground">Uploads up to 512 MB per file. Larger files: use SFTP or the web panel.</Text>
         </View>
 
         <If when={upload()}>

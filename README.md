@@ -45,3 +45,19 @@ nsh test    # headless tests (App.test.tsx), network stubbed
 - AMP 3 calls instances **shards** and nodes **spires**. The spec mixes `/api/Shards` and `/api/shards`: use paths
   exactly as written.
 - `nsh.json`'s `id` is still the placeholder `com.example.ampmobile`. Change it before packaging.
+
+## Files on iPhone and Android
+
+- **Uploading** uses the system document picker (`Picker.pickFiles`): `UIDocumentPickerViewController` on iOS (picked
+  files arrive as copies, iCloud Drive and other providers included) and `ACTION_OPEN_DOCUMENT` on Android (the
+  Storage Access Framework). The user grants access to just the files they pick, so the app requests **no storage or
+  photo permissions**; don't add `READ_EXTERNAL_STORAGE` / `READ_MEDIA_*` (Google Play rejects them for this use) or
+  photo-library usage strings. NSH reads a picked file into memory, and leaves out files over 512 MiB.
+- **Downloading** opens a one-time ticket URL in the device's browser (`openUrl`), which saves the file: on iOS
+  Safari puts it in Files › Downloads, on Android the browser puts it in Downloads. No permission is needed; the URL
+  needs no session token, and the ticket works once.
+- `nsh.json` declares no `capabilities`, so a standalone app may use the network (any host: the server address is the
+  user's), the picker and `openUrl`. If capabilities are ever declared, everything unlisted is denied, so include at
+  least: `"network": { "hosts": ["*"] }`, `"picker": true`, `"openUrl": { "schemes": ["https", "http"] }`,
+  `"statusBar": true`.
+
