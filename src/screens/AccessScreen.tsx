@@ -9,7 +9,8 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 import { InviteLink } from "./InviteScreen";
 
 const REFRESH_MS = 60_000;
@@ -49,8 +50,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
       error.set(null);
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+        await sessionRejected(props.serverId);
         return;
       }
       error.set((e as Error).message);
@@ -182,7 +182,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
                               <If when={u().suspended}>
                                 <Pill label="Suspended" tone="danger" />
                               </If>
-                              <Each of={u().roleIds}>{(id) => <Pill label={roleName(id())} tone="muted" />}</Each>
+                              <Each of={u().roleIds ?? []}>{(id) => <Pill label={roleName(id())} tone="muted" />}</Each>
                             </View>
                             <Text class="text-xs text-muted-foreground">
                               {[u().displayName ? u().userName : null, u().lastLoginAt ? `last signed in ${ago(u().lastLoginAt)}` : "never signed in"]
@@ -256,9 +256,14 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
   );
 }
 
+/** "pending" → "Pending"; anything missing → "Unknown". */
+function capitalize(text: string | null | undefined): string {
+  return text ? text[0].toUpperCase() + text.slice(1) : "Unknown";
+}
+
 function members(users: Part<User[]>, roleId: string): string[] {
   if (!users || !("value" in users)) return [];
-  return users.value.filter((u) => u.roleIds.includes(roleId)).map((u) => u.displayName || u.userName || "?");
+  return users.value.filter((u) => (u.roleIds ?? []).includes(roleId)).map((u) => u.displayName || u.userName || "?");
 }
 
 /** Shows a part's value, or why it isn't there. */
@@ -324,10 +329,10 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
       <View class="flex-1 gap-1">
         <View class="flex-row flex-wrap items-center gap-1.5">
           <Text class="text-[15px] font-semibold text-card-foreground">{inv().displayName || inv().userName}</Text>
-          <Pill label={inv().status[0].toUpperCase() + inv().status.slice(1)} tone={tone()} />
+          <Pill label={capitalize(inv().status)} tone={tone()} />
         </View>
         <Text class="text-xs text-muted-foreground">
-          {[inv().displayName ? inv().userName : null, inv().roleIds.map(props.roleName).join(", "), when(), inv().createdByName ? `by ${inv().createdByName}` : null]
+          {[inv().displayName ? inv().userName : null, (inv().roleIds ?? []).map(props.roleName).join(", "), when(), inv().createdByName ? `by ${inv().createdByName}` : null]
             .filter(Boolean)
             .join(" · ")}
         </Text>

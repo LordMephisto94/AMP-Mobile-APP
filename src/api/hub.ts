@@ -12,6 +12,9 @@ import { redact } from "./client";
  */
 
 const RS = "\x1e";
+/** Most the client buffers waiting for a frame's end. */
+const MAX_BUFFER = 4 * 1024 * 1024;
+const INVOKE_TIMEOUT_MS = 30_000;
 
 const enum MessageType {
   Invocation = 1,
@@ -45,6 +48,8 @@ export class HubConnection {
   private attempt = 0;
   private stopped = false;
   private handshakeDone = false;
+  /** Bumped by every open and stop: a connection attempt from before is abandoned. */
+  private openSeq = 0;
 
   constructor(private readonly options: HubOptions) {}
 
@@ -57,12 +62,16 @@ export class HubConnection {
 
   start(): void {
     this.stopped = false;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     this.open("connecting");
   }
 
   stop(): void {
     this.stopped = true;
+    this.openSeq++;
     if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     this.cleanupSocket();
     this.options.onStatus?.("closed");
   }
@@ -73,21 +82,32 @@ export class HubConnection {
     if (!socket || !this.handshakeDone) return Promise.reject(new Error("Hub not connected"));
     const invocationId = String(this.nextId++);
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(invocationId, { resolve: resolve as (v: unknown) => void, reject });
+      // A call the server never answers mustn't wait forever.
+      const timer = setTimeout(() => {
+        if (this.pending.delete(invocationId)) reject(new Error(`${target} didn't answer`));
+      }, INVOKE_TIMEOUT_MS);
+      this.pending.set(invocationId, {
+        resolve: (v) => (clearTimeout(timer), (resolve as (v: unknown) => void)(v)),
+        reject: (e) => (clearTimeout(timer), reject(e)),
+      });
       this.send({ type: MessageType.Invocation, invocationId, target, arguments: args });
     });
   }
 
   private async open(status: HubStatus): Promise<void> {
+    const seq = ++this.openSeq;
+    // Whatever was open before goes first: never two connections at once.
+    this.cleanupSocket();
     this.options.onStatus?.(status);
     let ticket: string;
     try {
       ticket = await this.options.ticket();
     } catch (e) {
-      this.scheduleRetry((e as Error).message);
+      if (seq === this.openSeq) this.scheduleRetry((e as Error).message);
       return;
     }
-    if (this.stopped) return;
+    // Stopped, or opened again, while the ticket came: this attempt is out of date.
+    if (this.stopped || seq !== this.openSeq) return;
 
     // Only ever wss: the server address is HTTPS-only, and the ticket rides in the URL.
     if (!this.options.baseUrl.startsWith("https://")) {
@@ -124,6 +144,12 @@ export class HubConnection {
 
   private receive(data: string): void {
     this.buffer += data;
+    // A frame never ends (a broken or hostile server): drop the connection, not the app.
+    if (this.buffer.length > MAX_BUFFER) {
+      this.buffer = "";
+      this.socket?.close();
+      return;
+    }
     let end: number;
     while ((end = this.buffer.indexOf(RS)) >= 0) {
       const frame = this.buffer.slice(0, end);
@@ -154,7 +180,14 @@ export class HubConnection {
       switch (message.type) {
         case MessageType.Invocation: {
           const handlers = this.handlers.get(String(message.target).toLowerCase()) ?? [];
-          for (const handler of handlers) handler(...((message.arguments as unknown[]) ?? []));
+          const args = Array.isArray(message.arguments) ? (message.arguments as unknown[]) : [];
+          for (const handler of handlers) {
+            try {
+              handler(...args);
+            } catch {
+              // One handler's trouble doesn't drop the rest of the messages.
+            }
+          }
           break;
         }
         case MessageType.Completion: {
@@ -211,6 +244,11 @@ export class HubConnection {
     const delays = [500, 2_000, 5_000, 10_000];
     const delay = delays[this.attempt] ?? 30_000;
     this.attempt++;
-    this.retryTimer = setTimeout(() => this.open("reconnecting"), delay);
+    // One retry pending at most, whichever failure asked for it.
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (!this.stopped) this.open("reconnecting");
+    }, delay);
   }
 }

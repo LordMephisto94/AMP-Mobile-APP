@@ -26,7 +26,8 @@ import { Backdrop } from "../components/backdrop";
 import { Select } from "../components/Dropdown";
 import { AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor } from "../state/servers";
+import { clientFor } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 interface Group {
   name: string;
@@ -63,8 +64,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
     } else if (e instanceof AmpError && e.status === 403) {
       error.set("Your account isn't allowed to change some of these settings.");
     } else {

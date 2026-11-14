@@ -14,7 +14,7 @@ import {
   unlock,
   validatePin,
 } from "../state/servers";
-import { confirm } from "./Confirm";
+import { cancelConfirm, confirm } from "./Confirm";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 
@@ -203,6 +203,13 @@ export function PinSetup(props: { title: string; message: string; onDone: (pin: 
  */
 export function LockHost() {
   let leftAt = 0;
+  // Locking cancels any dialog left open, so nothing is answered from behind the lock.
+  let wasLocked = locked();
+  effect(() => {
+    const now = locked();
+    if (now && !wasLocked) cancelConfirm();
+    wasLocked = now;
+  });
   effect(() => {
     const state = lifecycle();
     if (state === "background") {

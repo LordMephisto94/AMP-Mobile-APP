@@ -33,6 +33,14 @@ export function confirm(options: ConfirmOptions): Promise<string | null> {
   return new Promise((resolve) => pending.set({ ...options, resolve }));
 }
 
+/** Closes any open dialog as cancelled (the app locked: nothing may be answered behind the lock). */
+export function cancelConfirm(): void {
+  const p = pending();
+  if (!p) return;
+  pending.set(null);
+  p.resolve(null);
+}
+
 /** Mount once at the app's root: draws the dialog `confirm` asks for, over everything. */
 export function ConfirmHost() {
   const shown = signal(false);

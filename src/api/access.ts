@@ -62,12 +62,19 @@ export interface NewUser {
   requirePasswordChange?: boolean;
 }
 
-export const listUsers = (c: AmpClient) => c.request<User[]>("/api/users");
-export const listRoles = (c: AmpClient) => c.request<Role[]>("/api/roles");
-export const listInvites = (c: AmpClient) => c.request<Invite[]>("/api/invites");
+// Answers are tidied once here, so a field a panel leaves out never breaks a screen.
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+const tidyUser = (u: User): User => ({ ...u, roleIds: strings(u?.roleIds) });
+const tidyRole = (r: Role): Role => ({ ...r, permissions: strings(r?.permissions) });
+const tidyInvite = (i: Invite): Invite => ({ ...i, roleIds: strings(i?.roleIds), status: typeof i?.status === "string" ? i.status : "unknown" });
 
-export function getUser(c: AmpClient, id: string): Promise<User> {
-  return c.request<User>(`/api/users/${encodeURIComponent(id)}`);
+export const listUsers = async (c: AmpClient) => list<User>(await c.request<unknown>("/api/users")).map(tidyUser);
+export const listRoles = async (c: AmpClient) => list<Role>(await c.request<unknown>("/api/roles")).map(tidyRole);
+export const listInvites = async (c: AmpClient) => list<Invite>(await c.request<unknown>("/api/invites")).map(tidyInvite);
+
+export async function getUser(c: AmpClient, id: string): Promise<User> {
+  return tidyUser(await c.request<User>(`/api/users/${encodeURIComponent(id)}`));
 }
 
 /** `PUT /api/users/{id}`: only the fields given change. Suspending or forcing a password change signs them out. */

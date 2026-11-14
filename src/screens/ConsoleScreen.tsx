@@ -10,7 +10,8 @@ import { StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Backdrop } from "../components/backdrop";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** How many lines the console keeps in memory. */
 const MAX_LINES = 3_000;
@@ -45,8 +46,7 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
     } else if (e instanceof AmpError && e.status === 403) {
       error.set("Your account doesn't have permission to use this console.");
     } else {
@@ -104,8 +104,12 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
       },
     });
     hub.on("ConsoleLine", (line) => {
+      // Only well-formed lines for this instance: a line without its shard's id could be anyone's.
+      if (!line || typeof line !== "object") return;
       const l = line as ConsoleLine;
-      if (!l.shardId || l.shardId.toLowerCase() === props.id.toLowerCase()) merge([l]);
+      if (typeof l.shardId !== "string" || l.shardId.toLowerCase() !== props.id.toLowerCase()) return;
+      if (!Number.isFinite(seqOf(l))) return;
+      merge([l]);
     });
     hub.on("ShardStateChanged", (_, shardId, s) => {
       if (String(shardId).toLowerCase() === props.id.toLowerCase()) state.set(s as ShardState);

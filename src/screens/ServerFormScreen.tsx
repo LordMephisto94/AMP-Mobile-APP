@@ -49,7 +49,9 @@ export function ServerFormScreen(props: { serverId?: string }) {
         } else {
           id = await addServer({ name: name(), serverUrl, username: user, auth: outcome.auth, rememberMe: rememberMe() });
         }
-        nav.replace({ name: "shards", serverId: id });
+        // Only if this form is still showing: going back mid-sign-in must not replace the home screen.
+        const top = nav.routes().at(-1);
+        if (top?.name === "addServer" || top?.name === "signIn") nav.replace({ name: "shards", serverId: id });
       } else if (outcome.kind === "passwordChangeRequired") {
         // TODO: forced password change flow (POST /api/Auth/change-expired-password).
         error.set(`Your password must be changed first${outcome.reason ? ` (${outcome.reason})` : ""}. Use the web panel for now.`);

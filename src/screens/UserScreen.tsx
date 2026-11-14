@@ -18,7 +18,8 @@ import { confirm } from "../components/Confirm";
 import { Prompt, type PromptRequest } from "../components/Prompt";
 import { AppPage, Checkbox, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** Adds a user (no `userId`), or shows and edits one: details, roles, holds, password and sessions. */
 export function UserScreen(props: { serverId: string; userId?: string }) {
@@ -46,7 +47,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     user.set(u);
     displayName.set(u.displayName ?? "");
     email.set(u.email ?? "");
-    roleIds.set([...u.roleIds]);
+    roleIds.set([...(u.roleIds ?? [])]);
     suspended.set(u.suspended);
     requireChange.set(u.requirePasswordChange);
     passwordExpires.set(u.passwordExpires);
@@ -54,8 +55,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
 
   const fail = async (e: unknown, denied = "Your AMP account isn't allowed to do that.") => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
       return;
     }
     error.set(e instanceof AmpError && e.status === 403 ? denied : (e as Error).message);
@@ -86,7 +86,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     if (displayName() !== (u.displayName ?? "")) out.displayName = displayName();
     if (email() !== (u.email ?? "")) out.email = email();
     const a = [...roleIds()].sort().join(",");
-    if (a !== [...u.roleIds].sort().join(",")) out.roleIds = roleIds();
+    if (a !== [...(u.roleIds ?? [])].sort().join(",")) out.roleIds = roleIds();
     if (suspended() !== u.suspended) out.suspended = suspended();
     if (requireChange() !== u.requirePasswordChange) out.requirePasswordChange = requireChange();
     if (passwordExpires() !== u.passwordExpires) out.passwordExpires = passwordExpires();

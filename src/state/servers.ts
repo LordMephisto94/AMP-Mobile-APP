@@ -80,6 +80,14 @@ const touched = () => sessionsChanged.set(++changes);
 const clients = new Map<string, AmpClient>();
 let generation = 0;
 let vaultBlob: VaultBlob | null = null;
+/** The last vault write; the next one waits for it. */
+let writes: Promise<void> = Promise.resolve();
+/** Bumped by every lock: an unlock that started before one doesn't open the app. */
+let lockEpoch = 0;
+/** The unlock or PIN check in progress, so two never count wrong PINs at once. */
+let pinCheck: Promise<unknown> = Promise.resolve();
+/** Renewals in flight, one per server, shared by everyone who asks. */
+const renewing = new Map<string, Promise<RenewOutcome>>();
 let vaultKey: VaultKey | null = null;
 
 export function serverById(id: string): SavedServer | undefined {
@@ -147,14 +155,25 @@ function rememberedSessions(): Record<string, { token: string; expiration: strin
  * for one (`pinSetupNeeded`) and meanwhile keeps them in memory only. Locked: nothing to do.
  */
 async function persistSessions(): Promise<void> {
-  if (locked()) return;
-  const remembered = rememberedSessions();
-  if (vaultKey && vaultBlob) {
-    vaultBlob = { ...vaultBlob, data: await seal(vaultKey, remembered) };
-    await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
-    return;
-  }
-  pinSetupNeeded.set(Object.keys(remembered).length > 0);
+  // One write at a time, each sealing what's current when its turn comes, so an older
+  // write can never land after a newer one.
+  const run = writes.then(async () => {
+    if (locked()) return;
+    const remembered = rememberedSessions();
+    const key = vaultKey;
+    const blob = vaultBlob;
+    if (key && blob) {
+      const sealed = { ...blob, data: await seal(key, remembered) };
+      // Locked, erased or re-keyed meanwhile: this write is out of date.
+      if (vaultKey !== key || vaultBlob !== blob) return;
+      vaultBlob = sealed;
+      await Storage.setItem(VAULT_KEY, JSON.stringify(sealed));
+      return;
+    }
+    pinSetupNeeded.set(Object.keys(remembered).length > 0);
+  });
+  writes = run.catch(() => {});
+  return run;
 }
 
 function update(id: string, change: (s: SavedServer) => SavedServer): void {
@@ -177,6 +196,14 @@ export async function addServer(input: {
   auth: AuthResponse;
   rememberMe: boolean;
 }): Promise<string> {
+  // The same account on the same panel again: refresh that entry rather than duplicate it.
+  const same = servers().find(
+    (s) => s.serverUrl.toLowerCase() === input.serverUrl.toLowerCase() && s.username.toLowerCase() === input.username.toLowerCase(),
+  );
+  if (same) {
+    await setServerSession(same.id, input.username, input.auth, input.rememberMe);
+    return same.id;
+  }
   const id = newId();
   servers.set([
     ...servers(),
@@ -228,10 +255,20 @@ export async function signOutServer(id: string): Promise<void> {
 }
 
 export async function removeServer(id: string): Promise<void> {
-  await signOutServer(id);
+  const server = serverById(id);
+  const session = sessions.get(id);
+  await clearServerSession(id);
   servers.set(servers().filter((s) => s.id !== id));
   await persistServers();
   await persistSessions();
+  // Told last, without waiting: the server is gone from the app whatever the network does.
+  if (server && session) {
+    try {
+      apiLogout(new AmpClient(server.serverUrl, session.token)).catch(() => {});
+    } catch {
+      // An address this version no longer accepts: nothing to tell.
+    }
+  }
 }
 
 // ---- Renewal -------------------------------------------------------------------------------
@@ -241,20 +278,51 @@ export async function removeServer(id: string): Promise<void> {
  * renews the session rather than the token. The answer is applied only if this is still
  * the session it renewed (no sign-out, sign-in or other renewal since, and not locked).
  */
-async function renewSession(id: string): Promise<void> {
+type RenewOutcome = "renewed" | "rejected" | "failed" | "superseded";
+
+function renewSession(id: string): Promise<RenewOutcome> {
+  const running = renewing.get(id);
+  if (running) return running;
+  const run = renewOnce(id).finally(() => renewing.delete(id));
+  renewing.set(id, run);
+  return run;
+}
+
+async function renewOnce(id: string): Promise<RenewOutcome> {
   const server = serverById(id);
   const session = sessions.get(id);
-  if (!server || !session) return;
+  if (!server || !session) return "rejected";
   const gen = session.gen;
   const stillCurrent = () => !locked() && sessions.get(id)?.gen === gen;
   try {
     const fresh = await renew(new AmpClient(server.serverUrl, session.token));
-    if (!stillCurrent()) return;
+    if (!stillCurrent()) return "superseded";
+    if (typeof fresh?.token !== "string" || typeof fresh?.expiration !== "string") return "failed";
     applySession(id, fresh);
     await persistSessions();
+    return "renewed";
   } catch (error) {
-    if (error instanceof AmpError && error.isUnauthorized && stillCurrent()) await clearServerSession(id);
+    if (error instanceof AmpError && error.isUnauthorized) {
+      if (stillCurrent()) await clearServerSession(id);
+      return "rejected";
+    }
+    return "failed";
   }
+}
+
+/**
+ * A request for this server came back 401. The token may only have run out while AMP
+ * still holds the session, so a renewal is tried first: "renewed" (try again), "signedOut"
+ * (AMP refused, or there was no session: sign in again), "unreachable" (couldn't ask;
+ * the session is kept) or "locked".
+ */
+export async function recoverSession(id: string): Promise<"renewed" | "signedOut" | "unreachable" | "locked"> {
+  if (locked()) return "locked";
+  if (!sessions.get(id)) return "signedOut";
+  const outcome = await renewSession(id);
+  if (outcome === "renewed" || outcome === "superseded") return sessions.get(id) ? "renewed" : "signedOut";
+  if (outcome === "failed") return "unreachable";
+  return "signedOut";
 }
 
 /** Renews every session, or only those near or past their expiry. */
@@ -283,10 +351,33 @@ async function readLockout(): Promise<Lockout> {
   try {
     const raw = await Storage.getItem(LOCKOUT_KEY);
     const v = raw ? (JSON.parse(raw) as Lockout) : null;
-    return v && typeof v.failures === "number" ? v : { failures: 0, until: 0 };
+    if (!v || typeof v.failures !== "number" || typeof v.until !== "number") return { failures: 0, until: 0 };
+    // A clock set back would otherwise stretch a wait without end: never more than the longest.
+    const longest = Date.now() + LOCKOUT_WAITS_S[LOCKOUT_WAITS_S.length - 1] * 1000;
+    return { failures: Math.max(0, Math.floor(v.failures)), until: Math.min(v.until, longest) };
   } catch {
-    return { failures: 0, until: 0 };
+    // Unreadable (altered): count it as nearly used up rather than as fresh.
+    return { failures: FREE_TRIES, until: 0 };
   }
+}
+
+/** Runs PIN checks one at a time. */
+function onePinCheckAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const run = pinCheck.then(work, work);
+  pinCheck = run.catch(() => {});
+  return run;
+}
+
+/** Counts a wrong PIN; the tenth erases the vault. */
+async function countWrongPin(lockout: Lockout): Promise<UnlockResult> {
+  const failures = lockout.failures + 1;
+  if (failures >= MAX_PIN_TRIES) {
+    await eraseVault();
+    return { ok: false, wrong: true, triesLeft: 0, waitSeconds: 0, erased: true };
+  }
+  const wait = failures >= FREE_TRIES ? LOCKOUT_WAITS_S[Math.min(failures - FREE_TRIES, LOCKOUT_WAITS_S.length - 1)] : 0;
+  await Storage.setItem(LOCKOUT_KEY, JSON.stringify({ failures, until: Date.now() + wait * 1000 }));
+  return { ok: false, wrong: true, triesLeft: MAX_PIN_TRIES - failures, waitSeconds: wait, erased: false };
 }
 
 /** Sets the first PIN and seals the sessions waiting to be kept. */
@@ -320,44 +411,42 @@ export async function lockoutRemaining(): Promise<number> {
  * Opens the vault. Wrong PINs are counted on disk (so restarting doesn't reset them):
  * after five, each try waits longer; the tenth erases the saved sign-ins.
  */
-export async function unlock(pin: string): Promise<UnlockResult> {
-  if (!vaultBlob) return { ok: true };
-  const lockout = await readLockout();
-  if (lockout.until > Date.now()) {
-    return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES - lockout.failures, waitSeconds: Math.ceil((lockout.until - Date.now()) / 1000), erased: false };
-  }
-  const key = await keyFor(vaultBlob, pin);
-  if (!key) {
-    const failures = lockout.failures + 1;
-    if (failures >= MAX_PIN_TRIES) {
-      await eraseVault();
-      return { ok: false, wrong: true, triesLeft: 0, waitSeconds: 0, erased: true };
+export function unlock(pin: string): Promise<UnlockResult> {
+  return onePinCheckAtATime(async () => {
+    const blob = vaultBlob;
+    if (!blob || !locked()) return { ok: true } as UnlockResult;
+    const epoch = lockEpoch;
+    const lockout = await readLockout();
+    if (lockout.until > Date.now()) {
+      return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES - lockout.failures, waitSeconds: Math.ceil((lockout.until - Date.now()) / 1000), erased: false };
     }
-    const wait = failures >= FREE_TRIES ? LOCKOUT_WAITS_S[Math.min(failures - FREE_TRIES, LOCKOUT_WAITS_S.length - 1)] : 0;
-    await Storage.setItem(LOCKOUT_KEY, JSON.stringify({ failures, until: Date.now() + wait * 1000 }));
-    return { ok: false, wrong: true, triesLeft: MAX_PIN_TRIES - failures, waitSeconds: wait, erased: false };
-  }
-  let saved: Record<string, { token: string; expiration: string }> = {};
-  try {
-    saved = await unseal(key, vaultBlob.data);
-  } catch {
-    // The sessions can't be read (altered on disk): start them afresh behind the same PIN.
-    saved = {};
-  }
-  vaultKey = key;
-  await Storage.removeItem(LOCKOUT_KEY);
-  for (const [id, s] of Object.entries(saved)) {
-    if (serverById(id) && typeof s?.token === "string" && typeof s?.expiration === "string") applySession(id, s);
-  }
-  locked.set(false);
-  await persistSessions();
-  renewSessions(true);
-  return { ok: true };
+    const key = await keyFor(blob, pin);
+    if (!key) return countWrongPin(lockout);
+    let saved: Record<string, { token: string; expiration: string }> = {};
+    try {
+      saved = await unseal(key, blob.data);
+    } catch {
+      // The sessions can't be read (altered on disk): start them afresh behind the same PIN.
+      saved = {};
+    }
+    await Storage.removeItem(LOCKOUT_KEY);
+    // Locked again, erased or replaced while the key was being made: stay locked.
+    if (epoch !== lockEpoch || vaultBlob !== blob) return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES, waitSeconds: 0, erased: false };
+    vaultKey = key;
+    for (const [id, s] of Object.entries(saved ?? {})) {
+      if (serverById(id) && typeof s?.token === "string" && typeof s?.expiration === "string") applySession(id, s);
+    }
+    locked.set(false);
+    await persistSessions();
+    renewSessions(true);
+    return { ok: true } as UnlockResult;
+  });
 }
 
 /** Closes the vault: every session leaves memory until the PIN is entered again. */
 export function lockNow(): void {
   if (!hasPin()) return;
+  lockEpoch++;
   generation++;
   vaultKey = null;
   sessions.clear();
@@ -367,16 +456,28 @@ export function lockNow(): void {
 }
 
 /** Changes the PIN; the sessions are resealed under the new one. */
-export async function changePin(oldPin: string, newPin: string): Promise<boolean> {
-  if (!vaultBlob) return false;
-  validatePin(newPin);
-  const key = await keyFor(vaultBlob, oldPin);
-  if (!key) return false;
-  const { blob, key: fresh } = await createVault(newPin, rememberedSessions());
-  vaultBlob = blob;
-  vaultKey = fresh;
-  await Storage.setItem(VAULT_KEY, JSON.stringify(blob));
-  return true;
+export function changePin(oldPin: string, newPin: string): Promise<boolean> {
+  return onePinCheckAtATime(async () => {
+    const current = vaultBlob;
+    if (!current || locked()) return false;
+    validatePin(newPin);
+    // Wrong current PINs count here too, and wait the same way.
+    const lockout = await readLockout();
+    if (lockout.until > Date.now()) throw new Error(`Too many wrong PINs. Try again in ${Math.ceil((lockout.until - Date.now()) / 1000)} s.`);
+    const key = await keyFor(current, oldPin);
+    if (!key) {
+      const result = await countWrongPin(lockout);
+      if (!result.ok && result.erased) throw new Error("Too many wrong PINs: the PIN and saved sign-ins were erased.");
+      return false;
+    }
+    const { blob, key: fresh } = await createVault(newPin, rememberedSessions());
+    if (vaultBlob !== current) return false;
+    vaultBlob = blob;
+    vaultKey = fresh;
+    await Storage.setItem(VAULT_KEY, JSON.stringify(blob));
+    await Storage.removeItem(LOCKOUT_KEY);
+    return true;
+  });
 }
 
 /**
@@ -384,6 +485,7 @@ export async function changePin(oldPin: string, newPin: string): Promise<boolean
  * PINs do). Servers stay in the list, signed out.
  */
 export async function eraseVault(): Promise<void> {
+  lockEpoch++;
   generation++;
   vaultBlob = null;
   vaultKey = null;
@@ -407,6 +509,7 @@ export function validatePin(pin: string): void {
 }
 
 export async function setAutoLock(seconds: number): Promise<void> {
+  seconds = Math.min(3600, Math.max(0, Math.floor(seconds)));
   autoLockSeconds.set(seconds);
   await Storage.setItem(SECURITY_KEY, JSON.stringify({ autoLockSeconds: seconds }));
 }
@@ -419,7 +522,7 @@ export async function setAutoLock(seconds: number): Promise<void> {
  * disk at once; the app then asks for a PIN to keep it.
  */
 export async function loadServers(): Promise<void> {
-  let migrated = false;
+  // Each part is read on its own, so a damaged one never takes the others with it.
   try {
     const rawVault = await Storage.getItem(VAULT_KEY);
     const parsedVault = rawVault ? JSON.parse(rawVault) : null;
@@ -428,17 +531,36 @@ export async function loadServers(): Promise<void> {
       hasPin.set(true);
       locked.set(true);
     }
+  } catch {
+    // An unreadable vault is left on disk untouched; there's nothing to unlock.
+  }
 
+  try {
     const rawSecurity = await Storage.getItem(SECURITY_KEY);
     const security = rawSecurity ? JSON.parse(rawSecurity) : null;
-    if (typeof security?.autoLockSeconds === "number") autoLockSeconds.set(security.autoLockSeconds);
+    const secs = Number(security?.autoLockSeconds);
+    if (Number.isFinite(secs)) autoLockSeconds.set(Math.min(3600, Math.max(0, Math.floor(secs))));
+  } catch {
+    // Keep the default.
+  }
 
+  let migrated = false;
+  try {
     const raw = await Storage.getItem(SERVERS_KEY);
     const saved = raw ? JSON.parse(raw) : [];
     const list: SavedServer[] = [];
+    const seen = new Set<string>();
     for (const s of Array.isArray(saved) ? saved : []) {
-      if (!s || typeof s.id !== "string" || typeof s.serverUrl !== "string") continue;
-      list.push({ id: s.id, name: String(s.name ?? ""), serverUrl: s.serverUrl, username: String(s.username ?? ""), color: Number(s.color) || 0, rememberMe: !!s.rememberMe });
+      if (!s || typeof s.id !== "string" || !s.id || typeof s.serverUrl !== "string" || seen.has(s.id)) continue;
+      seen.add(s.id);
+      list.push({
+        id: s.id,
+        name: String(s.name ?? "").slice(0, 100),
+        serverUrl: s.serverUrl,
+        username: String(s.username ?? ""),
+        color: Math.abs(Math.floor(Number(s.color) || 0)) % SERVER_COLORS.length,
+        rememberMe: !!s.rememberMe,
+      });
       // An older version's plain-text token: into memory, never back to disk.
       if (typeof s.token === "string") {
         migrated = true;
@@ -448,6 +570,7 @@ export async function loadServers(): Promise<void> {
     servers.set(list);
     if (migrated) await persistServers();
   } catch {
+    // An unreadable list: shown empty, and left on disk until something is saved.
     servers.set([]);
   } finally {
     serversReady.set(true);

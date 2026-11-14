@@ -101,8 +101,11 @@ export class AmpClient {
     if (!anonymous && this.token) headers.Authorization = `Bearer ${this.token}`;
 
     const controller = new AbortController();
+    // The deadline covers the whole exchange, the answer's body included: a server that
+    // sends headers and then stalls mustn't hang the screen.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
+    let text: string;
     try {
       response = await fetch(url, {
         method,
@@ -113,7 +116,12 @@ export class AmpClient {
         // following a redirect to another host.
         redirect: "error",
       });
+      const length = Number(response.headers.get("content-length") ?? 0);
+      if (length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
+      text = await response.text();
+      if (text.length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
     } catch (error) {
+      if (error instanceof AmpError) throw error;
       const aborted = controller.signal.aborted;
       throw new AmpError(
         aborted ? "The server took too long to respond" : `Couldn't reach the server: ${describe(error)}`,
@@ -123,10 +131,6 @@ export class AmpClient {
       clearTimeout(timer);
     }
 
-    const length = Number(response.headers.get("content-length") ?? 0);
-    if (length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
-    const text = await response.text();
-    if (text.length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
     const data = text ? safeJson(text) : undefined;
 
     if (!response.ok) {

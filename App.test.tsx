@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.1");
+  await app.waitFor("text:AMP Mobile 0.1.2");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.1"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.2"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -1706,4 +1706,183 @@ test("a redirect is refused, so the session token never follows it to another ho
   await app.press("server-Home Lab");
   await app.waitFor("text:Try again");
   expect(app.requests().some((r) => r.url.startsWith("https://evil.example.test"))).toBe(false);
+});
+
+// ---- Edge cases and races --------------------------------------------------------------------
+
+test("a 401 first offers AMP a renewal, and only a refusal sends the user to sign in", async () => {
+  let token = "tok-1";
+  let renewOk = true;
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: () => (renewOk ? ((token = "tok-2"), { body: { token: "tok-2", expiration: "2099-01-02T00:00:00Z" } }) : { status: 401 }),
+      [`GET ${SERVER}/api/Shards*`]: (r) =>
+        r.headers.authorization === `Bearer ${token}` && token === "tok-2" ? shardsRoute({ ...r, headers: { authorization: "Bearer tok-1" } }) : { status: 401 },
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  // The launch renewal already moved the session to tok-2, so the list loads.
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Minecraft SMP");
+  expect(app.texts()).not.toContain("Sign in to Home Lab");
+
+  // Now AMP refuses: the next 401 can't be renewed, so it's back to sign in.
+  token = "revoked";
+  renewOk = false;
+  await app.back();
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Sign in to Home Lab");
+});
+
+test("locking cancels an open dialog, so nothing is answered behind the lock", async () => {
+  const sent: string[] = [];
+  const storage = { "amp.security": JSON.stringify({ autoLockSeconds: 0 }) };
+  const app = await openSignedIn({
+    storage,
+    network: {
+      ...unlockedHome,
+      [`POST ${SERVER}/api/Shards/a1/*`]: (r) => (sent.push(r.url), { status: 200 }),
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Running");
+  await app.press("more-Minecraft SMP");
+  await app.press("menu-stop");
+  await app.waitFor("text:Stop Minecraft SMP?");
+  try {
+    await app.setLifecycle("background");
+  } catch {
+    return; // a real window can't be sent to the background from a test
+  }
+  await app.setLifecycle("active");
+  await app.waitFor("text:AMP Mobile is locked");
+  expect(app.texts()).not.toContain("Stop Minecraft SMP?");
+  await enterPin(app);
+  await app.wait(300);
+  expect(sent).toEqual([]);
+});
+
+test("adding the same account on the same panel again updates it instead of duplicating it", async () => {
+  const app = await openSignedIn({
+    network: {
+      ...unlockedHome,
+      [`POST ${SERVER}/api/Auth/login`]: { body: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } },
+    },
+  });
+  await app.press("Add Server");
+  await app.type("server", "AMP.example.test");
+  await app.type("username", "Admin");
+  await app.type("password", "pw");
+  await app.press("text:Add Server");
+  await app.waitFor("text:Minecraft SMP");
+  expect(JSON.parse(app.storage()["amp.servers"]!)).toHaveLength(1);
+});
+
+test("a damaged vault doesn't hide the server list, and a lockout set by a skewed clock is capped", async () => {
+  const broken = await open("./App.tsx", {
+    storage: { ...(await vaultStorage()), "amp.vault": "{not json" },
+    network: unlockedHome,
+  });
+  await broken.waitFor("text:Home Lab");
+  expect(broken.texts()).not.toContain("AMP Mobile is locked");
+
+  const skewed = await open("./App.tsx", {
+    storage: { ...(await vaultStorage()), "amp.vault.lockout": JSON.stringify({ failures: 6, until: Date.now() + 365 * 86_400_000 }) },
+    network: unlockedHome,
+  });
+  await skewed.waitFor("text:AMP Mobile is locked");
+  await skewed.waitUntil(() => skewed.texts().some((t) => /^Try again in \d+ s$/.test(t)));
+  const shown = skewed.texts().find((t) => /^Try again in \d+ s$/.test(t))!;
+  expect(Number(shown.match(/\d+/)![0])).toBeLessThanOrEqual(900);
+});
+
+test("wrong current PINs on the change-PIN screen count like any other", async () => {
+  const app = await openSignedIn({ network: unlockedHome });
+  await app.press("security");
+  await app.press("change-pin");
+  await enterPin(app, "999000");
+  await enterPin(app, "864200");
+  await enterPin(app, "864200");
+  await app.waitFor("text:That isn't your current PIN.");
+  expect(JSON.parse(app.storage()["amp.vault.lockout"]!).failures).toBe(1);
+});
+
+test("going back while a sign-in finishes leaves the home screen in place", async () => {
+  const app = await open("./App.tsx", {
+    network: {
+      // Slow enough that "back" comes first, even in a real window.
+      [`POST ${SERVER}/api/Auth/login`]: { delay: 2500, body: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.press("Add Server");
+  await app.type("server", "amp.example.test");
+  await app.type("username", "admin");
+  await app.type("password", "pw");
+  await app.press("text:Add Server");
+  await app.back();
+  await app.wait(3000);
+  await app.press("pin-cancel").catch(() => {}); // the PIN prompt for staying signed in
+  expect(app.texts()).toContain("Your servers");
+  expect(app.texts()).not.toContain("Minecraft SMP");
+});
+
+test("users, roles and invites with missing fields still show", async () => {
+  const app = await openSignedIn({
+    network: {
+      ...unlockedHome,
+      [`GET ${SERVER}/api/users`]: { body: [{ id: "u5", userName: "nofields" }] },
+      [`GET ${SERVER}/api/roles`]: { body: [{ id: "r9", name: "Bare" }] },
+      [`GET ${SERVER}/api/invites`]: { body: [{ id: "i9", userName: "pending-one" }] },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-access");
+  await app.waitFor("user-nofields");
+  await app.press("tab-roles");
+  await app.waitFor("text:0 permissions");
+  await app.press("tab-invites");
+  await app.waitFor("text:Unknown");
+});
+
+test("typing during a save stays unsaved, and an edit survives the app locking", async () => {
+  const FILES = `${SERVER}/api/shards/a1/files`;
+  const contents: Record<string, string> = { "server.properties": "motd=Hello\n" };
+  const pathOf = (url: string) => decodeURIComponent(new URL(url).searchParams.get("path") ?? "");
+  const app = await openSignedIn({
+    storage: { "amp.security": JSON.stringify({ autoLockSeconds: 0 }) },
+    network: {
+      ...unlockedHome,
+      [`GET ${FILES}/managed*`]: { body: [] },
+      [`GET ${FILES}/content*`]: (r) => ({ body: { content: contents[pathOf(r.url)] ?? "" } }),
+      [`PUT ${FILES}/content*`]: (r) => ((contents[pathOf(r.url)] = JSON.parse(r.body!).content), { delay: 400, status: 204 }),
+      [`GET ${FILES}*`]: { body: [{ name: "server.properties", path: "server.properties", isDirectory: false, size: 12 }] },
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await app.press("open-files");
+  await app.press("file-server.properties");
+  await app.waitFor("file-content");
+  await app.type("file-content", "a=1\n");
+  await app.press("save-file");
+  await app.type("file-content", "b=2\n"); // while the save is in flight
+  await app.wait(700);
+  expect(contents["server.properties"]).toBe("motd=Hello\na=1\n");
+  expect(app.texts()).not.toContain("Saved."); // b=2 isn't saved
+
+  try {
+    await app.setLifecycle("background");
+  } catch {
+    return; // a real window can't be sent to the background from a test
+  }
+  await app.setLifecycle("active");
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app);
+  await app.waitFor("draft-restored");
+  expect(app.value("file-content")).toBe("motd=Hello\na=1\nb=2\n");
 });

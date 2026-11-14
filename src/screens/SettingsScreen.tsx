@@ -29,7 +29,8 @@ import { confirm } from "../components/Confirm";
 import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 import { SettingRow } from "./ShardSettingsScreen";
 import { openSafe } from "../lib/links";
 
@@ -74,8 +75,7 @@ export function SettingsScreen(props: { serverId: string }) {
 
   const fail = async (e: unknown, denied = "Your AMP account isn't allowed to do that.") => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
       return;
     }
     error.set(e instanceof AmpError && e.status === 403 ? denied : (e as Error).message);

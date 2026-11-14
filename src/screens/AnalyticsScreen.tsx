@@ -35,7 +35,8 @@ import { MainMenu } from "../components/MainMenu";
 import { MetricChart } from "../components/MetricChart";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** Who plays on a server (or one instance): headline figures, activity, countries, top players. */
 export function AnalyticsScreen(props: { serverId: string; shardId?: string; title?: string }) {
@@ -61,8 +62,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
       return;
     }
     error.set(

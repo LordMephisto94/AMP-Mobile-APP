@@ -23,7 +23,8 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -77,8 +78,7 @@ export function ActivityScreen(props: { serverId: string }) {
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
       return;
     }
     error.set(

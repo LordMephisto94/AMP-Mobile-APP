@@ -18,7 +18,8 @@ import { Screen } from "../components/backdrop";
 import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor } from "../state/servers";
+import { clientFor } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 import { onDomain, openSafe } from "../lib/links";
 
 /** One player: who they are on Steam or Minecraft, their totals, where and when they played. */
@@ -58,8 +59,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
     } catch (e) {
       if (id !== loadId) return;
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+        await sessionRejected(props.serverId);
         return;
       }
       error.set(

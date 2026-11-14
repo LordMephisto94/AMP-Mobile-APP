@@ -20,7 +20,8 @@ import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** How often the list refreshes while it is on screen. */
 const LIST_REFRESH_MS = 60_000;
@@ -66,8 +67,7 @@ export function ShardsScreen(props: { serverId: string }) {
         .catch(() => {});
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.replace({ name: "signIn", serverId: props.serverId });
+        await sessionRejected(props.serverId);
         return;
       }
       error.set((e as Error).message);

@@ -20,7 +20,8 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor } from "../state/servers";
+import { clientFor } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 const REFRESH_MS = 30_000;
 /** Enum values the API may send as names; numbers say nothing to a person. */
@@ -45,8 +46,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
       error.set(null);
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+        await sessionRejected(props.serverId);
         return;
       }
       error.set(e instanceof AmpError && e.status === 403 ? "Your AMP account can't see this machine." : (e as Error).message);
@@ -306,7 +306,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                   <View class={`flex-row items-center gap-3 rounded-lg px-1 py-1.5 ${x().conflict ? "bg-destructive/10" : ""}`}>
                     <View class={`h-2 w-2 rounded-full ${x().listening ? "bg-success" : x().running ? "bg-warning" : "bg-white/20"}`} />
                     <Text class="w-14 font-mono text-sm font-semibold text-card-foreground tabular-nums">{String(x().port)}</Text>
-                    <Text class="w-10 text-[11px] font-semibold text-muted-foreground">{x().protocol.toUpperCase()}</Text>
+                    <Text class="w-10 text-[11px] font-semibold text-muted-foreground">{String(x().protocol ?? "").toUpperCase()}</Text>
                     <View class="flex-1">
                       <Text class="line-clamp-1 text-sm text-card-foreground">{x().name}</Text>
                       <Text class="line-clamp-1 text-xs text-muted-foreground">

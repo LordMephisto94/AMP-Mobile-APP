@@ -21,7 +21,8 @@ import { Screen } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** Creates a role (no `roleId`) or edits one: its name, description and permissions, as a tree. */
 export function RoleScreen(props: { serverId: string; roleId?: string }) {
@@ -41,8 +42,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
 
   const fail = async (e: unknown, denied: string) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
       return;
     }
     error.set(e instanceof AmpError && e.status === 403 ? denied : (e as Error).message);

@@ -28,7 +28,8 @@ import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown"
 import { Prompt, type PromptRequest } from "../components/Prompt";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor } from "../state/servers";
+import { clientFor } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
 
 const checkName = nameProblem;
@@ -58,8 +59,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
     } else if (e instanceof AmpError && e.status === 403) {
       error.set(e.message && !e.message.startsWith("You don't") ? e.message : "Your account isn't allowed to do that here.");
     } else {

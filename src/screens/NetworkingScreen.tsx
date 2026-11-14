@@ -32,7 +32,8 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
 
 const REFRESH_MS = 30_000;
@@ -125,8 +126,7 @@ export function NetworkingScreen(props: { serverId: string }) {
       ports.set(next);
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+        await sessionRejected(props.serverId);
         return;
       }
       error.set((e as Error).message);
@@ -278,8 +278,8 @@ export function NetworkingScreen(props: { serverId: string }) {
                     {(a) => <CopyRow value={a()} label="IPv6" copied={copied() === a()} onCopy={() => copy(a())} />}
                   </If>
                 </View>
-                <If when={h().trustedProxies?.length}>
-                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${h().trustedProxies.join(", ")}`}</Text>
+                <If when={(h().trustedProxies ?? []).length}>
+                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${(h().trustedProxies ?? []).join(", ")}`}</Text>
                 </If>
               </Section>
             )}
@@ -433,7 +433,7 @@ function PortRow(props: { port: ShardPort; published: string[]; onToggle: () => 
   return (
     <View class="flex-row items-start gap-3 py-1.5">
       <Text class="w-14 font-mono text-sm font-semibold text-card-foreground tabular-nums">{String(props.port.port)}</Text>
-      <Text class="w-10 text-[11px] font-semibold text-muted-foreground">{props.port.protocol.toUpperCase()}</Text>
+      <Text class="w-10 text-[11px] font-semibold text-muted-foreground">{String(props.port.protocol ?? "").toUpperCase()}</Text>
       <View class="flex-1 gap-1">
         <Text class="line-clamp-1 text-sm text-card-foreground">{props.port.name}</Text>
         <View class="flex-row flex-wrap gap-1.5">
@@ -472,7 +472,7 @@ function PublicationRow(props: { publication: Publication; title: string; target
       <View class="flex-row items-center gap-2">
         <View class="flex-1">
           <Text class="font-mono text-sm font-semibold text-sky-300">{props.title}</Text>
-          <Text class="line-clamp-1 text-xs text-muted-foreground">{`→ ${props.target} · ${p().protocol.toUpperCase()}`}</Text>
+          <Text class="line-clamp-1 text-xs text-muted-foreground">{`→ ${props.target} · ${String(p().protocol ?? "").toUpperCase()}`}</Text>
         </View>
         <Pill label={words(state()) === "Disabled" ? "Paused" : words(state())} tone={stateTone(state())} />
         <Dropdown

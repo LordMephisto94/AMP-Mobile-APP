@@ -219,18 +219,32 @@ export function getProfiles(client: AmpClient, keys: string[]): Promise<Profiles
  * an `<Image>` can't send, so it comes back as a `blob:` URL; null when it can't be had.
  */
 export async function avatarUrl(client: AmpClient, hash: string): Promise<string | null> {
+  // A Steam avatar hash is hex; anything else isn't asked for.
+  if (!/^[0-9a-f]{20,64}$/i.test(hash)) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch(`${client.baseUrl}/api/Analytics/avatars/${encodeURIComponent(hash)}?full=true`, {
       headers: client.token ? { Authorization: `Bearer ${client.token}` } : {},
       // Never let the token follow a redirect elsewhere.
       redirect: "error",
+      signal: controller.signal,
     });
     if (!response.ok) return null;
-    return URL.createObjectURL(await response.blob());
+    // Only a picture, and only a small one.
+    if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("image/")) return null;
+    if (Number(response.headers.get("content-length") ?? 0) > MAX_AVATAR_BYTES) return null;
+    const blob = await response.blob();
+    if (blob.size > MAX_AVATAR_BYTES) return null;
+    return URL.createObjectURL(blob);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 /** A country's flag from its ISO 3166-1 alpha-2 code ("gb" → 🇬🇧); a globe when unknown. */
 export function flag(country: string | null | undefined): string {

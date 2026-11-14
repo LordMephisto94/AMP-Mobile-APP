@@ -21,7 +21,8 @@ import { MetricChart, type MetricPoint } from "../components/MetricChart";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** How often the page refreshes while it is on screen (the agent samples every ~5 s). */
 const DETAIL_REFRESH_MS = 30_000;
@@ -66,20 +67,23 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
 
   const handle = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
     } else {
       error.set((e as Error).message);
     }
   };
 
+  let loadId = 0;
   const load = async () => {
+    // Only the newest load's answers are shown (a range change mid-refresh, say).
+    const id = ++loadId;
     try {
       const client = clientFor(props.serverId);
       const [s, m] = await Promise.all([
         getShardState(client, props.id),
         getShardMetrics(client, props.id, minutes()).catch(() => samples()),
       ]);
+      if (id !== loadId) return;
       state.set(s);
       samples.set(m);
       error.set(null);

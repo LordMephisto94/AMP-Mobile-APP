@@ -8,7 +8,8 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 const REFRESH_MS = 30_000;
 
@@ -37,8 +38,7 @@ export function SpiresScreen(props: { serverId: string }) {
       states.set(next);
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+        await sessionRejected(props.serverId);
         return;
       }
       error.set(e instanceof AmpError && e.status === 403 ? "Your AMP account can't see this server's machines." : (e as Error).message);

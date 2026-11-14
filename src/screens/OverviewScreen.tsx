@@ -12,7 +12,8 @@ import { goTo, MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 const REFRESH_MS = 30_000;
 const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
@@ -60,8 +61,7 @@ export function OverviewScreen(props: { serverId: string }) {
         );
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
-        await clearServerSession(props.serverId);
-        nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+        await sessionRejected(props.serverId);
         return;
       }
       error.set((e as Error).message);

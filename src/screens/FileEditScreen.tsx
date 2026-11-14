@@ -6,7 +6,8 @@ import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor } from "../state/servers";
+import { clientFor } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** Files larger than this open read-only: a phone's text field isn't a place for them. */
 const MAX_EDIT_CHARS = 1_000_000;
@@ -15,7 +16,15 @@ const MAX_EDIT_CHARS = 1_000_000;
  * Edits a text file. AMP-managed files are flagged: `generated` ones are rewritten on every
  * start, so they open read-only; in `merged` ones AMP owns some values.
  */
+/**
+ * Unsaved edits, by file, in memory only (never on disk): the lock clears the app's pages,
+ * and this brings the edit back when the file is opened again after unlocking.
+ */
+const drafts = new Map<string, string>();
+
 export function FileEditScreen(props: { serverId: string; id: string; path: string; managed?: string | null }) {
+  const draftKey = `${props.serverId}\n${props.id}\n${props.path}`;
+  const restored = signal(false);
   const original = signal<string | null>(null);
   const text = signal("");
   const error = signal<string | null>(null);
@@ -25,8 +34,7 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
     } else if (e instanceof AmpError && e.status === 403) {
       error.set("Your account isn't allowed to open or change this file.");
     } else {
@@ -38,7 +46,14 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
     try {
       const content = await readText(clientFor(props.serverId), props.id, props.path);
       original.set(content);
-      text.set(content);
+      const draft = drafts.get(draftKey);
+      if (draft !== undefined && draft !== content) {
+        text.set(draft);
+        restored.set(true);
+      } else {
+        drafts.delete(draftKey);
+        text.set(content);
+      }
     } catch (e) {
       await fail(e);
     }
@@ -52,9 +67,12 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
     if (!dirty() || saving() || readOnly()) return;
     saving.set(true);
     error.set(null);
+    // What was sent is what's saved: typing during the save stays unsaved.
+    const sent = text();
     try {
-      await writeText(clientFor(props.serverId), props.id, props.path, text());
-      original.set(text());
+      await writeText(clientFor(props.serverId), props.id, props.path, sent);
+      original.set(sent);
+      if (text() === sent) drafts.delete(draftKey);
       saved.set(true);
     } catch (e) {
       await fail(e);
@@ -96,6 +114,7 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
       onBack={async () => {
         // leave() is true straight away when nothing is unsaved.
         if (await leave()) {
+          drafts.delete(draftKey);
           original.set(text());
           nav.pop();
         }
@@ -119,6 +138,9 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
         <If when={tooBig()}>
           <Text class="px-4 pt-3 text-xs text-warning">This file is too large to edit on a phone; it's shown read-only.</Text>
         </If>
+        <If when={restored() && dirty()}>
+          <Text testID="draft-restored" class="px-4 pt-3 text-xs text-warning">Your unsaved changes were kept while the app was locked. Save or go back to discard them.</Text>
+        </If>
         <If when={saved() && !dirty()}>
           <Text class="px-4 pt-3 text-xs text-success">Saved.</Text>
         </If>
@@ -137,7 +159,12 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
                   testID="file-content"
                   multiline
                   value={text()}
-                  onChange={({ value }) => (saved.set(false), text.set(value))}
+                  onChange={({ value }) => {
+                    saved.set(false);
+                    text.set(value);
+                    if (original() !== null && value !== original()) drafts.set(draftKey, value);
+                    else drafts.delete(draftKey);
+                  }}
                   readonly={readOnly()}
                   autoCapitalize="none"
                   autoCorrect={false}

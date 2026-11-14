@@ -64,6 +64,29 @@ code in the app. Links and images the panel names are checked before use:
 | 11 | A server's IDs used `Math.random` | Info | Fixed: secure random |
 | 12 | The banner could loop forever when measured at an invalid size (a freeze) | Low | Fixed |
 
+## Second audit: bugs, edge cases and races (November 2026)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 13 | Any 401 deleted the session and sent the user to sign in, without first trying the renewal AMP allows | Medium | Fixed: one shared handler renews first; only AMP's refusal signs out. Screens hitting it at once share one renewal |
+| 14 | A dialog open when the app locked stayed above the lock screen and could still be answered | Medium | Fixed: locking cancels it |
+| 15 | Two PIN checks at once could both read the wrong-PIN count and undercount guesses | Medium | Fixed: PIN checks run one at a time |
+| 16 | Locking while an unlock was finishing could still open the app | Medium | Fixed: an unlock that started before a lock is abandoned |
+| 17 | Vault writes could finish out of order and save stale sessions | Medium | Fixed: one write at a time, each sealing what's current |
+| 18 | Wrong current PINs on the change-PIN screen weren't counted | Low | Fixed: counted and waited like any other |
+| 19 | A clock set backwards could stretch the wrong-PIN wait almost without end; an unreadable count reset to zero | Low | Fixed: capped at the longest wait; unreadable counts as nearly used up |
+| 20 | A damaged vault file also emptied the server list on screen | Low | Fixed: each part loads on its own |
+| 21 | The live console could open two connections at once (stop then start, or two failures); a bad message dropped the rest; incoming data and unanswered calls had no limits | Medium | Fixed |
+| 22 | The console accepted lines without an instance id, which could belong to another instance | Low | Fixed: only this instance's well-formed lines |
+| 23 | Typing during a file save was marked as saved; locking discarded unsaved edits | Medium | Fixed: only what was sent counts as saved; drafts kept in memory (never on disk) and restored after unlocking |
+| 24 | The request timeout didn't cover reading the answer, so a stalled server could hang a screen | Low | Fixed |
+| 25 | Going back while a sign-in finished replaced the home screen | Low | Fixed |
+| 26 | Switching an instance's graph range mid-refresh could show the old range | Low | Fixed |
+| 27 | Removing a server waited for the server's sign-out answer (up to 15 s) | Low | Fixed: removed at once, the server told afterwards |
+| 28 | Adding the same account on the same panel twice made a duplicate | Low | Fixed: the existing entry is refreshed |
+| 29 | Users, roles or invites missing a field could break the Access pages | Low | Fixed: answers tidied where they arrive |
+| 30 | Avatars weren't size- or type-checked and had no timeout | Low | Fixed: images only, 2 MB at most, 15 s |
+
 ## Still open
 
 - **Release signing.** Builds are signed with this computer's debug key. Make a release key (`keytool`), keep it and
@@ -76,5 +99,7 @@ code in the app. Links and images the panel names are checked before use:
 - **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
 - **Permissions.** NSH's Android runtime adds the notifications permission; the app never uses it, and its
   capabilities deny notifications.
+- **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (and go into
+  backups). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting the servers.
 - **Sign-in gaps.** Accounts that must change an expired password, or that sign in with a passkey, are sent to the
   web panel.

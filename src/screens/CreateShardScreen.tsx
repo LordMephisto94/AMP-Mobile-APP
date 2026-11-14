@@ -7,7 +7,8 @@ import { Backdrop } from "../components/backdrop";
 import { Select } from "../components/Dropdown";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
+import { sessionRejected } from "../lib/session";
 
 /** Create an instance: choose a game from the server's catalogue, then name and place it. */
 export function CreateShardScreen(props: { serverId: string }) {
@@ -27,8 +28,7 @@ export function CreateShardScreen(props: { serverId: string }) {
 
   const fail = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
-      await clearServerSession(props.serverId);
-      nav.setRoutes([{ name: "servers" }, { name: "signIn", serverId: props.serverId }]);
+      await sessionRejected(props.serverId);
     } else if (e instanceof AmpError && e.status === 403) {
       error.set("Your account isn't allowed to create instances on this server.");
     } else if (e instanceof AmpError && e.status === 409) {
