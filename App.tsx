@@ -1,5 +1,6 @@
 import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
+import { ConfirmHost } from "./src/components/Confirm";
 import { ConsoleScreen } from "./src/screens/ConsoleScreen";
 import { CreateShardScreen } from "./src/screens/CreateShardScreen";
 import { FileEditScreen } from "./src/screens/FileEditScreen";
@@ -52,6 +53,7 @@ function App() {
           {(route) => screen(route)}
         </NavStack>
       </If>
+      <ConfirmHost />
     </View>
   );
 }

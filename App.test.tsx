@@ -28,10 +28,15 @@ const shardsRoute = (request: { url: string; headers: Record<string, string> }) 
   };
 };
 
-test("starts with an Add Server button and no servers", async () => {
+test("starts with an Add Server button and no servers, and says it is unofficial", async () => {
   const app = await open("./App.tsx");
   await app.waitFor("text:No servers yet");
   expect(app.texts()).toContain("Add Server");
+  expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
+  await app.press("about");
+  await app.waitFor("text:AMP Mobile 1.0.0");
+  await app.press("confirm-ok");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 1.0.0"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -331,22 +336,23 @@ test("deletes an instance, then restores one and permanently deletes another", a
       [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
     },
   });
-  app.onDialog((d) => (d.title?.startsWith("Permanently") ? "Delete permanently" : "Delete"));
 
   await app.press("server-Home Lab");
   await app.press("shard-Minecraft SMP");
   await app.press("Delete instance");
+  await app.waitFor("text:Delete Minecraft SMP?");
+  await app.press("confirm-delete");
   await app.waitFor("text:Recently deleted");
-  expect(app.dialogs()[0]).toMatchObject({ title: "Delete Minecraft SMP?" });
 
   await app.press("recently-deleted");
   await app.press("restore-Old server");
   await app.waitFor("shard-Old server");
 
   await app.press("purge-Scrap");
+  await app.waitFor("text:Permanently delete Scrap?");
+  await app.press("confirm-purge");
   await app.waitUntil(() => calls.includes("purge c3"));
   await app.waitUntil(() => !app.texts().includes("Scrap"));
-  expect(app.dialogs()[1]).toMatchObject({ title: "Permanently delete Scrap?" });
   expect(calls).toEqual(["delete a1", "restore b2", "purge c3"]);
 });
 
@@ -451,9 +457,33 @@ test("browses, edits, creates, uploads and deletes files", async () => {
   expect(chunks).toEqual([5]);
 
   // Delete, confirmed.
-  app.onDialog(() => "Delete"); // the actions menu, then the confirmation
+  // The row's dropdown, then the app's own confirm dialog.
   await app.press("more-mod.jar");
+  await app.press("menu-delete");
+  await app.waitFor("text:Delete mod.jar?");
+  await app.press("confirm-delete");
   await app.waitUntil(() => calls.includes("delete mod.jar"));
 
   expect(calls).toEqual(["write server.properties", "folder mods", "upload-start mod.jar 5", "upload-commit", "delete mod.jar"]);
+});
+
+test("the server menu is the app's own dropdown, and removing asks first", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: { [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } }, [`POST ${SERVER}/api/Auth/logout`]: { status: 204 } },
+  });
+  await app.press("more-Home Lab");
+  await app.waitFor("menu-signOut");
+  expect(app.dialogs()).toEqual([]); // no system sheet
+
+  await app.press("menu-remove");
+  await app.waitFor("text:Remove Home Lab?");
+  await app.press("confirm-cancel");
+  await app.waitUntil(() => !app.texts().includes("Remove Home Lab?"));
+  expect(app.texts()).toContain("Home Lab");
+
+  await app.press("more-Home Lab");
+  await app.press("menu-remove");
+  await app.press("confirm-remove");
+  await app.waitFor("text:No servers yet");
 });

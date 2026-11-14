@@ -1,5 +1,5 @@
 import { openUrl, Picker, Scroll, signal, Text, View } from "nsh";
-import { AlertDialog, NavPage } from "nsh/base";
+import { NavPage } from "nsh/base";
 import { AmpError } from "../api/client";
 import {
   copyFile,
@@ -23,6 +23,8 @@ import {
   writeText,
 } from "../api/files";
 import { Backdrop } from "../components/backdrop";
+import { confirm } from "../components/Confirm";
+import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { Prompt, type PromptRequest } from "../components/Prompt";
 import { ErrorText, PageHeader } from "../components/ui";
 import { nav } from "../state/nav";
@@ -127,13 +129,12 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     });
 
   const remove = async (entry: FileEntry) => {
-    const { action } = await AlertDialog.show({
+    const action = await confirm({
       title: `Delete ${entry.name}?`,
-      description: entry.isDirectory ? "The folder and everything in it are deleted. This can't be undone." : "This can't be undone.",
-      actions: [
-        { id: "cancel", label: "Cancel", role: "cancel" },
-        { id: "delete", label: "Delete", role: "destructive" },
-      ],
+      message: entry.isDirectory ? "The folder and everything in it are deleted. This can't be undone." : "This can't be undone.",
+      icon: "🗑️",
+      tone: "danger",
+      actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
     if (action === "delete") await act(async () => deleteFile(client(), props.id, entry.path));
   };
@@ -186,13 +187,13 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     });
 
   const extract = async (entry: FileEntry) => {
-    const { action } = await AlertDialog.show({
+    const action = await confirm({
       title: `Extract ${entry.name}?`,
-      description: "Into this folder. Files that already exist are kept unless you choose to replace them.",
+      message: "Into this folder. Files that already exist are kept unless you choose to replace them.",
+      icon: "🗜️",
       actions: [
-        { id: "keep", label: "Extract" },
-        { id: "overwrite", label: "Extract and replace", role: "destructive" },
-        { id: "cancel", label: "Cancel", role: "cancel" },
+        { id: "keep", label: "Extract", tone: "primary" },
+        { id: "overwrite", label: "Extract and replace", tone: "danger" },
       ],
     });
     if (action === "keep" || action === "overwrite") {
@@ -200,35 +201,23 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     }
   };
 
-  const actions = async (entry: FileEntry) => {
-    const options = [
-      ...(entry.isDirectory ? [{ id: "open", label: "Open" }] : isTextFile(entry) ? [{ id: "open", label: "Edit" }] : []),
-      { id: "download", label: entry.isDirectory ? "Download as zip" : "Download" },
-      { id: "rename", label: "Rename" },
-      { id: "copy", label: "Copy" },
-      ...(isArchive(entry) ? [{ id: "extract", label: "Extract here" }] : []),
-      ...(entry.isDirectory ? [{ id: "zip", label: "Zip" }] : []),
-      { id: "delete", label: "Delete", role: "destructive" as const },
-      { id: "cancel", label: "Cancel", role: "cancel" as const },
-    ];
-    const { action } = await AlertDialog.show({ title: entry.name, presentation: "actionSheet", actions: options });
-    switch (action) {
-      case "open":
-        return open(entry);
-      case "download":
-        return download(entry);
-      case "rename":
-        return rename(entry);
-      case "copy":
-        return duplicate(entry);
-      case "extract":
-        return extract(entry);
-      case "zip":
-        return zip(entry);
-      case "delete":
-        return remove(entry);
-    }
-  };
+  /** The row whose dropdown is open (by path). */
+  const menuFor = signal<string | null>(null);
+  const actions = (entry: FileEntry) => menuFor.set(entry.path);
+
+  const menuItems = (entry: FileEntry): DropdownItem[] => [
+    ...(entry.isDirectory
+      ? [{ id: "open", label: "Open", icon: "📂", onSelect: () => open(entry) }]
+      : isTextFile(entry)
+        ? [{ id: "open", label: "Edit", icon: "✏️", onSelect: () => open(entry) }]
+        : []),
+    { id: "download", label: entry.isDirectory ? "Download as zip" : "Download", icon: "⬇️", onSelect: () => download(entry) },
+    { id: "rename", label: "Rename", icon: "🏷️", onSelect: () => rename(entry) },
+    { id: "copy", label: "Copy", icon: "📋", onSelect: () => duplicate(entry) },
+    ...(isArchive(entry) ? [{ id: "extract", label: "Extract here", icon: "🗜️", onSelect: () => extract(entry) }] : []),
+    ...(entry.isDirectory ? [{ id: "zip", label: "Zip", icon: "🗜️", onSelect: () => zip(entry) }] : []),
+    { id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: () => remove(entry) },
+  ];
 
   const newFolder = () =>
     ask({
@@ -275,13 +264,12 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     try {
       for (const { file } of picked) {
         if (entries()?.some((e) => e.name === file.name)) {
-          const { action } = await AlertDialog.show({
+          const action = await confirm({
             title: `Replace ${file.name}?`,
-            description: "A file with this name is already in this folder.",
-            actions: [
-              { id: "cancel", label: "Skip", role: "cancel" },
-              { id: "replace", label: "Replace", role: "destructive" },
-            ],
+            message: "A file with this name is already in this folder.",
+            icon: "📄",
+            cancelLabel: "Skip",
+            actions: [{ id: "replace", label: "Replace", tone: "danger" }],
           });
           if (action !== "replace") continue;
         }
@@ -355,7 +343,9 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
                     entry={entry()}
                     managed={managed()[entry().path]}
                     onPress={() => open(entry())}
-                    onMore={() => actions(entry())}
+                    menuOpen={menuFor() === entry().path}
+                    onMenuOpenChange={(o) => menuFor.set(o ? entry().path : null)}
+                    items={menuItems(entry())}
                   />
                 )}
               </Each>
@@ -382,14 +372,21 @@ function ToolButton(props: { label: string; onPress: () => void; disabled?: bool
   );
 }
 
-function FileRow(props: { entry: FileEntry; managed?: ManagedFile; onPress: () => void; onMore: () => void }) {
+function FileRow(props: {
+  entry: FileEntry;
+  managed?: ManagedFile;
+  onPress: () => void;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
+  items: DropdownItem[];
+}) {
   const icon = () => (props.entry.isDirectory ? "📁" : isArchive(props.entry) ? "🗜️" : isTextFile(props.entry) ? "📄" : "📦");
   return (
     <View
       role="button"
       testID={`file-${props.entry.name}`}
       onPress={props.onPress}
-      onLongPress={props.onMore}
+      onLongPress={() => props.onMenuOpenChange(true)}
       class="flex-row items-center gap-3 border-b border-white/5 px-3 py-3 active:bg-accent"
     >
       <Text class="text-xl">{icon()}</Text>
@@ -404,9 +401,13 @@ function FileRow(props: { entry: FileEntry; managed?: ManagedFile; onPress: () =
           <Text class="text-[10px] font-semibold text-primary">AMP</Text>
         </View>
       </If>
-      <Text testID={`more-${props.entry.name}`} onPress={props.onMore} class="px-2 text-lg text-muted-foreground">
-        ⋯
-      </Text>
+      <Dropdown
+        open={props.menuOpen}
+        onOpenChange={props.onMenuOpenChange}
+        title={props.entry.name}
+        items={props.items}
+        trigger={<MoreButton testID={`more-${props.entry.name}`} class="bg-transparent" />}
+      />
     </View>
   );
 }

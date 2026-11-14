@@ -1,8 +1,9 @@
 import { signal, Text, View } from "nsh";
-import { AlertDialog, Input, NavPage } from "nsh/base";
+import { Input, NavPage } from "nsh/base";
 import { AmpError } from "../api/client";
 import { readText, writeText } from "../api/files";
 import { Backdrop } from "../components/backdrop";
+import { confirm } from "../components/Confirm";
 import { ErrorText, PageHeader } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
@@ -64,13 +65,13 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
 
   const leave = async () => {
     if (!dirty()) return true;
-    const { action } = await AlertDialog.show({
+    const action = await confirm({
       title: "Discard your changes?",
-      description: `${name} has unsaved changes.`,
-      actions: [
-        { id: "stay", label: "Keep editing", role: "cancel" },
-        { id: "discard", label: "Discard", role: "destructive" },
-      ],
+      message: `${name} has unsaved changes.`,
+      icon: "📝",
+      tone: "danger",
+      cancelLabel: "Keep editing",
+      actions: [{ id: "discard", label: "Discard", tone: "danger" }],
     });
     return action === "discard";
   };

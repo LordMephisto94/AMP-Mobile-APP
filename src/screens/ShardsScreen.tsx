@@ -1,5 +1,5 @@
 import { Image, signal, Text, View } from "nsh";
-import { AlertDialog, NavPage } from "nsh/base";
+import { NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { purgeShard, restoreShard } from "../api/manage";
@@ -7,6 +7,7 @@ import { getShardState, listShards } from "../api/shards";
 import { type DeployedShard, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Screen } from "../components/backdrop";
+import { confirm } from "../components/Confirm";
 import { ErrorText, PageHeader, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
@@ -72,13 +73,12 @@ export function ShardsScreen(props: { serverId: string }) {
 
   const purge = async (shard: DeployedShard) => {
     const label = shard.displayName || shard.name || shard.id;
-    const { action } = await AlertDialog.show({
+    const action = await confirm({
       title: `Permanently delete ${label}?`,
-      description: "This removes its files, snapshots and history from the machine. It can't be undone.",
-      actions: [
-        { id: "cancel", label: "Cancel", role: "cancel" },
-        { id: "purge", label: "Delete permanently", role: "destructive" },
-      ],
+      message: "This removes its files, snapshots and history from the machine. It can't be undone.",
+      icon: "⚠️",
+      tone: "danger",
+      actions: [{ id: "purge", label: "Delete forever", tone: "danger" }],
     });
     if (action !== "purge") return;
     working.set(shard.id);

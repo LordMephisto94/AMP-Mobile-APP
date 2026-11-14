@@ -1,11 +1,28 @@
-import { Image, Scroll, Text, View } from "nsh";
-import { AlertDialog, NavPage } from "nsh/base";
+import { Image, Scroll, signal, Text, View } from "nsh";
+import { NavPage } from "nsh/base";
 import wordmark from "../../assets/amp-wordmark.webp";
+import app from "../../nsh.json";
 import { AmpBanner } from "../components/AmpBanner";
 import { Backdrop } from "../components/backdrop";
+import { confirm } from "../components/Confirm";
+import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { isSignedIn, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
+
+/** The About dialog: what this app is, and that it is not official. */
+function showAbout() {
+  confirm({
+    title: `AMP Mobile ${app.version}`,
+    icon: "ℹ️",
+    message:
+      "An unofficial, independent mobile app for managing AMP 3 servers. It is not made, endorsed or supported by " +
+      "CubeCoders Limited. AMP, the AMP logo and Application Management Panel are theirs.\n\n" +
+      "The app talks only to the servers you add, using AMP's own API. For help with AMP itself, see cubecoders.com.",
+    cancelLabel: null,
+    actions: [{ id: "ok", label: "OK", tone: "primary" }],
+  });
+}
 
 /** Home: the saved AMP servers and the button to add one. */
 export function ServersScreen() {
@@ -43,6 +60,21 @@ export function ServersScreen() {
             <View class="mt-2">
               <PrimaryButton title="Add Server" icon="＋" onPress={() => nav.push({ name: "addServer" })} />
             </View>
+
+            <View class="mt-8 items-center gap-2 px-6">
+              <Text class="text-center text-xs leading-4 text-muted-foreground">
+                Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.
+              </Text>
+              <View
+                role="button"
+                testID="about"
+                onPress={showAbout}
+                class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
+              >
+                <Text class="text-xs text-muted-foreground">ⓘ</Text>
+                <Text class="text-xs font-semibold text-muted-foreground">About</Text>
+              </View>
+            </View>
           </View>
         </Scroll>
       </View>
@@ -50,34 +82,39 @@ export function ServersScreen() {
   );
 }
 
-/** A saved server, drawn as the AMP panel draws its header. */
+/** A saved server, drawn as the AMP panel draws its header, with its own dropdown menu. */
 function ServerCard(props: { server: SavedServer }) {
   const signedIn = () => isSignedIn(props.server);
+  const menuOpen = signal(false);
 
   const open = () =>
     nav.push(signedIn() ? { name: "shards", serverId: props.server.id } : { name: "signIn", serverId: props.server.id });
 
-  const menu = async () => {
-    const { action } = await AlertDialog.show({
-      title: props.server.name,
-      presentation: "actionSheet",
-      actions: [
-        ...(signedIn() ? [{ id: "signOut", label: "Sign out" }] : [{ id: "signIn", label: "Sign in" }]),
-        { id: "remove", label: "Remove server", role: "destructive" as const },
-        { id: "cancel", label: "Cancel", role: "cancel" as const },
-      ],
+  const remove = async () => {
+    const choice = await confirm({
+      title: `Remove ${props.server.name}?`,
+      message: "It's removed from this phone and signed out. Nothing on the server changes; you can add it again any time.",
+      icon: "🗑️",
+      tone: "danger",
+      actions: [{ id: "remove", label: "Remove", tone: "danger" }],
     });
-    if (action === "signOut") await signOutServer(props.server.id);
-    else if (action === "signIn") nav.push({ name: "signIn", serverId: props.server.id });
-    else if (action === "remove") await removeServer(props.server.id);
+    if (choice === "remove") await removeServer(props.server.id);
   };
+
+  const items = (): DropdownItem[] => [
+    { id: "open", label: signedIn() ? "Open instances" : "Sign in", icon: signedIn() ? "🎮" : "🔑", onSelect: open },
+    ...(signedIn()
+      ? [{ id: "signOut", label: "Sign out", icon: "🚪", onSelect: () => signOutServer(props.server.id) }]
+      : []),
+    { id: "remove", label: "Remove server", icon: "🗑️", tone: "danger" as const, onSelect: remove },
+  ];
 
   return (
     <View
       role="button"
       testID={`server-${props.server.name}`}
       onPress={open}
-      onLongPress={menu}
+      onLongPress={() => menuOpen.set(true)}
       class="overflow-hidden rounded-(--radius) border border-white/10 shadow-lg active:opacity-85"
     >
       <AmpBanner
@@ -86,9 +123,15 @@ function ServerCard(props: { server: SavedServer }) {
         statusLabel={signedIn() ? "Signed in" : "Signed out"}
         subtitle={`${props.server.username} · ${props.server.serverUrl.replace(/^https?:\/\//, "")}`}
       />
-      <Text onPress={menu} class="absolute top-3 right-4 text-xl text-white/80">
-        ⋯
-      </Text>
+      <View class="absolute top-3 right-3">
+        <Dropdown
+          open={menuOpen()}
+          onOpenChange={(o) => menuOpen.set(o)}
+          title={props.server.name}
+          items={items()}
+          trigger={<MoreButton testID={`more-${props.server.name}`} />}
+        />
+      </View>
     </View>
   );
 }

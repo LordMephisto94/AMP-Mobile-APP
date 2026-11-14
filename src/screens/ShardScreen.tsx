@@ -1,5 +1,5 @@
 import { Image, signal, Text, View } from "nsh";
-import { AlertDialog, NavPage } from "nsh/base";
+import { NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { deleteShard } from "../api/manage";
@@ -7,6 +7,7 @@ import { getShardMetrics, getShardState, shardPower, type ShardPowerAction } fro
 import { type ShardMetricsSample, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Screen } from "../components/backdrop";
+import { confirm } from "../components/Confirm";
 import { MetricChart, type MetricPoint } from "../components/MetricChart";
 import { ErrorText, PageHeader, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
@@ -91,14 +92,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
   };
 
   const remove = async () => {
-    const { action } = await AlertDialog.show({
+    const action = await confirm({
       title: `Delete ${props.title}?`,
-      description:
+      message:
         "It disappears from your instances and stops running. You can restore it from the instance list until you delete it permanently.",
-      actions: [
-        { id: "cancel", label: "Cancel", role: "cancel" },
-        { id: "delete", label: "Delete", role: "destructive" },
-      ],
+      icon: "🗑️",
+      tone: "danger",
+      actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
     if (action !== "delete") return;
     busy.set(true);
