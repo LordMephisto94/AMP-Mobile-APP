@@ -1,9 +1,8 @@
 import { signal, Text, View } from "nsh";
-import { NavPage } from "nsh/base";
 import { Screen } from "../components/backdrop";
 import { login } from "../api/auth";
 import { AmpClient, normalizeServerUrl } from "../api/client";
-import { Checkbox, ErrorText, Field, PageHeader, PrimaryButton } from "../components/ui";
+import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { addServer, serverById, setServerSession } from "../state/servers";
 
@@ -68,7 +67,7 @@ export function ServerFormScreen(props: { serverId?: string }) {
   const title = adding ? "Add Server" : `Sign in to ${existing!.name}`;
 
   return (
-    <NavPage title={adding ? "Add Server" : "Sign in"} header={<PageHeader title={title} />}>
+    <AppPage title={title}>
       <Screen>
         <View class="w-full max-w-2xl gap-5 self-center px-5 pt-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <View class="gap-1">
@@ -114,6 +113,6 @@ export function ServerFormScreen(props: { serverId?: string }) {
           />
         </View>
       </Screen>
-    </NavPage>
+    </AppPage>
   );
 }

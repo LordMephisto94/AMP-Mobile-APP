@@ -1,10 +1,10 @@
 import { signal, Text, View } from "nsh";
-import { Input, NavPage } from "nsh/base";
+import { Input } from "nsh/base";
 import { AmpError } from "../api/client";
 import { readText, writeText } from "../api/files";
 import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
-import { ErrorText, PageHeader } from "../components/ui";
+import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
 
@@ -88,17 +88,18 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
   );
 
   return (
-    <NavPage
+    <AppPage
       title={name}
+      subtitle={`/${props.path}`}
+      right={<SaveButton />}
       popOnBack={!dirty()}
-      onBackPress={async () => {
-        if (dirty() && (await leave())) {
+      onBack={async () => {
+        // leave() is true straight away when nothing is unsaved.
+        if (await leave()) {
           original.set(text());
           nav.pop();
         }
       }}
-      headerRight={<SaveButton />}
-      header={<PageHeader title={name} subtitle={`/${props.path}`} right={<SaveButton />} />}
     >
       <View class="flex-1 bg-background">
         <Backdrop dim="strong" />
@@ -147,6 +148,6 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
           </View>
         </If>
       </View>
-    </NavPage>
+    </AppPage>
   );
 }

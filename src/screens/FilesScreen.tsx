@@ -1,5 +1,4 @@
 import { openUrl, Picker, Scroll, signal, Text, View } from "nsh";
-import { NavPage } from "nsh/base";
 import { AmpError } from "../api/client";
 import {
   copyFile,
@@ -26,7 +25,7 @@ import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { Prompt, type PromptRequest } from "../components/Prompt";
-import { ErrorText, PageHeader } from "../components/ui";
+import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
 
@@ -297,7 +296,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   };
 
   return (
-    <NavPage title={crumbs().at(-1) ?? "Files"} header={<PageHeader title={`${props.title} files`} subtitle={`/${props.path}`} />}>
+    <AppPage title={`${props.title} files`} subtitle={`/${props.path}`}>
       <View class="flex-1 bg-background">
         <Backdrop dim="strong" />
         <View class="gap-2 border-b border-white/10 bg-card/70 px-4 py-2.5">
@@ -360,7 +359,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
 
         <Prompt request={prompt()} onClose={() => prompt.set(null)} />
       </View>
-    </NavPage>
+    </AppPage>
   );
 }
 

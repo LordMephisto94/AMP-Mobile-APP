@@ -1,5 +1,5 @@
 import { cleanup, effect, lifecycle, List, type ListRef, signal, Text, View } from "nsh";
-import { Input, NavPage } from "nsh/base";
+import { Input } from "nsh/base";
 import { hubToken } from "../api/auth";
 import { AmpError } from "../api/client";
 import { type ConsoleLine, getConsoleHistory, sendConsoleCommand, seqOf, stripAnsi } from "../api/console";
@@ -8,7 +8,7 @@ import { getShardState } from "../api/shards";
 import { ApplicationState, type ShardState, stateLabel, stateTone } from "../api/types";
 import { StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Backdrop } from "../components/backdrop";
-import { ErrorText, PageHeader } from "../components/ui";
+import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
 
@@ -148,7 +148,7 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
         : { label: "Polling", status: "warning" as const };
 
   return (
-    <NavPage title="Console" header={<PageHeader title={`${props.title} console`} />}>
+    <AppPage title={`${props.title} console`}>
       <View class="flex-1 bg-background">
         <Backdrop dim="strong" />
 
@@ -216,7 +216,7 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
           </View>
         </View>
       </View>
-    </NavPage>
+    </AppPage>
   );
 }
 

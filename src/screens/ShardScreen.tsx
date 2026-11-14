@@ -1,5 +1,4 @@
 import { Image, signal, Text, View } from "nsh";
-import { NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { deleteShard } from "../api/manage";
@@ -11,7 +10,7 @@ import { Dropdown } from "../components/Dropdown";
 import { powerItems } from "../components/powerMenu";
 import { confirm } from "../components/Confirm";
 import { MetricChart, type MetricPoint } from "../components/MetricChart";
-import { ErrorText, PageHeader, SecondaryButton } from "../components/ui";
+import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
@@ -134,7 +133,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
   const maxPlayers = () => last()?.maxUsers ?? 0;
 
   return (
-    <NavPage title={props.title} header={<PageHeader title={props.title} />}>
+    <AppPage title={props.title}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <If
           when={hero()}
@@ -318,6 +317,6 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
           </View>
         </View>
       </Screen>
-    </NavPage>
+    </AppPage>
   );
 }

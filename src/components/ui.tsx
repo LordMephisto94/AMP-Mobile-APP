@@ -1,6 +1,6 @@
 import { Image, type JSX, Text, View } from "nsh";
 import mark from "../../assets/amp-mark.png";
-import { Button, Input } from "nsh/base";
+import { Button, Input, NavPage } from "nsh/base";
 import { nav } from "../state/nav";
 
 /** The app's main call to action: a violet-to-pink gradient button. */
@@ -126,23 +126,62 @@ export function Pill(props: { label: string; tone: "success" | "muted" | "warnin
 }
 
 /**
- * The header the desktops and the web show above a page (phones use the system
- * header instead), with a back button when there is a page to go back to.
+ * The app's own top bar, on every platform (the system's is hidden): room for the status
+ * bar, a round back button when there's somewhere to go back to, the AMP mark, the title
+ * and an optional subtitle, and an optional control on the right.
  */
-export function PageHeader(props: { title: string; subtitle?: string; right?: JSX.Element }) {
+export function PageHeader(props: { title: string; subtitle?: string; right?: JSX.Element; onBack?: () => void }) {
   return (
-    <View class="flex-row items-center gap-3 border-b border-white/10 bg-card/90 px-4 py-3">
+    <View class="flex-row items-center gap-3 border-b border-white/10 bg-card/85 px-3 pt-[calc(env(safe-area-inset-top)+8px)] pb-2.5 shadow-lg">
       <If when={nav.routes().length > 1}>
-        <Text onPress={() => nav.pop()} class="text-base font-semibold text-primary">
-          ‹ Back
-        </Text>
+        <View
+          role="button"
+          accessibilityLabel="Back"
+          testID="back"
+          onPress={() => (props.onBack ? props.onBack() : nav.pop())}
+          class="h-10 w-10 items-center justify-center rounded-full bg-primary/15 active:bg-primary/30"
+        >
+          <Text class="-mt-0.5 text-2xl leading-none font-semibold text-primary">‹</Text>
+        </View>
       </If>
       <Image src={mark} accessibilityLabel="AMP" class="h-6 w-6 object-contain" />
       <View class="flex-1">
-        <Text class="text-lg font-semibold text-foreground">{props.title}</Text>
-        <If when={props.subtitle}>{(s) => <Text class="text-xs text-muted-foreground">{s()}</Text>}</If>
+        <Text class="line-clamp-1 text-[17px] font-semibold text-foreground">{props.title}</Text>
+        <If when={props.subtitle}>{(s) => <Text class="line-clamp-1 text-xs text-muted-foreground">{s()}</Text>}</If>
       </View>
       {props.right}
     </View>
+  );
+}
+
+/**
+ * A page of the navigation stack with the app's own header instead of the system's bar
+ * (which Android and iOS would draw grey). Back gestures and Android's back button still
+ * work; `onBack` with `popOnBack={false}` lets a page ask first.
+ */
+export function AppPage(props: {
+  title: string;
+  subtitle?: string;
+  right?: JSX.Element;
+  /** false: the system back (Android's button, iOS swipe) doesn't pop the page; `onBack` decides. */
+  popOnBack?: boolean;
+  /** Replaces the plain pop for the header's back button, and for the system back while `popOnBack` is false. */
+  onBack?: () => void;
+  children?: JSX.Element;
+}) {
+  return (
+    <NavPage
+      title={props.title}
+      headerVisible={false}
+      popOnBack={props.popOnBack}
+      onBackPress={() => {
+        if (props.popOnBack === false) props.onBack?.();
+      }}
+    >
+      <View class="flex-1 bg-background">
+        <PageHeader title={props.title} subtitle={props.subtitle} right={props.right} onBack={props.onBack} />
+        <View class="flex-1">{props.children}</View>
+      </View>
+    </NavPage>
   );
 }

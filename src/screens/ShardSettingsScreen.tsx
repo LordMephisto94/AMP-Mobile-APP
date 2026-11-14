@@ -1,5 +1,5 @@
 import { Scroll, signal, Text, View } from "nsh";
-import { Input, NavPage } from "nsh/base";
+import { Input } from "nsh/base";
 import { AmpError } from "../api/client";
 import { INFRA_FIELDS, type InfraField, infraFromString, infraProblem, infraSpec, infraToString } from "../api/infraFields";
 import {
@@ -24,7 +24,7 @@ import {
 } from "../api/manage";
 import { Backdrop } from "../components/backdrop";
 import { Select } from "../components/Dropdown";
-import { ErrorText, Field, PageHeader, PrimaryButton, SecondaryButton } from "../components/ui";
+import { AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
 
@@ -233,7 +233,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   };
 
   return (
-    <NavPage title="Settings" header={<PageHeader title={`${props.title} settings`} />}>
+    <AppPage title={`${props.title} settings`}>
       <View class="flex-1 bg-background">
         <Backdrop dim="strong" />
         <Scroll class="flex-1" keyboardDismissMode="on-drag">
@@ -380,7 +380,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
           </View>
         </If>
       </View>
-    </NavPage>
+    </AppPage>
   );
 }
 

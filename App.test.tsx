@@ -435,10 +435,21 @@ test("browses, edits, creates, uploads and deletes files", async () => {
   await app.press("file-server.properties");
   await app.waitFor("file-content");
   await app.type("file-content", "online-mode=false\n");
-  await app.press("save-file >> nth=1");
+  await app.press("save-file");
   await app.waitFor("text:Saved.");
   expect(contents["server.properties"]).toBe("motd=Hello\nmax-players=20\nonline-mode=false\n");
-  await app.back();
+  // Unsaved edits: the header's back asks first; keep editing, then discard.
+  await app.type("file-content", "x");
+  await app.press("back");
+  await app.waitFor("text:Discard your changes?");
+  await app.press("confirm-cancel");
+  await app.waitUntil(() => !app.texts().includes("Discard your changes?"));
+  await app.wait(300);
+  await app.press("back");
+  await app.waitFor("text:Discard your changes?");
+  await app.wait(200);
+  await app.press("confirm-discard");
+  await app.waitFor("file-eula.txt");
 
   // A generated managed file opens read-only.
   await app.press("file-eula.txt");

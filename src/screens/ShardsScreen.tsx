@@ -1,5 +1,4 @@
 import { Image, signal, Text, View } from "nsh";
-import { NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { purgeShard, restoreShard } from "../api/manage";
@@ -10,7 +9,7 @@ import { Screen } from "../components/backdrop";
 import { Dropdown, MoreButton } from "../components/Dropdown";
 import { powerItems } from "../components/powerMenu";
 import { confirm } from "../components/Confirm";
-import { ErrorText, PageHeader, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
+import { AppPage, ErrorText, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
@@ -121,7 +120,7 @@ export function ShardsScreen(props: { serverId: string }) {
   const running = () => Object.values(states()).filter((s) => stateTone(s) === "running").length;
 
   return (
-    <NavPage title={name} header={<PageHeader title={name} subtitle={host} />}>
+    <AppPage title={name} subtitle={host}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <AmpBanner
           title={name}
@@ -202,7 +201,7 @@ export function ShardsScreen(props: { serverId: string }) {
           </If>
         </View>
       </Screen>
-    </NavPage>
+    </AppPage>
   );
 }
 

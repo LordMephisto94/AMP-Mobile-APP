@@ -1,11 +1,11 @@
 import { Image, Scroll, signal, Text, View } from "nsh";
-import { Input, NavPage } from "nsh/base";
+import { Input } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { type AppSpec, createShard, listSpires, listTemplates, placeableSpires, type SpireDefinition } from "../api/manage";
 import { Backdrop } from "../components/backdrop";
 import { Select } from "../components/Dropdown";
-import { Checkbox, ErrorText, Field, PageHeader, PrimaryButton } from "../components/ui";
+import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
 
@@ -107,7 +107,7 @@ export function CreateShardScreen(props: { serverId: string }) {
   };
 
   return (
-    <NavPage title="New instance" header={<PageHeader title="New instance" />}>
+    <AppPage title="New instance">
       <View class="flex-1 bg-background">
         <Backdrop dim="strong" />
         <If
@@ -201,7 +201,7 @@ export function CreateShardScreen(props: { serverId: string }) {
           )}
         </If>
       </View>
-    </NavPage>
+    </AppPage>
   );
 }
 
