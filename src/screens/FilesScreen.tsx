@@ -332,7 +332,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
             refreshing.set(false);
           }}
         >
-          <View class="gap-2 p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+          <View class="w-full max-w-4xl gap-2 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
             <If when={error()}>{(m) => <ErrorText message={m()} />}</If>
             <If when={notice()}>{(m) => <Text class="text-sm text-success">{m()}</Text>}</If>
             <If when={entries() === null && !error()}>

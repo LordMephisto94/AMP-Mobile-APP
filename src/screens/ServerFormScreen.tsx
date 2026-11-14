@@ -70,7 +70,7 @@ export function ServerFormScreen(props: { serverId?: string }) {
   return (
     <NavPage title={adding ? "Add Server" : "Sign in"} header={<PageHeader title={title} />}>
       <Screen>
-        <View class="gap-5 px-5 pt-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+        <View class="w-full max-w-2xl gap-5 self-center px-5 pt-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <View class="gap-1">
             <Text class="text-2xl font-bold text-foreground">{adding ? "Connect a server" : existing!.name}</Text>
             <Text class="text-sm text-muted-foreground">

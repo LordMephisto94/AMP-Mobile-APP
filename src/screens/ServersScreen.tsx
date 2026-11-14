@@ -36,7 +36,7 @@ export function ServersScreen() {
             <Text class="text-sm font-semibold tracking-widest text-glow">MOBILE</Text>
           </View>
 
-          <View class="gap-3 px-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+          <View class="w-full max-w-5xl gap-3 self-center px-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
             <View class="flex-row items-baseline justify-between px-1">
               <Text class="text-xl font-bold text-foreground">Your servers</Text>
               <If when={servers().length > 0}>
@@ -53,11 +53,17 @@ export function ServersScreen() {
               </View>
             </If>
 
-            <Each of={servers()} key={(s: SavedServer) => s.id}>
-              {(server) => <ServerCard server={server()} />}
-            </Each>
+            <View class="gap-3 md:flex-row md:flex-wrap">
+              <Each of={servers()} key={(s: SavedServer) => s.id}>
+                {(server) => (
+                  <View class="md:w-[49%]">
+                    <ServerCard server={server()} />
+                  </View>
+                )}
+              </Each>
+            </View>
 
-            <View class="mt-2">
+            <View class="mt-2 w-full self-center md:max-w-md">
               <PrimaryButton title="Add Server" icon="＋" onPress={() => nav.push({ name: "addServer" })} />
             </View>
 

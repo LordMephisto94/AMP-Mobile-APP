@@ -148,7 +148,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
           }
         >
           {(src) => (
-            <View class="aspect-[16/7] w-full overflow-hidden bg-secondary">
+            <View class="aspect-[16/7] w-full overflow-hidden bg-secondary md:aspect-auto md:h-80">
               <Image
                 src={src()}
                 onError={() => heroFailed.set(true)}
@@ -167,148 +167,153 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
           )}
         </If>
 
-        <View class="gap-4 p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-          <If when={error()}>{(message) => <ErrorText message={message()} />}</If>
-          <If when={tone() === "error" ? state()?.lastErrorMessage : null}>{(m) => <ErrorText message={m()} />}</If>
-          <If when={tone() !== "running" && tone() !== "stopped" ? state()?.statusMessage : null}>
-            {(m) => <Text class="text-sm text-muted-foreground">{m()}</Text>}
-          </If>
+        <View class="w-full max-w-6xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)] lg:flex-row lg:items-start lg:gap-6">
+          {/* Wide screens: controls and links on the left, graphs on the right. */}
+          <View class="gap-4 lg:w-[38%]">
+            <If when={error()}>{(message) => <ErrorText message={message()} />}</If>
+            <If when={tone() === "error" ? state()?.lastErrorMessage : null}>{(m) => <ErrorText message={m()} />}</If>
+            <If when={tone() !== "running" && tone() !== "stopped" ? state()?.statusMessage : null}>
+              {(m) => <Text class="text-sm text-muted-foreground">{m()}</Text>}
+            </If>
 
-          <Dropdown
-            open={controlsOpen()}
-            onOpenChange={(o) => controlsOpen.set(o)}
-            align="start"
-            title="Controls"
-            items={powerItems({ title: props.title, state: state(), busy: busy(), run: power })}
-            trigger={
-              <View
-                role="button"
-                testID="controls"
-                class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-lg active:bg-accent"
-              >
-                <View class="h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-hero-from to-hero-to">
-                  <Text class="text-base font-bold text-white">⏻</Text>
+            <Dropdown
+              open={controlsOpen()}
+              onOpenChange={(o) => controlsOpen.set(o)}
+              align="start"
+              title="Controls"
+              items={powerItems({ title: props.title, state: state(), busy: busy(), run: power })}
+              trigger={
+                <View
+                  role="button"
+                  testID="controls"
+                  class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-lg active:bg-accent"
+                >
+                  <View class="h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-hero-from to-hero-to">
+                    <Text class="text-base font-bold text-white">⏻</Text>
+                  </View>
+                  <View class="flex-1">
+                    <Text class="text-base font-semibold text-card-foreground">Controls</Text>
+                    <Text class="text-xs text-muted-foreground">Start, restart, stop, sleep and update</Text>
+                  </View>
+                  <Text class="text-base text-muted-foreground">{controlsOpen() ? "▴" : "▾"}</Text>
                 </View>
-                <View class="flex-1">
-                  <Text class="text-base font-semibold text-card-foreground">Controls</Text>
-                  <Text class="text-xs text-muted-foreground">Start, restart, stop, sleep and update</Text>
-                </View>
-                <Text class="text-base text-muted-foreground">{controlsOpen() ? "▴" : "▾"}</Text>
+              }
+            />
+
+            <View
+              role="button"
+              testID="open-files"
+              onPress={() => nav.push({ name: "files", serverId: props.serverId, id: props.id, title: props.title, path: "" })}
+              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
+            >
+              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
+                <Text class="text-lg">📁</Text>
               </View>
-            }
-          />
+              <View class="flex-1">
+                <Text class="text-base font-semibold text-card-foreground">Files</Text>
+                <Text class="text-xs text-muted-foreground">Browse, edit, upload and download</Text>
+              </View>
+              <Text class="text-xl text-muted-foreground">›</Text>
+            </View>
 
-          <View
-            role="button"
-            testID="open-files"
-            onPress={() => nav.push({ name: "files", serverId: props.serverId, id: props.id, title: props.title, path: "" })}
-            class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-          >
-            <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-              <Text class="text-lg">📁</Text>
+            <View
+              role="button"
+              testID="open-settings"
+              onPress={() => nav.push({ name: "shardSettings", serverId: props.serverId, id: props.id, title: props.title })}
+              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
+            >
+              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
+                <Text class="text-lg text-violet-300">⚙</Text>
+              </View>
+              <View class="flex-1">
+                <Text class="text-base font-semibold text-card-foreground">Settings</Text>
+                <Text class="text-xs text-muted-foreground">Name, description and game settings</Text>
+              </View>
+              <Text class="text-xl text-muted-foreground">›</Text>
             </View>
-            <View class="flex-1">
-              <Text class="text-base font-semibold text-card-foreground">Files</Text>
-              <Text class="text-xs text-muted-foreground">Browse, edit, upload and download</Text>
+
+            <View
+              role="button"
+              testID="open-console"
+              onPress={() =>
+                nav.push({ name: "console", serverId: props.serverId, id: props.id, title: props.title, tenantId: state()?.tenantId })
+              }
+              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
+            >
+              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
+                <Text class="font-mono text-base font-bold text-emerald-400">{">_"}</Text>
+              </View>
+              <View class="flex-1">
+                <Text class="text-base font-semibold text-card-foreground">Console</Text>
+                <Text class="text-xs text-muted-foreground">Live output and commands</Text>
+              </View>
+              <Text class="text-xl text-muted-foreground">›</Text>
             </View>
-            <Text class="text-xl text-muted-foreground">›</Text>
+
           </View>
-
-          <View
-            role="button"
-            testID="open-settings"
-            onPress={() => nav.push({ name: "shardSettings", serverId: props.serverId, id: props.id, title: props.title })}
-            class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-          >
-            <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-              <Text class="text-lg text-violet-300">⚙</Text>
+          <View class="gap-4 lg:flex-1">
+            <View class="flex-row items-center justify-between pt-2">
+              <Text class="text-xs font-semibold tracking-widest text-muted-foreground">PERFORMANCE</Text>
+              <View class="flex-row gap-1 rounded-lg bg-card/85 p-1">
+                <Each of={RANGES}>
+                  {(r) => (
+                    <Text
+                      role="button"
+                      onPress={() => setRange(r().minutes)}
+                      class={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                        minutes() === r().minutes ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {r().label}
+                    </Text>
+                  )}
+                </Each>
+              </View>
             </View>
-            <View class="flex-1">
-              <Text class="text-base font-semibold text-card-foreground">Settings</Text>
-              <Text class="text-xs text-muted-foreground">Name, description and game settings</Text>
-            </View>
-            <Text class="text-xl text-muted-foreground">›</Text>
-          </View>
 
-          <View
-            role="button"
-            testID="open-console"
-            onPress={() =>
-              nav.push({ name: "console", serverId: props.serverId, id: props.id, title: props.title, tenantId: state()?.tenantId })
-            }
-            class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-          >
-            <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-              <Text class="font-mono text-base font-bold text-emerald-400">{">_"}</Text>
-            </View>
-            <View class="flex-1">
-              <Text class="text-base font-semibold text-card-foreground">Console</Text>
-              <Text class="text-xs text-muted-foreground">Live output and commands</Text>
-            </View>
-            <Text class="text-xl text-muted-foreground">›</Text>
-          </View>
+            <If when={!isRunning() && samples().length === 0}>
+              <Text class="text-sm text-muted-foreground">Graphs appear while the instance is running.</Text>
+            </If>
 
-          <View class="flex-row items-center justify-between pt-2">
-            <Text class="text-xs font-semibold tracking-widest text-muted-foreground">PERFORMANCE</Text>
-            <View class="flex-row gap-1 rounded-lg bg-card/85 p-1">
-              <Each of={RANGES}>
-                {(r) => (
-                  <Text
-                    role="button"
-                    onPress={() => setRange(r().minutes)}
-                    class={`rounded-md px-2.5 py-1 text-xs font-semibold ${
-                      minutes() === r().minutes ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    {r().label}
-                  </Text>
-                )}
-              </Each>
-            </View>
-          </View>
+            <MetricChart
+              title="CPU"
+              points={cpu()}
+              format={(v) => `${v.toFixed(v < 10 ? 1 : 0)}%`}
+              titleClass="text-sky-400"
+              lineClass="stroke-sky-400 stroke-2"
+              areaClass="fill-sky-400/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-sky-400"
+            />
+            <MetricChart
+              title="RAM"
+              points={ram()}
+              format={(v) => `${Math.round(v).toLocaleString()} MB`}
+              domain={memoryLimit() > 0 ? [0, memoryLimit()] : undefined}
+              caption={memoryLimit() > 0 ? `of ${memoryLimit().toLocaleString()} MB` : undefined}
+              titleClass="text-violet-400"
+              lineClass="stroke-violet-400 stroke-2"
+              areaClass="fill-violet-400/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-violet-400"
+            />
+            <MetricChart
+              title="Players"
+              points={players()}
+              format={(v) => `${Math.round(v)}`}
+              domain={maxPlayers() > 0 ? [0, maxPlayers()] : undefined}
+              caption={maxPlayers() > 0 ? `of ${maxPlayers()} slots` : undefined}
+              curve="stepAfter"
+              titleClass="text-emerald-400"
+              lineClass="stroke-emerald-400 stroke-2"
+              areaClass="fill-emerald-400/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-emerald-400"
+            />
 
-          <If when={!isRunning() && samples().length === 0}>
-            <Text class="text-sm text-muted-foreground">Graphs appear while the instance is running.</Text>
-          </If>
-
-          <MetricChart
-            title="CPU"
-            points={cpu()}
-            format={(v) => `${v.toFixed(v < 10 ? 1 : 0)}%`}
-            titleClass="text-sky-400"
-            lineClass="stroke-sky-400 stroke-2"
-            areaClass="fill-sky-400/15"
-            dotClass="size-2.5 rounded-full border-2 border-background bg-sky-400"
-          />
-          <MetricChart
-            title="RAM"
-            points={ram()}
-            format={(v) => `${Math.round(v).toLocaleString()} MB`}
-            domain={memoryLimit() > 0 ? [0, memoryLimit()] : undefined}
-            caption={memoryLimit() > 0 ? `of ${memoryLimit().toLocaleString()} MB` : undefined}
-            titleClass="text-violet-400"
-            lineClass="stroke-violet-400 stroke-2"
-            areaClass="fill-violet-400/15"
-            dotClass="size-2.5 rounded-full border-2 border-background bg-violet-400"
-          />
-          <MetricChart
-            title="Players"
-            points={players()}
-            format={(v) => `${Math.round(v)}`}
-            domain={maxPlayers() > 0 ? [0, maxPlayers()] : undefined}
-            caption={maxPlayers() > 0 ? `of ${maxPlayers()} slots` : undefined}
-            curve="stepAfter"
-            titleClass="text-emerald-400"
-            lineClass="stroke-emerald-400 stroke-2"
-            areaClass="fill-emerald-400/15"
-            dotClass="size-2.5 rounded-full border-2 border-background bg-emerald-400"
-          />
-
-          <View class="mt-4 gap-2 rounded-(--radius) border border-destructive/30 bg-destructive/5 p-4">
-            <Text class="text-xs font-semibold tracking-widest text-destructive">DANGER ZONE</Text>
-            <Text class="text-xs text-muted-foreground">Deleting can be undone from the instance list until you delete permanently.</Text>
-            <View class="flex-row">
-              <SecondaryButton title="Delete instance" tone="danger" onPress={remove} disabled={busy()} />
+            <View class="mt-4 gap-2 rounded-(--radius) border border-destructive/30 bg-destructive/5 p-4">
+              <Text class="text-xs font-semibold tracking-widest text-destructive">DANGER ZONE</Text>
+              <Text class="text-xs text-muted-foreground">Deleting can be undone from the instance list until you delete permanently.</Text>
+              <View class="flex-row">
+                <SecondaryButton title="Delete instance" tone="danger" onPress={remove} disabled={busy()} />
+              </View>
             </View>
           </View>
         </View>

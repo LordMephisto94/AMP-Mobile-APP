@@ -130,7 +130,7 @@ export function ShardsScreen(props: { serverId: string }) {
           statusLabel={error() ? "Unreachable" : shards() ? "Online" : "Connecting"}
         />
 
-        <View class="gap-4 p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+        <View class="w-full max-w-7xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <If when={error()}>
             {(message) => (
               <View class="gap-3">
@@ -148,10 +148,14 @@ export function ShardsScreen(props: { serverId: string }) {
             <Text class="text-muted-foreground">No instances on this server yet.</Text>
           </If>
           <If when={shards() !== null}>
-            <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
+            <View class="md:w-72 md:self-start">
+              <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
+            </View>
           </If>
+          <View class="gap-4 md:flex-row md:flex-wrap">
           <Each of={shards()} key={(s: DeployedShard) => s.id}>
             {(shard) => (
+              <View class="md:w-[48.5%] xl:w-[32.2%]">
               <ShardCard
                 serverId={props.serverId}
                 serverUrl={server?.serverUrl ?? ""}
@@ -160,8 +164,10 @@ export function ShardsScreen(props: { serverId: string }) {
                 busy={working() === shard().id}
                 onAction={(action) => power(shard(), action)}
               />
+              </View>
             )}
           </Each>
+          </View>
 
           <If when={deleted().length > 0}>
             <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/70">

@@ -237,7 +237,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
       <View class="flex-1 bg-background">
         <Backdrop dim="strong" />
         <Scroll class="flex-1" keyboardDismissMode="on-drag">
-          <View class="gap-4 p-4 pb-32">
+          <View class="w-full max-w-3xl gap-4 self-center p-4 pb-32">
             <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">DETAILS</Text>
               <Field testID="details-name" label="Name" value={name()} onChange={(v) => (saved.set(false), name.set(v))} />

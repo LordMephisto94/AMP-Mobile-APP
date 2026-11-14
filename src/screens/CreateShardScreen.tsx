@@ -114,7 +114,7 @@ export function CreateShardScreen(props: { serverId: string }) {
           when={chosen()}
           else={
             <View class="flex-1">
-              <View class="gap-3 px-4 pt-4 pb-2">
+              <View class="w-full max-w-6xl gap-3 self-center px-4 pt-4 pb-2">
                 <Text class="text-2xl font-bold text-foreground">Choose a game</Text>
                 <View class="rounded-(--radius) border border-input bg-card px-3.5 py-3">
                   <Input
@@ -133,7 +133,7 @@ export function CreateShardScreen(props: { serverId: string }) {
                 </If>
               </View>
               <Scroll class="flex-1">
-                <View class="flex-row flex-wrap gap-3 px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+                <View class="w-full max-w-6xl flex-row flex-wrap gap-3 self-center px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+24px)]">
                   <Each of={shown()} key={(t: AppSpec) => t.templateSlug}>
                     {(t) => <TemplateTile template={t()} serverUrl={serverUrl} onPress={() => choose(t())} />}
                   </Each>
@@ -147,7 +147,7 @@ export function CreateShardScreen(props: { serverId: string }) {
         >
           {(t) => (
             <Scroll class="flex-1">
-              <View class="gap-5 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
+              <View class="w-full max-w-2xl gap-5 self-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
                 <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
                   <TemplateArt template={t()} serverUrl={serverUrl} />
                   <View class="gap-1 p-4">
@@ -234,7 +234,7 @@ function TemplateTile(props: { template: AppSpec; serverUrl: string; onPress: ()
       role="button"
       testID={`template-${props.template.templateSlug}`}
       onPress={props.onPress}
-      class="w-[48%] overflow-hidden rounded-xl border border-white/10 bg-card/85 shadow-md active:opacity-80 md:w-[31%]"
+      class="w-[48%] overflow-hidden rounded-xl border border-white/10 bg-card/85 shadow-md active:opacity-80 md:w-[31.5%] lg:w-[23.5%]"
     >
       <TemplateArt template={props.template} serverUrl={props.serverUrl} />
       <Text class="line-clamp-2 h-14 px-2.5 py-2 text-sm leading-5 font-semibold text-card-foreground">
