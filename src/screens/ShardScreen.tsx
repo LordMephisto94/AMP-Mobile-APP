@@ -233,6 +233,22 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
 
             <View
               role="button"
+              testID="open-analytics"
+              onPress={() => nav.push({ name: "analytics", serverId: props.serverId, shardId: props.id, title: props.title })}
+              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
+            >
+              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
+                <Text class="text-lg">📊</Text>
+              </View>
+              <View class="flex-1">
+                <Text class="text-base font-semibold text-card-foreground">Player analytics</Text>
+                <Text class="text-xs text-muted-foreground">Who plays, when, and for how long</Text>
+              </View>
+              <Text class="text-xl text-muted-foreground">›</Text>
+            </View>
+
+            <View
+              role="button"
               testID="open-console"
               onPress={() =>
                 nav.push({ name: "console", serverId: props.serverId, id: props.id, title: props.title, tenantId: state()?.tenantId })

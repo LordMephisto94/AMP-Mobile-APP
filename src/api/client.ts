@@ -46,7 +46,8 @@ export interface RequestOptions {
   body?: unknown;
   /** Sent as is, as `application/octet-stream` (an upload chunk). */
   raw?: Blob | Uint8Array;
-  query?: Record<string, string | number | boolean | undefined>;
+  /** An array repeats the key once per value (`shard=a&shard=b`). */
+  query?: Record<string, string | number | boolean | string[] | undefined>;
   /** Milliseconds before the request is abandoned. Default 15 s. */
   timeoutMs?: number;
   /** Send without the session token (sign-in, capabilities). */
@@ -73,7 +74,7 @@ export class AmpClient {
     if (query) {
       const params = Object.entries(query)
         .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+        .flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map((one) => `${encodeURIComponent(k)}=${encodeURIComponent(String(one))}`));
       if (params.length) url += `?${params.join("&")}`;
     }
 

@@ -30,7 +30,10 @@ export function MetricChart(props: {
   caption?: string;
   /** `stepAfter` for counts that jump between whole numbers. */
   curve?: "linear" | "stepAfter";
+  /** How a moment reads under the graph; the time of day by default. */
+  formatTime?: (t: number) => string;
 }) {
+  const time = (t: number) => (props.formatTime ?? clock)(t);
   const hovered = signal<number | null>(null);
   const latest = () => {
     for (let i = props.points.length - 1; i >= 0; i--) if (props.points[i].value != null) return props.points[i];
@@ -53,7 +56,7 @@ export function MetricChart(props: {
           </Text>
         </View>
         <Text class="text-xs text-muted-foreground tabular-nums">
-          {hovered() != null && shown() ? clock(shown()!.t) : (props.caption ?? "now")}
+          {hovered() != null && shown() ? time(shown()!.t) : (props.caption ?? "now")}
         </Text>
       </View>
       <If
@@ -79,8 +82,8 @@ export function MetricChart(props: {
           <Line class={props.lineClass} curve={props.curve ?? "linear"} />
         </Plot>
         <View class="flex-row justify-between">
-          <Text class="text-[10px] text-muted-foreground tabular-nums">{clock(props.points[0].t)}</Text>
-          <Text class="text-[10px] text-muted-foreground tabular-nums">{clock(props.points[props.points.length - 1].t)}</Text>
+          <Text class="text-[10px] text-muted-foreground tabular-nums">{time(props.points[0].t)}</Text>
+          <Text class="text-[10px] text-muted-foreground tabular-nums">{time(props.points[props.points.length - 1].t)}</Text>
         </View>
       </If>
     </View>

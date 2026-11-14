@@ -535,3 +535,152 @@ test("instance controls are a dropdown, enabled by state, and ask before stoppin
   await app.waitUntil(() => sent.includes("restart"));
   expect(app.texts()).not.toContain("Start"); // no row of power buttons anymore
 });
+
+const totals = (players: number) => ({
+  sessions: players * 3,
+  uniqueUsers: players,
+  newUsers: 2,
+  minutes: "1290.5",
+  bounceRatePercent: 12.5,
+  averageSessionMinutes: 43,
+  sessionsPerUser: 3,
+  longestSessionMinutes: 260,
+  activeUsers: 4,
+  activeRatePercent: 50,
+});
+
+const analyticsRoute = (request: { url: string }) => {
+  const url = request.url;
+  if (url.includes("/api/Analytics/sessions/users/")) {
+    return {
+      body: {
+        userKey: "k-steve",
+        displayName: "Steve",
+        totals: totals(1),
+        servers: [{ shardId: "a1", sessions: 3, sessionsPercent: 100, minutes: 300, minutesPercent: 100, users: 1 }],
+        sessions: [
+          { sessionRef: "s1", shardId: "a1", userKey: "k-steve", idKind: "steam", country: "au", startedAt: new Date(Date.now() - 30 * 60_000).toISOString(), endedAt: "", running: true, displayName: "Steve" },
+          { sessionRef: "s2", shardId: "a1", userKey: "k-steve", idKind: "steam", country: "au", startedAt: "2026-11-10T10:00:00Z", endedAt: "2026-11-10T12:15:00Z", running: false, displayName: "Steve" },
+        ],
+        firstSeen: "2026-10-01T10:00:00Z",
+        lastSeen: "2026-11-15T09:00:00Z",
+        isActive: true,
+        recentVisits: 5,
+        rule: { visits: 3, days: 14 },
+        serverInfo: { a1: { name: "Minecraft SMP", game: "minecraft-java", gameName: "Minecraft", image: null } },
+      },
+    };
+  }
+  if (url.includes("/api/Analytics/profiles")) {
+    return {
+      body: {
+        state: "complete",
+        minecraft: {},
+        steam: {
+          "k-steve": {
+            steamId: "7656",
+            personaName: "Steve",
+            avatarHash: null,
+            visibility: "Public",
+            createdAt: null,
+            countryCode: "au",
+            bans: { vacBanned: true, vacBans: 1, gameBans: 0, daysSinceLastBan: 400, communityBanned: false, tradeBanned: false },
+            limited: false,
+            source: "webapi",
+            profileUrl: "https://steamcommunity.com/profiles/7656",
+          },
+        },
+      },
+    };
+  }
+  if (url.includes("/api/Analytics/users")) {
+    return { body: { users: [{ userKey: "k-alex", displayName: "Alex", userId: "7657", idKind: "steam", shards: ["a1"], lastSeen: "2026-11-14T09:00:00Z" }], serverInfo: {} } };
+  }
+  return {
+    body: {
+      window: { from: "2026-11-08T00:00:00Z", to: "2026-11-15T00:00:00Z" },
+      current: totals(8),
+      previous: totals(4),
+      change: { uniqueUsers: 100, sessions: 100, minutes: 0, newUsers: null, bounceRatePercent: -20 },
+      activity: Array.from({ length: 7 }, (_, i) => ({ start: new Date(Date.parse("2026-11-08T00:00:00Z") + i * 86_400_000).toISOString(), end: "", users: i })),
+      countries: [{ country: "au", sessions: 20, sessionsPercent: 80, minutes: 1000, minutesPercent: 78, users: 6 }],
+      topUsers: [{ userKey: "k-steve", displayName: "Steve", sessions: 9, minutes: 300, percent: 23, servers: 1, online: true }],
+      busiest: { start: "2026-11-14T20:00:00Z", end: "", users: 6 },
+      quietest: null,
+      servers: [{ shardId: "a1", sessions: 24, sessionsPercent: 100, minutes: 1290, minutesPercent: 100, users: 8 }],
+      games: [],
+      isDemo: url.includes("demo-server"),
+      serverInfo: { a1: { name: "Minecraft SMP", game: "minecraft-java", gameName: "Minecraft", image: null } },
+      rule: { visits: 3, days: 14 },
+    },
+  };
+};
+
+test("shows player analytics, finds a player and opens their history", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Analytics/*`]: analyticsRoute,
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("open-analytics");
+  await app.waitFor("text:TOP PLAYERS");
+  // Headline figures (minutes as a string), changes, countries and the busiest time.
+  expect(app.texts()).toContain("21h 31m");
+  expect(app.texts()).toContain("no earlier data"); // newUsers: null
+  expect(app.texts()).toContain("▲ 100%");
+  expect(app.texts()).toContain("▼ 20%");
+  expect(app.texts()).toContain("AU");
+  expect(app.texts()).toContain("Steve");
+  expect(app.texts()).not.toContain("Demo numbers");
+  expect(app.requests().some((r) => r.url.includes("/api/Analytics/sessions?from="))).toBe(true);
+
+  await app.press("period-30d");
+  await app.waitUntil(() => app.requests().filter((r) => r.url.includes("/api/Analytics/sessions?")).length >= 2);
+
+  await app.type("player-search", "ale");
+  await app.waitFor("match-Alex");
+
+  await app.clear("player-search");
+  await app.press("player-Steve");
+  await app.waitFor("text:Online now");
+  await app.waitFor("text:1 VAC ban");
+  expect(app.texts()).toContain("Active player");
+  expect(app.texts()).toContain("2h 15m");
+});
+
+test("analytics for one instance asks for just that instance, and says when numbers are demo", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Analytics/*`]: (r) => analyticsRoute({ url: `${r.url}&demo-server` }),
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await app.press("open-analytics");
+  await app.waitFor("text:Demo numbers");
+  expect(app.requests().some((r) => r.url.includes("/api/Analytics/sessions?") && r.url.includes("shard=a1"))).toBe(true);
+});
+
+test("analytics without permission explains why", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Analytics/*`]: { status: 403 },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("open-analytics");
+  await app.waitFor("text:Your AMP account can't see analytics. An admin can give your role the analytics permission on this server.");
+});

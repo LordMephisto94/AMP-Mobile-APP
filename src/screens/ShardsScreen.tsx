@@ -147,8 +147,19 @@ export function ShardsScreen(props: { serverId: string }) {
             <Text class="text-muted-foreground">No instances on this server yet.</Text>
           </If>
           <If when={shards() !== null}>
-            <View class={`md:w-72 ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
-              <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
+            <View class={`flex-row gap-3 md:w-[30rem] ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
+              <View class="flex-1">
+                <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
+              </View>
+              <View
+                role="button"
+                testID="open-analytics"
+                onPress={() => nav.push({ name: "analytics", serverId: props.serverId })}
+                class="flex-1 flex-row items-center justify-center gap-2 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-md active:bg-accent"
+              >
+                <Text class="text-lg">📊</Text>
+                <Text class="text-base font-semibold text-card-foreground">Analytics</Text>
+              </View>
             </View>
           </If>
           <View class={`gap-4 md:flex-row md:flex-wrap ${shards()?.length === 1 ? "md:justify-center" : ""}`}>

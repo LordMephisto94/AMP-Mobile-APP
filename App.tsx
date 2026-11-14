@@ -1,10 +1,12 @@
 import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConfirmHost } from "./src/components/Confirm";
+import { AnalyticsScreen } from "./src/screens/AnalyticsScreen";
 import { ConsoleScreen } from "./src/screens/ConsoleScreen";
 import { CreateShardScreen } from "./src/screens/CreateShardScreen";
 import { FileEditScreen } from "./src/screens/FileEditScreen";
 import { FilesScreen } from "./src/screens/FilesScreen";
+import { PlayerScreen } from "./src/screens/PlayerScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
@@ -33,6 +35,10 @@ function screen(route: Route) {
       return <ShardSettingsScreen serverId={route.serverId} id={route.id} title={route.title} />;
     case "files":
       return <FilesScreen serverId={route.serverId} id={route.id} title={route.title} path={route.path} />;
+    case "analytics":
+      return <AnalyticsScreen serverId={route.serverId} shardId={route.shardId} title={route.title} />;
+    case "player":
+      return <PlayerScreen serverId={route.serverId} userKey={route.userKey} name={route.playerName} shardId={route.shardId} />;
     case "fileEdit":
       return <FileEditScreen serverId={route.serverId} id={route.id} path={route.path} managed={route.managed} />;
   }

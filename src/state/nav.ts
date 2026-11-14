@@ -18,6 +18,9 @@ export type Route =
   | { name: "createShard"; serverId: string }
   | { name: "shardSettings"; serverId: string; id: string; title: string }
   | { name: "files"; serverId: string; id: string; title: string; path: string }
+  /** Player analytics for a server, or for one instance when `shardId` is given. */
+  | { name: "analytics"; serverId: string; shardId?: string; title?: string }
+  | { name: "player"; serverId: string; userKey: string; playerName?: string | null; shardId?: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };
 
 export const nav = createNavStack<Route>([{ name: "servers" }]);
