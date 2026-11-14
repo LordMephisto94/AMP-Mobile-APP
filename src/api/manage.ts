@@ -250,3 +250,100 @@ export function validateSetting(spec: SettingSpec, value: string): string | null
   if (spec.maxLength != null && spec.maxLength >= 0 && value.length > spec.maxLength) return `At most ${spec.maxLength} characters`;
   return null;
 }
+
+// ---- Infrastructure settings ---------------------------------------------------------------
+
+export type ShardContainerMode = "Native" | "Docker" | "Podman" | "WslContainers";
+
+/** `ShardInfraSettings`: AMP-owned settings (startup, container, limits, analytics, geo-filtering). */
+export interface ShardInfraSettings {
+  startOnBoot?: boolean;
+  autoRestartOnCrash?: boolean;
+  startupOrder?: number;
+  sleepMode?: boolean;
+  advertisedAddress?: string;
+  advertisedAddressIncludesPort?: boolean;
+  containerMode?: ShardContainerMode;
+  containerImageOverride?: string | null;
+  /** MiB; 0 = unlimited. */
+  memoryLimitMb?: number;
+  memoryReservationMb?: number;
+  memorySwapMb?: number;
+  /** Cores; 0 = unlimited. May arrive as a string. */
+  cpuLimit?: number | string;
+  /** 0 = no infra cap. */
+  maxUsersCap?: number;
+  enableAnalytics?: boolean;
+  userSpecificData?: boolean;
+  minimumSessionTimeForRetention?: number;
+  enableGeoFiltering?: boolean;
+  blockedCountries?: string[];
+  allowedCountries?: string[];
+  blockUnknownCountries?: boolean;
+  geoFilterKickMessage?: string;
+  geoFilterKickCommand?: string;
+  /** MB; 0 = no limit. May arrive as a string. */
+  diskLimitMb?: number | string;
+  importConfigFilesFromSftp?: boolean;
+  extraEnvironment?: Record<string, string>;
+}
+
+/** `ShardInfraContext`: the settings plus what the screen needs to offer the right choices. */
+export interface ShardInfraContext {
+  settings: ShardInfraSettings;
+  spireName: string;
+  spireIsLinux: boolean;
+  /** `ContainerSupport` flags: 32 or 64 = a container is required. */
+  containerPolicy: number;
+  logicalCores: number;
+  templateOs: number;
+  supportsSleep: boolean;
+  tracksUsers: boolean;
+  reportsAddresses: boolean;
+}
+
+/** `GET /api/Shards/{id}/infra`. Needs `infra.read`. */
+export function getShardInfra(client: AmpClient, id: string): Promise<ShardInfraContext> {
+  return client.request<ShardInfraContext>(`/api/Shards/${encodeURIComponent(id)}/infra`);
+}
+
+/** `ShardInfraSaveResult`: the saved settings, and why a lower player cap could not be applied, if so. */
+export interface ShardInfraSaveResult extends ShardInfraSettings {
+  clampRefused?: { message?: string; code?: string } | string | null;
+}
+
+/** `PATCH /api/Shards/{id}/infra`: only the fields sent change. Needs `infra.write`. */
+export function patchShardInfra(client: AmpClient, id: string, patch: Partial<ShardInfraSettings>): Promise<ShardInfraSaveResult> {
+  return client.request<ShardInfraSaveResult>(`/api/Shards/${encodeURIComponent(id)}/infra`, { method: "PATCH", body: patch });
+}
+
+/** Container modes the panel offers: Native only on Windows; Native, Docker and Podman on Linux. */
+export function containerModes(context: ShardInfraContext): { value: ShardContainerMode; label: string; disabled: boolean }[] {
+  const required = (context.containerPolicy & 32) !== 0 || (context.containerPolicy & 64) !== 0;
+  if (!context.spireIsLinux) return [{ value: "Native", label: "Native", disabled: false }];
+  return [
+    { value: "Native", label: required ? "Native (the game needs a container)" : "Native", disabled: required },
+    { value: "Docker", label: "Docker", disabled: false },
+    { value: "Podman", label: "Podman", disabled: false },
+  ];
+}
+
+// ---- Deleting ------------------------------------------------------------------------------
+
+/** `DELETE /api/Shards/{id}`: soft-delete, reversible with `restoreShard`. Needs `delete`. */
+export async function deleteShard(client: AmpClient, id: string): Promise<void> {
+  await client.request<void>(`/api/Shards/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** `POST /api/Shards/{id}/restore`: brings back a soft-deleted instance. */
+export async function restoreShard(client: AmpClient, id: string): Promise<void> {
+  await client.request<void>(`/api/Shards/${encodeURIComponent(id)}/restore`, { method: "POST" });
+}
+
+/**
+ * `POST /api/Shards/{id}/purge`: irreversible. Removes a soft-deleted instance's files,
+ * snapshots and records. Refused (400) for an instance that is not deleted yet.
+ */
+export async function purgeShard(client: AmpClient, id: string): Promise<void> {
+  await client.request<void>(`/api/Shards/${encodeURIComponent(id)}/purge`, { method: "POST", timeoutMs: 60_000 });
+}

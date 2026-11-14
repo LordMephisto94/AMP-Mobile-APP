@@ -1,7 +1,8 @@
 import { Image, signal, Text, View } from "nsh";
-import { NavPage } from "nsh/base";
+import { AlertDialog, NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
+import { purgeShard, restoreShard } from "../api/manage";
 import { getShardState, listShards } from "../api/shards";
 import { type DeployedShard, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
@@ -18,6 +19,9 @@ const LIST_REFRESH_MS = 60_000;
 export function ShardsScreen(props: { serverId: string }) {
   const server = serverById(props.serverId);
   const shards = signal<DeployedShard[] | null>(null);
+  const deleted = signal<DeployedShard[]>([]);
+  const showDeleted = signal(false);
+  const working = signal<string | null>(null);
   const states = signal<Record<string, ShardState>>({});
   const error = signal<string | null>(null);
   const refreshing = signal(false);
@@ -25,7 +29,9 @@ export function ShardsScreen(props: { serverId: string }) {
   const load = async () => {
     try {
       const client = clientFor(props.serverId);
-      const all = (await listShards(client)).filter((s) => !s.deleted);
+      const everything = await listShards(client, true);
+      const all = everything.filter((s) => !s.deleted);
+      deleted.set(everything.filter((s) => s.deleted));
       shards.set(all);
       error.set(null);
       // One state read per shard; a shard whose state fails keeps its last one.
@@ -51,6 +57,41 @@ export function ShardsScreen(props: { serverId: string }) {
     return top?.name === "shards" && top.serverId === props.serverId;
   };
   poll(load, LIST_REFRESH_MS, onTop);
+
+  const restore = async (shard: DeployedShard) => {
+    working.set(shard.id);
+    try {
+      await restoreShard(clientFor(props.serverId), shard.id);
+      await load();
+    } catch (e) {
+      error.set(e instanceof AmpError && e.status === 403 ? "Your account isn't allowed to restore instances." : (e as Error).message);
+    } finally {
+      working.set(null);
+    }
+  };
+
+  const purge = async (shard: DeployedShard) => {
+    const label = shard.displayName || shard.name || shard.id;
+    const { action } = await AlertDialog.show({
+      title: `Permanently delete ${label}?`,
+      description: "This removes its files, snapshots and history from the machine. It can't be undone.",
+      actions: [
+        { id: "cancel", label: "Cancel", role: "cancel" },
+        { id: "purge", label: "Delete permanently", role: "destructive" },
+      ],
+    });
+    if (action !== "purge") return;
+    working.set(shard.id);
+    try {
+      await purgeShard(clientFor(props.serverId), shard.id);
+      deleted.set(deleted().filter((d) => d.id !== shard.id));
+      await load();
+    } catch (e) {
+      error.set(e instanceof AmpError && e.status === 403 ? "Your account isn't allowed to delete instances." : (e as Error).message);
+    } finally {
+      working.set(null);
+    }
+  };
 
   const pullToRefresh = async () => {
     refreshing.set(true);
@@ -102,6 +143,53 @@ export function ShardsScreen(props: { serverId: string }) {
               />
             )}
           </Each>
+
+          <If when={deleted().length > 0}>
+            <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/70">
+              <View
+                role="button"
+                testID="recently-deleted"
+                onPress={() => showDeleted.set(!showDeleted())}
+                class="flex-row items-center gap-3 px-4 py-3 active:bg-accent"
+              >
+                <Text class="flex-1 text-sm font-semibold text-muted-foreground">Recently deleted</Text>
+                <Text class="text-xs text-muted-foreground">{String(deleted().length)}</Text>
+                <Text class="text-muted-foreground">{showDeleted() ? "▾" : "▸"}</Text>
+              </View>
+              <If when={showDeleted()}>
+                <View class="gap-3 border-t border-white/10 p-4">
+                  <Each of={deleted()} key={(d: DeployedShard) => d.id}>
+                    {(d) => (
+                      <View class="gap-2">
+                        <View class="flex-row items-baseline gap-2">
+                          <Text class="flex-1 text-base font-semibold text-card-foreground">{d().displayName || d().name || d().id}</Text>
+                          <If when={d().deletedAt}>
+                            {(at) => <Text class="text-xs text-muted-foreground">{new Date(at()).toLocaleDateString()}</Text>}
+                          </If>
+                        </View>
+                        <View class="flex-row gap-2">
+                          <SecondaryButton
+                            title="Restore"
+                            tone="success"
+                            testID={`restore-${d().displayName || d().id}`}
+                            onPress={() => restore(d())}
+                            disabled={working() === d().id}
+                          />
+                          <SecondaryButton
+                            title="Delete permanently"
+                            tone="danger"
+                            testID={`purge-${d().displayName || d().id}`}
+                            onPress={() => purge(d())}
+                            disabled={working() === d().id}
+                          />
+                        </View>
+                      </View>
+                    )}
+                  </Each>
+                </View>
+              </If>
+            </View>
+          </If>
         </View>
       </Screen>
     </NavPage>

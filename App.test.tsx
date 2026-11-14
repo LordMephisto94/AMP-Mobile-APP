@@ -217,11 +217,29 @@ test("creates an instance from the catalogue", async () => {
 test("edits an instance's details and settings", async () => {
   const patched: Record<string, unknown>[] = [];
   const renamed: Record<string, unknown>[] = [];
+  const infraPatched: Record<string, unknown>[] = [];
   const app = await open("./App.tsx", {
     storage: signedIn,
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Shards/a1/settings/locale`]: { body: { en: { "cat.server": "Server" } } },
+      [`GET ${SERVER}/api/Shards/a1/infra`]: {
+        body: {
+          settings: { startOnBoot: true, autoRestartOnCrash: true, startupOrder: 100, containerMode: "Native", memoryLimitMb: 0, cpuLimit: 0, maxUsersCap: 0, diskLimitMb: 0 },
+          spireName: "Main",
+          spireIsLinux: true,
+          containerPolicy: 0,
+          logicalCores: 8,
+          templateOs: 3,
+          supportsSleep: false,
+          tracksUsers: true,
+          reportsAddresses: false,
+        },
+      },
+      [`PATCH ${SERVER}/api/Shards/a1/infra`]: (request) => {
+        infraPatched.push(JSON.parse(request.body!));
+        return { body: {} };
+      },
       [`GET ${SERVER}/api/Shards/a1/settings`]: {
         body: [
           { spec: { fieldName: "MaxPlayers", displayName: "Max players", category: "cat.server", inputType: "number", minValue: 1, maxValue: 64 }, value: "16" },
@@ -271,4 +289,61 @@ test("edits an instance's details and settings", async () => {
   await app.waitUntil(() => patched.length === 1);
   expect(patched[0]).toEqual({ MaxPlayers: "32", PvP: "true", Difficulty: "hard" });
   expect(renamed).toEqual([{ displayName: "Minecraft SMP", description: "Survival world", tags: null }]);
+
+  // Infrastructure: limits show only in a container; values go back typed.
+  await app.press("group-Container and limits");
+  expect(app.texts()).not.toContain("Memory limit");
+  await app.press("text:Native");
+  await app.press("text:Docker");
+  await app.waitFor("text:Memory limit");
+  await app.type("setting-infra.cpuLimit", "12"); // 012 → 12 cores, over the machine's 8
+  await app.waitFor("text:At most 8");
+  await app.clear("setting-infra.cpuLimit");
+  await app.type("setting-infra.cpuLimit", "2.5");
+  await app.press("group-Startup");
+  await app.press("text:Restart after a crash");
+  await app.press("Save 3 changes");
+  await app.waitUntil(() => infraPatched.length === 1);
+  expect(infraPatched[0]).toEqual({ containerMode: "Docker", cpuLimit: 2.5, autoRestartOnCrash: false });
+});
+
+test("deletes an instance, then restores one and permanently deletes another", async () => {
+  const calls: string[] = [];
+  let list = [
+    { id: "a1", displayName: "Minecraft SMP", templateSlug: "minecraft-java", deleted: false },
+    { id: "b2", displayName: "Old server", templateSlug: "valheim", deleted: true, deletedAt: "2026-11-10T00:00:00Z" },
+    { id: "c3", displayName: "Scrap", templateSlug: "terraria", deleted: true, deletedAt: "2026-11-11T00:00:00Z" },
+  ];
+  const mark = (id: string, deletedNow: boolean) => (list = list.map((s) => (s.id === id ? { ...s, deleted: deletedNow } : s)));
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`DELETE ${SERVER}/api/Shards/a1`]: () => (calls.push("delete a1"), mark("a1", true), { status: 200 }),
+      [`POST ${SERVER}/api/Shards/b2/restore`]: () => (calls.push("restore b2"), mark("b2", false), { status: 200 }),
+      [`POST ${SERVER}/api/Shards/c3/purge`]: () => (calls.push("purge c3"), (list = list.filter((s) => s.id !== "c3")), { status: 202 }),
+      [`GET ${SERVER}/api/Shards/a1/state`]: { body: { shardId: "a1", status: 0, isStopped: true } },
+      [`GET ${SERVER}/api/Shards/b2/state`]: { body: { shardId: "b2", status: 0, isStopped: true } },
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/api/Shards?includeDeleted=true`]: () => ({ body: list }),
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  app.onDialog((d) => (d.title?.startsWith("Permanently") ? "Delete permanently" : "Delete"));
+
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await app.press("Delete instance");
+  await app.waitFor("text:Recently deleted");
+  expect(app.dialogs()[0]).toMatchObject({ title: "Delete Minecraft SMP?" });
+
+  await app.press("recently-deleted");
+  await app.press("restore-Old server");
+  await app.waitFor("shard-Old server");
+
+  await app.press("purge-Scrap");
+  await app.waitUntil(() => calls.includes("purge c3"));
+  await app.waitUntil(() => !app.texts().includes("Scrap"));
+  expect(app.dialogs()[1]).toMatchObject({ title: "Permanently delete Scrap?" });
+  expect(calls).toEqual(["delete a1", "restore b2", "purge c3"]);
 });

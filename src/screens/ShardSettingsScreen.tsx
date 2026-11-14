@@ -1,19 +1,24 @@
 import { Scroll, signal, Text, View } from "nsh";
 import { Input, NavPage } from "nsh/base";
 import { AmpError } from "../api/client";
+import { INFRA_FIELDS, type InfraField, infraFromString, infraProblem, infraSpec, infraToString } from "../api/infraFields";
 import {
   checkboxValue,
   type EffectiveSetting,
   getSettingsLocale,
   getShard,
+  getShardInfra,
   getShardSettings,
   isChecked,
   listItems,
   localize,
   patchShard,
+  patchShardInfra,
   patchShardSettings,
   type SettingSpec,
   settingKind,
+  type ShardInfraContext,
+  type ShardInfraSettings,
   validateSetting,
 } from "../api/manage";
 import { Backdrop } from "../components/backdrop";
@@ -24,6 +29,11 @@ import { clearServerSession, clientFor } from "../state/servers";
 interface Group {
   name: string;
   settings: EffectiveSetting[];
+}
+
+interface InfraGroup {
+  name: string;
+  fields: InfraField[];
 }
 
 /**
@@ -37,6 +47,10 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   const name = signal("");
   const description = signal("");
   const edits = signal<Record<string, string>>({});
+  const infra = signal<ShardInfraContext | null>(null);
+  const infraDenied = signal(false);
+  const infraEdits = signal<Record<string, string>>({});
+  const notice = signal<string | null>(null);
   const open = signal<Record<string, boolean>>({});
   const search = signal("");
   const error = signal<string | null>(null);
@@ -57,11 +71,21 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   const load = async () => {
     try {
       const client = clientFor(props.serverId);
-      const [shard, list, loc] = await Promise.all([
+      const [shard, list, loc, inf] = await Promise.all([
         getShard(client, props.id),
         getShardSettings(client, props.id),
         getSettingsLocale(client, props.id).catch(() => null),
+        getShardInfra(client, props.id).catch((e) => {
+          // Without `infra.read` the section is left out rather than failing the page.
+          if (e instanceof AmpError && e.status === 403) {
+            infraDenied.set(true);
+            return null;
+          }
+          throw e;
+        }),
       ]);
+      infra.set(inf && typeof inf === "object" && inf.settings ? inf : null);
+      infraEdits.set({});
       original.set({ name: shard.displayName ?? "", description: shard.description ?? "" });
       name.set(shard.displayName ?? "");
       description.set(shard.description ?? "");
@@ -106,15 +130,47 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
     }));
   };
 
+  // Infrastructure: values as form strings, edits by key.
+  const infraValue = (key: keyof ShardInfraSettings): string => {
+    const edited = infraEdits()[key];
+    if (edited !== undefined) return edited;
+    const field = INFRA_FIELDS.find((f) => f.key === key);
+    const ctx = infra();
+    return field && ctx ? infraToString(field, ctx.settings) : "";
+  };
+  const setInfra = (field: InfraField, value: string) => {
+    saved.set(false);
+    const ctx = infra();
+    const was = ctx ? infraToString(field, ctx.settings) : "";
+    const next = { ...infraEdits() };
+    if (value === was) delete next[field.key];
+    else next[field.key] = value;
+    infraEdits.set(next);
+  };
+  const infraShown = (f: InfraField) => {
+    const ctx = infra();
+    return !!ctx && (!f.show || f.show(ctx, infraValue));
+  };
+  const infraGroups = (): InfraGroup[] => {
+    const map = new Map<string, InfraField[]>();
+    for (const f of INFRA_FIELDS) if (infraShown(f)) map.set(f.group, [...(map.get(f.group) ?? []), f]);
+    return [...map.entries()].map(([groupName, fields]) => ({ name: groupName, fields }));
+  };
+  const infraFieldProblem = (f: InfraField): string | null => {
+    const ctx = infra();
+    if (!ctx || !(f.key in infraEdits())) return null;
+    return validateSetting(infraSpec(f, ctx), infraValue(f.key)) ?? infraProblem(f, infraValue(f.key), infraValue);
+  };
+
   const detailsChanged = () => name().trim() !== original().name || description().trim() !== original().description;
-  const changeCount = () => Object.keys(edits()).length + (detailsChanged() ? 1 : 0);
+  const changeCount = () => Object.keys(edits()).length + Object.keys(infraEdits()).length + (detailsChanged() ? 1 : 0);
   const problems = () =>
     Object.entries(edits())
       .map(([field, value]) => {
         const spec = settings()?.find((s) => s.spec.fieldName === field)?.spec;
         return spec ? validateSetting(spec, value) : null;
       })
-      .filter(Boolean).length;
+      .filter(Boolean).length + INFRA_FIELDS.filter((f) => infraShown(f) && infraFieldProblem(f)).length;
 
   const save = async () => {
     if (saving() || changeCount() === 0) return;
@@ -128,12 +184,29 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
     }
     saving.set(true);
     error.set(null);
+    notice.set(null);
     try {
       const client = clientFor(props.serverId);
       if (detailsChanged()) {
         await patchShard(client, props.id, { displayName: name().trim(), description: description().trim() });
       }
       if (Object.keys(edits()).length) await patchShardSettings(client, props.id, edits());
+      if (Object.keys(infraEdits()).length) {
+        const patch: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(infraEdits())) {
+          const field = INFRA_FIELDS.find((f) => f.key === key);
+          if (field) patch[key] = infraFromString(field, value);
+        }
+        const result = await patchShardInfra(client, props.id, patch as Partial<ShardInfraSettings>);
+        const refused = result.clampRefused;
+        if (refused) {
+          notice.set(
+            `The player cap was saved, but the game's own max players couldn't be lowered to match: ${
+              typeof refused === "string" ? refused : (refused.message ?? refused.code ?? "no reason given")
+            }`,
+          );
+        }
+      }
       await load();
       saved.set(true);
     } catch (e) {
@@ -145,6 +218,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
 
   const discard = () => {
     edits.set({});
+    infraEdits.set({});
     name.set(original().name);
     description.set(original().description);
     error.set(null);
@@ -179,6 +253,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
             />
 
             <If when={error()}>{(m) => <ErrorText message={m()} />}</If>
+            <If when={notice()}>{(m) => <Text class="text-sm text-warning">{m()}</Text>}</If>
             <If when={saved() && changeCount() === 0}>
               <Text class="text-sm text-success">Saved. Some changes only take effect after a restart.</Text>
             </If>
@@ -222,6 +297,62 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
             <If when={settings() !== null && groups().length === 0 && search().trim()}>
               <Text class="text-sm text-muted-foreground">No settings match “{search()}”.</Text>
             </If>
+
+            <If when={search().trim() ? null : infra()}>
+              {(ctx) => (
+                <View class="gap-3 pt-2">
+                  <View class="flex-row items-baseline justify-between px-1">
+                    <Text class="text-xs font-semibold tracking-widest text-muted-foreground">INFRASTRUCTURE</Text>
+                    <Text class="text-xs text-muted-foreground">on {ctx().spireName}</Text>
+                  </View>
+                  <Each of={infraGroups()} key={(g: InfraGroup) => g.name}>
+                    {(group) => (
+                      <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                        <View
+                          role="button"
+                          testID={`group-${group().name}`}
+                          onPress={() => open.set({ ...open(), [`infra:${group().name}`]: !open()[`infra:${group().name}`] })}
+                          class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent"
+                        >
+                          <Text class="flex-1 text-base font-semibold text-card-foreground">{group().name}</Text>
+                          <Text class="text-base text-muted-foreground">{open()[`infra:${group().name}`] ? "▾" : "▸"}</Text>
+                        </View>
+                        <If when={open()[`infra:${group().name}`]}>
+                          <View class="gap-5 border-t border-white/10 px-4 py-4">
+                            <Each of={group().fields} key={(f: InfraField) => f.key}>
+                              {(f) => (
+                                <SettingRow
+                                  spec={infraSpec(f(), ctx())}
+                                  label={f().label}
+                                  description={f().description ?? ""}
+                                  options={
+                                    f().type === "select"
+                                      ? Object.entries(infraSpec(f(), ctx()).enumValues ?? {}).map(([k, v]) => [k, v] as [string, string])
+                                      : []
+                                  }
+                                  value={infraValue(f().key)}
+                                  changed={f().key in infraEdits()}
+                                  problem={infraFieldProblem(f())}
+                                  onChange={(v) => setInfra(f(), v)}
+                                />
+                              )}
+                            </Each>
+                            <If when={group().name === "Container and limits" && infraValue("containerMode") === "Native"}>
+                              <Text class="text-xs text-muted-foreground">
+                                Memory and CPU limits apply only when the instance runs in a container.
+                              </Text>
+                            </If>
+                          </View>
+                        </If>
+                      </View>
+                    )}
+                  </Each>
+                </View>
+              )}
+            </If>
+            <If when={infraDenied()}>
+              <Text class="text-xs text-muted-foreground">Your account can't view this instance's infrastructure settings.</Text>
+            </If>
           </View>
         </Scroll>
 
@@ -250,6 +381,8 @@ function SettingRow(props: {
   options: [string, string][];
   value: string;
   changed: boolean;
+  /** A problem found by the caller; otherwise the spec's own checks run. */
+  problem?: string | null;
   onChange: (value: string) => void;
 }) {
   const kind = () => {
@@ -258,7 +391,7 @@ function SettingRow(props: {
     return k === "ipbinding" && props.options.length ? "select" : k;
   };
   const readOnly = () => !!props.spec.readOnly || kind() === "credential";
-  const problem = () => (props.changed ? validateSetting(props.spec, props.value) : null);
+  const problem = () => (props.problem !== undefined ? props.problem : props.changed ? validateSetting(props.spec, props.value) : null);
   const dropdown = signal(false);
   const inputClass = () =>
     `rounded-lg border px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground ${

@@ -25,7 +25,13 @@ export function PrimaryButton(props: { title: string; onPress: () => void; disab
 }
 
 /** A quieter button for secondary actions. */
-export function SecondaryButton(props: { title: string; onPress: () => void; disabled?: boolean; tone?: "default" | "success" | "warning" | "danger" }) {
+export function SecondaryButton(props: {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+  tone?: "default" | "success" | "warning" | "danger";
+  testID?: string;
+}) {
   const tone = () =>
     ({
       default: ["bg-secondary", "text-secondary-foreground"],
@@ -35,6 +41,7 @@ export function SecondaryButton(props: { title: string; onPress: () => void; dis
     })[props.tone ?? "default"];
   return (
     <Button
+      testID={props.testID}
       onPress={() => {
         if (!props.disabled) props.onPress();
       }}

@@ -1,7 +1,8 @@
 import { Image, signal, Text, View } from "nsh";
-import { NavPage } from "nsh/base";
+import { AlertDialog, NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
+import { deleteShard } from "../api/manage";
 import { getShardMetrics, getShardState, shardPower, type ShardPowerAction } from "../api/shards";
 import { type ShardMetricsSample, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
@@ -84,6 +85,30 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
       for (const delay of AFTER_ACTION_MS) setTimeout(load, delay);
     } catch (e) {
       await handle(e);
+    } finally {
+      busy.set(false);
+    }
+  };
+
+  const remove = async () => {
+    const { action } = await AlertDialog.show({
+      title: `Delete ${props.title}?`,
+      description:
+        "It disappears from your instances and stops running. You can restore it from the instance list until you delete it permanently.",
+      actions: [
+        { id: "cancel", label: "Cancel", role: "cancel" },
+        { id: "delete", label: "Delete", role: "destructive" },
+      ],
+    });
+    if (action !== "delete") return;
+    busy.set(true);
+    error.set(null);
+    try {
+      await deleteShard(clientFor(props.serverId), props.id);
+      nav.pop();
+    } catch (e) {
+      if (e instanceof AmpError && e.status === 403) error.set("Your account isn't allowed to delete this instance.");
+      else await handle(e);
     } finally {
       busy.set(false);
     }
@@ -243,6 +268,14 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
             areaClass="fill-emerald-400/15"
             dotClass="size-2.5 rounded-full border-2 border-background bg-emerald-400"
           />
+
+          <View class="mt-4 gap-2 rounded-(--radius) border border-destructive/30 bg-destructive/5 p-4">
+            <Text class="text-xs font-semibold tracking-widest text-destructive">DANGER ZONE</Text>
+            <Text class="text-xs text-muted-foreground">Deleting can be undone from the instance list until you delete permanently.</Text>
+            <View class="flex-row">
+              <SecondaryButton title="Delete instance" tone="danger" onPress={remove} disabled={busy()} />
+            </View>
+          </View>
         </View>
       </Screen>
     </NavPage>
