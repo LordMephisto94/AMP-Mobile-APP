@@ -148,7 +148,7 @@ export function ShardsScreen(props: { serverId: string }) {
             <Text class="text-muted-foreground">No instances on this server yet.</Text>
           </If>
           <If when={shards() !== null}>
-            <View class="md:w-72 md:self-start">
+            <View class={`md:w-72 ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
               <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
             </View>
           </If>
