@@ -7,6 +7,25 @@ const shardsRoute = (request: { url: string; headers: Record<string, string> }) 
   if (request.url.includes("/state")) {
     return { body: { shardId: "a1", status: 25, isRunning: true, metrics: { cpuUsagePercent: 3.4, memoryUsageMB: 2678, memoryLimitMB: 8192 } } };
   }
+  if (request.url.includes("/endpoints")) {
+    return {
+      body: [
+        { portRef: "QueryPort", name: "Query", port: 17777, protocol: "Udp", isPrimary: false, isPublic: true, addresses: [] },
+        {
+          portRef: "PrimaryApplicationPort",
+          name: "Game",
+          port: 2001,
+          protocol: "Udp",
+          isPrimary: true,
+          isPublic: true,
+          addresses: [
+            { reach: "Public", host: "203.0.113.7", port: 2001, showPort: true, display: "203.0.113.7:2001" },
+            { reach: "Local", host: "192.168.1.20", port: 2001, showPort: true, display: "192.168.1.20:2001" },
+          ],
+        },
+      ],
+    };
+  }
   if (request.url.includes("/metrics")) {
     const now = Date.now();
     return {
@@ -103,6 +122,7 @@ test("opens a remembered server straight to its instances", async () => {
   await app.press("shard-Minecraft SMP");
   await app.waitFor("text:PERFORMANCE");
   await app.waitFor("text:of 16 slots");
+  await app.waitFor("text:203.0.113.7:2001"); // the primary port's public address, above the name
   expect(app.texts()).not.toContain("Refresh");
   expect(app.texts()).not.toContain("State code 25");
   expect(app.requests().some((r) => r.url.includes("/metrics?minutes=30"))).toBe(true);

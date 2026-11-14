@@ -22,3 +22,37 @@ export type ShardPowerAction = "start" | "stop" | "restart" | "sleep" | "wake" |
 export async function shardPower(client: AmpClient, id: string, action: ShardPowerAction): Promise<void> {
   await client.request<void>(`/api/Shards/${encodeURIComponent(id)}/${action}`, { method: "POST" });
 }
+
+export interface ShardEndpointAddress {
+  /** `Public`: from the internet; `Local`: from the same network. */
+  reach: "Public" | "Local";
+  host: string;
+  port: number;
+  showPort: boolean;
+  /** As players should type it: "host:port", or just "host". */
+  display: string;
+  uri?: string | null;
+}
+
+export interface ShardEndpoint {
+  portRef: string;
+  name: string;
+  port: number;
+  protocol: string;
+  /** The port players connect to. */
+  isPrimary: boolean;
+  isPublic: boolean;
+  /** Public first. */
+  addresses: ShardEndpointAddress[];
+}
+
+/** `GET /api/Shards/{id}/endpoints`: where to connect, as AMP resolves it (NAT, relays, advertised address). */
+export function getShardEndpoints(client: AmpClient, id: string): Promise<ShardEndpoint[]> {
+  return client.request<ShardEndpoint[]>(`/api/Shards/${encodeURIComponent(id)}/endpoints`);
+}
+
+/** The address players should use: the primary port's first (public-first) address. */
+export function connectAddress(endpoints: ShardEndpoint[]): ShardEndpointAddress | null {
+  const primary = endpoints.find((e) => e.isPrimary) ?? endpoints[0];
+  return primary?.addresses?.[0] ?? null;
+}

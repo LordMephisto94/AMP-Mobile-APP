@@ -1,8 +1,16 @@
-import { Image, signal, Text, View } from "nsh";
+import { Clipboard, Image, signal, Text, View } from "nsh";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { deleteShard } from "../api/manage";
-import { getShardMetrics, getShardState, shardPower, type ShardPowerAction } from "../api/shards";
+import {
+  connectAddress,
+  getShardEndpoints,
+  getShardMetrics,
+  getShardState,
+  shardPower,
+  type ShardEndpointAddress,
+  type ShardPowerAction,
+} from "../api/shards";
 import { type ShardMetricsSample, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Screen } from "../components/backdrop";
@@ -36,6 +44,25 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
   const busy = signal(false);
   const refreshing = signal(false);
   const heroFailed = signal(false);
+  const address = signal<ShardEndpointAddress | null>(null);
+  const copied = signal(false);
+
+  // Where players connect. It rarely changes, so it's read once; without it the page carries on.
+  getShardEndpoints(clientFor(props.serverId), props.id)
+    .then((e) => address.set(connectAddress(e)))
+    .catch(() => {});
+
+  const copyAddress = async () => {
+    const a = address();
+    if (!a) return;
+    try {
+      await Clipboard.writeText(a.display);
+      copied.set(true);
+      setTimeout(() => copied.set(false), 1500);
+    } catch {
+      // no clipboard here
+    }
+  };
 
   const handle = async (e: unknown) => {
     if (e instanceof AmpError && e.isUnauthorized) {
@@ -140,7 +167,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
           else={
             <AmpBanner
               title={props.title}
-              subtitle={state()?.runningVersion ? `Version ${state()!.runningVersion}` : undefined}
+              subtitle={[address()?.display, state()?.runningVersion ? `Version ${state()!.runningVersion}` : null].filter(Boolean).join(" · ") || undefined}
               status={toneStatus(tone())}
               statusLabel={label()}
             />
@@ -156,6 +183,21 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               />
               <View class="absolute inset-0 bg-linear-to-b from-transparent via-black/20 to-background" />
               <View class="absolute right-0 bottom-0 left-0 gap-2 px-5 pb-4">
+                <If when={address()}>
+                  {(a) => (
+                    <View
+                      role="button"
+                      testID="connect-address"
+                      accessibilityLabel={`Address ${a().display}. Tap to copy.`}
+                      onPress={copyAddress}
+                      class="flex-row items-center gap-1.5 self-start rounded-full border border-white/20 bg-black/55 px-3 py-1 active:bg-black/75"
+                    >
+                      <Text class="text-xs">🌐</Text>
+                      <Text class="font-mono text-sm font-semibold text-white">{a().display}</Text>
+                      <Text class="text-xs text-white/60">{copied() ? "Copied" : "⧉"}</Text>
+                    </View>
+                  )}
+                </If>
                 <Text class="text-3xl font-bold text-white">{props.title}</Text>
                 <View class="flex-row flex-wrap items-center gap-2">
                   <StatusBadge label={label()} status={toneStatus(tone())} />
