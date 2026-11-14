@@ -23,7 +23,7 @@ interface Entry {
 
 /** The panel's Main Menu, in its order. */
 const ENTRIES: Entry[] = [
-  { id: "overview", label: "Overview", icon: overview },
+  { id: "overview", label: "Overview", icon: overview, route: (serverId) => ({ name: "overview", serverId }) },
   { id: "shards", label: "Shards", icon: shards, route: (serverId) => ({ name: "shards", serverId }) },
   { id: "spires", label: "Spires", icon: spires },
   { id: "networking", label: "Networking", icon: networking },
@@ -41,7 +41,7 @@ const BRIGHT = "#f4f4f8";
  * Goes to a section of one server: back to that server's instance list (keeping the
  * stack under it), then on to the section's page when it isn't the list itself.
  */
-function goTo(serverId: string, route: Route) {
+export function goTo(serverId: string, route: Route) {
   const routes = nav.routes();
   const at = routes.findIndex((r) => r.name === "shards" && r.serverId === serverId);
   const base = at >= 0 ? routes.slice(0, at + 1) : [{ name: "servers" } as Route, { name: "shards", serverId } as Route];

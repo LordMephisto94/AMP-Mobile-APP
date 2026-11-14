@@ -1,6 +1,7 @@
 import { signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
 import {
+  actionKind,
   actionLabel,
   actorOf,
   type AuditEvent,
@@ -14,6 +15,7 @@ import {
   prettyDetails,
 } from "../api/audit";
 import { AmpError } from "../api/client";
+import { panelText } from "../api/panelText";
 import { listShards } from "../api/shards";
 import { ago, clockOf, dayOf } from "../components/analyticsUi";
 import { Screen } from "../components/backdrop";
@@ -36,6 +38,9 @@ const FILTERS: { id: Filter; label: string; query: Partial<AuditQuery> }[] = [
   { id: "security", label: "Security", query: { minSeverity: "Security" } },
 ];
 
+/** Action colours, as the panel's chips: blue, red, amber, green. */
+const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
+
 const ORIGIN_ICON: Record<number, string> = {
   [AuditOrigin.System]: "⚙️",
   [AuditOrigin.User]: "👤",
@@ -57,6 +62,9 @@ export function ActivityScreen(props: { serverId: string }) {
   const expanded = signal<string | null>(null);
   /** Shard names by id, to say which instance an event was about. */
   const shardNames = signal<Record<string, string>>({});
+  /** The panel's wording for actions. */
+  const text = signal<Record<string, string>>({});
+  panelText(clientFor(props.serverId)).then((t) => text.set(t));
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let loadId = 0;
 
@@ -216,6 +224,7 @@ export function ActivityScreen(props: { serverId: string }) {
                     serverId={props.serverId}
                     flow={flow()}
                     target={target}
+                    label={(a) => actionLabel(a, text())}
                     open={expanded() === flow().correlationId}
                     onToggle={() => expanded.set(expanded() === flow().correlationId ? null : flow().correlationId)}
                   />
@@ -248,6 +257,7 @@ function FlowRow(props: {
   serverId: string;
   flow: AuditRootItem;
   target: (e: AuditEvent) => string | null;
+  label: (action: string) => string;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -291,7 +301,7 @@ function FlowRow(props: {
         </View>
         <View class="flex-1 gap-0.5">
           <View class="flex-row flex-wrap items-center gap-2">
-            <Text class="text-[15px] font-semibold text-card-foreground">{actionLabel(root().action)}</Text>
+            <Text class={`text-[15px] font-semibold ${KIND_TEXT[actionKind(root().action)]}`}>{props.label(root().action)}</Text>
             <SeverityPill severity={props.flow.maxSeverity} />
           </View>
           <Text class="line-clamp-1 text-xs text-muted-foreground">
@@ -316,7 +326,7 @@ function FlowRow(props: {
             <Text class="text-sm text-muted-foreground">Loading…</Text>
           </If>
           <Each of={rows()} key={(r: { node: AuditTreeNode; depth: number }) => r.node.event.id}>
-            {(r) => <EventRow event={r().node.event} depth={r().depth} target={props.target} />}
+            {(r) => <EventRow event={r().node.event} depth={r().depth} target={props.target} label={props.label} />}
           </Each>
         </View>
       </If>
@@ -324,7 +334,12 @@ function FlowRow(props: {
   );
 }
 
-function EventRow(props: { event: AuditEvent; depth: number; target: (e: AuditEvent) => string | null }) {
+function EventRow(props: {
+  event: AuditEvent;
+  depth: number;
+  target: (e: AuditEvent) => string | null;
+  label: (action: string) => string;
+}) {
   const showDetails = signal(false);
   const details = () => prettyDetails(props.event.details);
   const t = () => new Date(props.event.timestamp);
@@ -334,7 +349,7 @@ function EventRow(props: { event: AuditEvent; depth: number; target: (e: AuditEv
         <Text class="text-xs text-muted-foreground">{props.depth > 0 ? "└" : "●"}</Text>
         <View class="flex-1">
           <View class="flex-row flex-wrap items-center gap-1.5">
-            <Text class="text-sm font-semibold text-card-foreground">{actionLabel(props.event.action)}</Text>
+            <Text class={`text-sm font-semibold ${KIND_TEXT[actionKind(props.event.action)]}`}>{props.label(props.event.action)}</Text>
             <SeverityPill severity={props.event.severity} />
           </View>
           <Text class="text-[11px] text-muted-foreground">

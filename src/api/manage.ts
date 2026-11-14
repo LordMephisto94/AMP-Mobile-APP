@@ -51,6 +51,31 @@ export function listSpires(client: AmpClient): Promise<SpireDefinition[]> {
   return client.request<SpireDefinition[]>("/api/Spires");
 }
 
+/** `SpireState`: a machine's live figures. Decimals may come as strings. */
+export interface SpireState {
+  spireId: string;
+  online: boolean;
+  lastHeartbeat?: string;
+  shardCount: number;
+  cpuUsagePercent: number | string;
+  memoryUsedMb: number | string;
+  memoryTotalMb: number | string;
+  /** Inbound NIC throughput, KB/s. */
+  networkInKBps: number | string;
+  networkOutKBps: number | string;
+  platform?: {
+    osName?: string;
+    hostname?: string;
+    freeDiskMb?: number | string;
+    totalDiskMb?: number | string;
+  } | null;
+}
+
+/** `GET /api/Spires/{id}/state`: a machine's live state (online, CPU, RAM, network, disk). */
+export function getSpireState(client: AmpClient, id: string): Promise<SpireState> {
+  return client.request<SpireState>(`/api/Spires/${encodeURIComponent(id)}/state`);
+}
+
 /** Machines a new instance may be placed on. */
 export function placeableSpires(spires: SpireDefinition[]): SpireDefinition[] {
   return spires.filter((s) => s.acceptsNewShards !== false && s.canHostShards !== false && !s.isPublicEntryNode);

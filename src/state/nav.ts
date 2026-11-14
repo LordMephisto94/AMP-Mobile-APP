@@ -21,6 +21,8 @@ export type Route =
   /** Player analytics for a server, or for one instance when `shardId` is given. */
   | { name: "analytics"; serverId: string; shardId?: string; title?: string }
   | { name: "player"; serverId: string; userKey: string; playerName?: string | null; shardId?: string }
+  /** A server at a glance: totals, machines, recent activity. */
+  | { name: "overview"; serverId: string }
   /** The panel's audit log for a server. */
   | { name: "activity"; serverId: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };

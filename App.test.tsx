@@ -816,3 +816,69 @@ test("the activity log without permission explains why", async () => {
   await app.press("nav-activity");
   await app.waitFor("text:Your AMP account can't read the activity log. It needs the audit read permission (platform.audit.read).");
 });
+
+test("the overview shows totals, hosts and recent activity in the panel's wording", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/assets/i18n/en.json`]: {
+        body: { audit: { action: { ShardStopped: "Stopped a server", ShardBusCredentialPruned: "Removed a server's old message bus credential after its renewal" } } },
+      },
+      [`GET ${SERVER}/api/Spires/sp1/state`]: {
+        body: {
+          spireId: "sp1",
+          online: true,
+          shardCount: 4,
+          cpuUsagePercent: "8.2",
+          memoryUsedMb: 2600,
+          memoryTotalMb: 32000,
+          networkInKBps: 84,
+          networkOutKBps: 12,
+          platform: { freeDiskMb: 457728, totalDiskMb: 900000 },
+        },
+      },
+      [`GET ${SERVER}/api/Spires`]: { body: [{ id: "sp1", displayName: "amp3" }] },
+      [`GET ${SERVER}/api/Audit/roots*`]: {
+        body: {
+          total: 2,
+          page: 1,
+          pageSize: 6,
+          caughtUp: true,
+          items: [
+            { correlationId: "c1", root: auditEvent("e1", "ShardStopped"), eventCount: 1, startedAt: "2026-11-15T03:10:00Z", endedAt: "", maxSeverity: 0, rootMissing: false },
+            {
+              correlationId: "c2",
+              root: auditEvent("e2", "ShardBusCredentialPruned", { origin: 0, principal: { kind: 0, userId: null, userDisplayName: null, systemSource: "BusCredentials" } }),
+              eventCount: 1,
+              startedAt: "2026-11-15T03:01:00Z",
+              endedAt: "",
+              maxSeverity: 0,
+              rootMissing: false,
+            },
+          ],
+        },
+      },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-overview");
+  await app.waitFor("text:HOSTS");
+  await app.waitFor("text:amp3");
+  await app.waitFor("text:4 shards");
+  expect(app.texts()).toContain("8%");
+  expect(app.texts()).toContain("2.5 GB / 31 GB");
+  expect(app.texts()).toContain("↓ 82 KiB/s");
+  expect(app.texts()).toContain("2.6 GB"); // RAM of the running instance
+  await app.waitFor("text:Stopped a server");
+  expect(app.texts()).toContain("Removed a server's old message bus credential after its renewal");
+  expect(app.texts()).toContain("BusCredentials · Minecraft SMP");
+
+  await app.press("view-all-activity");
+  await app.waitFor("filter-all");
+  await app.waitFor("text:Stopped a server");
+});

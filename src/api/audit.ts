@@ -99,8 +99,27 @@ export function getAuditTree(client: AmpClient, correlationId: string): Promise<
   return client.request<AuditTree>(`/api/Audit/tree/${encodeURIComponent(correlationId)}`);
 }
 
-/** "ShardSettingChanged" → "Shard setting changed"; "UserLoggedIn" → "User logged in". */
-export function actionLabel(action: string): string {
+/**
+ * An action as people read it: the panel's own wording when its text table has it
+ * ("Removed a server's old message bus credential after its renewal"), otherwise the
+ * name split into words ("ShardSettingChanged" → "Shard setting changed").
+ */
+export function actionLabel(action: string, text: Record<string, string> = {}): string {
+  const panel = text[`audit.action.${action}`];
+  if (panel) return panel;
+  return splitWords(action);
+}
+
+/** How the panel colours an action: red for failures and removals, amber for changes, green for new things. */
+export function actionKind(action: string): "info" | "danger" | "warn" | "ok" {
+  if (action === "ShardBusRetiredKeyRevoked") return "info";
+  if (/Failed|Killed|Deleted|Revoked/i.test(action)) return "danger";
+  if (/Changed|Updated|Upserted|Restored/i.test(action)) return "warn";
+  if (/Created|LoggedIn|Synced/i.test(action)) return "ok";
+  return "info";
+}
+
+function splitWords(action: string): string {
   const words = action
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
