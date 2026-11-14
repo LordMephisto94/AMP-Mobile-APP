@@ -16,9 +16,9 @@ export function getShardState(client: AmpClient, id: string): Promise<ShardState
   return client.request<ShardState>(`/api/Shards/${encodeURIComponent(id)}/state`);
 }
 
-export type ShardPowerAction = "start" | "stop" | "restart" | "sleep" | "wake";
+export type ShardPowerAction = "start" | "stop" | "restart" | "sleep" | "wake" | "update";
 
-/** `POST /api/Shards/{id}/{start|stop|restart|sleep|wake}`. */
+/** `POST /api/Shards/{id}/{start|stop|restart|sleep|wake|update}` (update runs the app's update task). */
 export async function shardPower(client: AmpClient, id: string, action: ShardPowerAction): Promise<void> {
   await client.request<void>(`/api/Shards/${encodeURIComponent(id)}/${action}`, { method: "POST" });
 }

@@ -9,6 +9,8 @@ export interface DropdownItem {
   /** `danger` items are red and set apart below a divider. */
   tone?: "default" | "danger";
   hint?: string;
+  /** Shown greyed out, not pressable (with `hint` saying why, ideally). */
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -24,11 +26,14 @@ export function Dropdown(props: {
   items: DropdownItem[];
   title?: string;
   testID?: string;
+  /** How the menu lines up with its trigger (default: right edges). */
+  align?: "start" | "center" | "end";
 }) {
   const normal = () => props.items.filter((i) => i.tone !== "danger");
   const danger = () => props.items.filter((i) => i.tone === "danger");
 
   const pick = (item: DropdownItem) => {
+    if (item.disabled) return;
     props.onOpenChange(false);
     item.onSelect();
   };
@@ -38,7 +43,7 @@ export function Dropdown(props: {
       open={props.open}
       onOpenChange={(e) => props.onOpenChange(e.open)}
       placement="bottom"
-      align="end"
+      align={props.align ?? "end"}
       offset={6}
       margin={12}
       popupClass="min-w-56 overflow-hidden rounded-2xl border border-white/10 bg-popover/95 py-1.5 shadow-2xl backdrop-blur-xl transition-all duration-150 ease-out"
@@ -75,7 +80,9 @@ function DropdownRow(props: { item: DropdownItem; onPress: () => void }) {
       role="menuitem"
       testID={`menu-${props.item.id}`}
       onPress={props.onPress}
-      class={`mx-1.5 flex-row items-center gap-3 rounded-xl px-3 py-2.5 ${danger() ? "active:bg-destructive/15" : "active:bg-accent"}`}
+      class={`mx-1.5 flex-row items-center gap-3 rounded-xl px-3 py-2.5 ${
+        props.item.disabled ? "opacity-40" : danger() ? "active:bg-destructive/15" : "active:bg-accent"
+      }`}
     >
       <If when={props.item.icon}>
         {(icon) => <Text class={`w-6 text-center text-base ${danger() ? "text-destructive" : "text-foreground"}`}>{icon()}</Text>}

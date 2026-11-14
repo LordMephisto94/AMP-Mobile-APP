@@ -487,3 +487,38 @@ test("the server menu is the app's own dropdown, and removing asks first", async
   await app.press("confirm-remove");
   await app.waitFor("text:No servers yet");
 });
+
+test("instance controls are a dropdown, enabled by state, and ask before stopping", async () => {
+  const sent: string[] = [];
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`POST ${SERVER}/api/Shards/a1/*`]: (r) => (sent.push(r.url.split("/").pop()!), { status: 200 }),
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  // From the card's menu on the list: Start is greyed out while running; Stop asks first.
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Running");
+  await app.press("more-Minecraft SMP");
+  await app.waitFor("text:Already running");
+  await app.press("menu-start").catch(() => {});
+  expect(sent).toEqual([]);
+  await app.press("menu-stop");
+  await app.waitFor("text:Stop Minecraft SMP?");
+  await app.press("confirm-stop");
+  await app.waitUntil(() => sent.includes("stop"));
+
+  // On the instance page: the Controls dropdown, Restart confirmed.
+  await app.press("shard-Minecraft SMP");
+  await app.press("controls");
+  await app.press("menu-restart");
+  await app.waitFor("text:Restart Minecraft SMP?");
+  await app.press("confirm-restart");
+  await app.waitUntil(() => sent.includes("restart"));
+  expect(app.texts()).not.toContain("Start"); // no row of power buttons anymore
+});

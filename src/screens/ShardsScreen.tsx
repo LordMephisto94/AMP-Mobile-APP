@@ -3,10 +3,12 @@ import { NavPage } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { purgeShard, restoreShard } from "../api/manage";
-import { getShardState, listShards } from "../api/shards";
+import { getShardState, listShards, type ShardPowerAction, shardPower } from "../api/shards";
 import { type DeployedShard, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Screen } from "../components/backdrop";
+import { Dropdown, MoreButton } from "../components/Dropdown";
+import { powerItems } from "../components/powerMenu";
 import { confirm } from "../components/Confirm";
 import { ErrorText, PageHeader, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
@@ -93,6 +95,21 @@ export function ShardsScreen(props: { serverId: string }) {
     }
   };
 
+  /** Runs a control from a card's menu, then looks again soon to catch the state change. */
+  const power = async (shard: DeployedShard, action: ShardPowerAction) => {
+    working.set(shard.id);
+    error.set(null);
+    try {
+      await shardPower(clientFor(props.serverId), shard.id, action);
+      await load();
+      for (const delay of [2_000, 6_000, 15_000]) setTimeout(load, delay);
+    } catch (e) {
+      error.set(e instanceof AmpError && e.status === 403 ? "Your account isn't allowed to do that." : (e as Error).message);
+    } finally {
+      working.set(null);
+    }
+  };
+
   const pullToRefresh = async () => {
     refreshing.set(true);
     await load();
@@ -140,6 +157,8 @@ export function ShardsScreen(props: { serverId: string }) {
                 serverUrl={server?.serverUrl ?? ""}
                 shard={shard()}
                 state={states()[shard().id]}
+                busy={working() === shard().id}
+                onAction={(action) => power(shard(), action)}
               />
             )}
           </Each>
@@ -197,7 +216,15 @@ export function ShardsScreen(props: { serverId: string }) {
 }
 
 /** One instance: its game's artwork with the state on it, then its name, CPU and RAM. */
-function ShardCard(props: { serverId: string; serverUrl: string; shard: DeployedShard; state?: ShardState }) {
+function ShardCard(props: {
+  serverId: string;
+  serverUrl: string;
+  shard: DeployedShard;
+  state?: ShardState;
+  busy: boolean;
+  onAction: (action: ShardPowerAction) => void;
+}) {
+  const menuOpen = signal(false);
   const title = () => props.shard.displayName || props.shard.name || props.shard.id;
   const art = () => artworkUrl(props.shard.displayImageSource, props.serverUrl, "banner");
   const tone = () => stateTone(props.state);
@@ -205,6 +232,12 @@ function ShardCard(props: { serverId: string; serverUrl: string; shard: Deployed
   const cpu = () => Number(metrics()?.cpuUsagePercent ?? 0);
   const memory = () => Number(metrics()?.memoryUsageMB ?? 0);
   const memoryLimit = () => Number(metrics()?.memoryLimitMB ?? 0);
+  const go = (name: "console" | "files" | "shardSettings") => {
+    const base = { serverId: props.serverId, id: props.shard.id, title: title() };
+    if (name === "files") nav.push({ name, ...base, path: "" });
+    else if (name === "console") nav.push({ name, ...base, tenantId: props.shard.tenantId });
+    else nav.push({ name, ...base });
+  };
 
   return (
     <View
@@ -213,6 +246,7 @@ function ShardCard(props: { serverId: string; serverUrl: string; shard: Deployed
       onPress={() =>
         nav.push({ name: "shard", serverId: props.serverId, id: props.shard.id, title: title(), image: props.shard.displayImageSource })
       }
+      onLongPress={() => menuOpen.set(true)}
       class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg active:opacity-85"
     >
       <View class="aspect-[460/215] w-full bg-secondary">
@@ -231,11 +265,23 @@ function ShardCard(props: { serverId: string; serverUrl: string; shard: Deployed
             {(s) => <StatusBadge label={stateLabel(s())} status={toneStatus(tone())} />}
           </If>
         </View>
-        <If when={props.shard.suspended}>
-          <View class="absolute top-3 right-3">
+        <View class="absolute top-3 right-3 flex-row items-center gap-2">
+          <If when={props.shard.suspended}>
             <Pill label="Suspended" tone="warning" />
-          </View>
-        </If>
+          </If>
+          <Dropdown
+            open={menuOpen()}
+            onOpenChange={(o) => menuOpen.set(o)}
+            title={title()}
+            items={[
+              ...powerItems({ title: title(), state: props.state ?? null, busy: props.busy, run: props.onAction }),
+              { id: "console", label: "Console", icon: "⌨️", onSelect: () => go("console") },
+              { id: "files", label: "Files", icon: "📁", onSelect: () => go("files") },
+              { id: "settings", label: "Settings", icon: "⚙️", onSelect: () => go("shardSettings") },
+            ]}
+            trigger={<MoreButton testID={`more-${title()}`} />}
+          />
+        </View>
       </View>
 
       <View class="gap-2.5 p-4">

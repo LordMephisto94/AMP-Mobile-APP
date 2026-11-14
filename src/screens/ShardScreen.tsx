@@ -7,6 +7,8 @@ import { getShardMetrics, getShardState, shardPower, type ShardPowerAction } fro
 import { type ShardMetricsSample, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Screen } from "../components/backdrop";
+import { Dropdown } from "../components/Dropdown";
+import { powerItems } from "../components/powerMenu";
 import { confirm } from "../components/Confirm";
 import { MetricChart, type MetricPoint } from "../components/MetricChart";
 import { ErrorText, PageHeader, SecondaryButton } from "../components/ui";
@@ -116,8 +118,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
 
   const tone = () => (busy() ? "busy" : stateTone(state()));
   const isRunning = () => tone() === "running";
-  const canStart = () => !busy() && state() != null && (tone() === "stopped" || tone() === "error");
-  const canStop = () => !busy() && state() != null && (tone() === "running" || tone() === "busy" || tone() === "attention");
+  const controlsOpen = signal(false);
   const label = () => (busy() ? "Working" : stateLabel(state()));
 
   const hero = () => artworkUrl(props.image, serverUrl, heroFailed() ? "banner" : "hero");
@@ -173,11 +174,29 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
             {(m) => <Text class="text-sm text-muted-foreground">{m()}</Text>}
           </If>
 
-          <View class="flex-row gap-3">
-            <SecondaryButton title="Start" tone="success" onPress={() => power("start")} disabled={!canStart()} />
-            <SecondaryButton title="Restart" tone="warning" onPress={() => power("restart")} disabled={!canStop()} />
-            <SecondaryButton title="Stop" tone="danger" onPress={() => power("stop")} disabled={!canStop()} />
-          </View>
+          <Dropdown
+            open={controlsOpen()}
+            onOpenChange={(o) => controlsOpen.set(o)}
+            align="start"
+            title="Controls"
+            items={powerItems({ title: props.title, state: state(), busy: busy(), run: power })}
+            trigger={
+              <View
+                role="button"
+                testID="controls"
+                class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-lg active:bg-accent"
+              >
+                <View class="h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-hero-from to-hero-to">
+                  <Text class="text-base font-bold text-white">⏻</Text>
+                </View>
+                <View class="flex-1">
+                  <Text class="text-base font-semibold text-card-foreground">Controls</Text>
+                  <Text class="text-xs text-muted-foreground">Start, restart, stop, sleep and update</Text>
+                </View>
+                <Text class="text-base text-muted-foreground">{controlsOpen() ? "▴" : "▾"}</Text>
+              </View>
+            }
+          />
 
           <View
             role="button"
