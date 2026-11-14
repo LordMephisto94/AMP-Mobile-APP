@@ -1,6 +1,7 @@
 import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConfirmHost } from "./src/components/Confirm";
+import { LockHost } from "./src/components/Lock";
 import { AccessScreen } from "./src/screens/AccessScreen";
 import { ActivityScreen } from "./src/screens/ActivityScreen";
 import { AnalyticsScreen } from "./src/screens/AnalyticsScreen";
@@ -14,6 +15,7 @@ import { OverviewScreen } from "./src/screens/OverviewScreen";
 import { PlayerScreen } from "./src/screens/PlayerScreen";
 import { RoleScreen } from "./src/screens/RoleScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
+import { SecurityScreen } from "./src/screens/SecurityScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
@@ -23,12 +25,14 @@ import { SpireScreen } from "./src/screens/SpireScreen";
 import { SpiresScreen } from "./src/screens/SpiresScreen";
 import { UserScreen } from "./src/screens/UserScreen";
 import { nav, type Route } from "./src/state/nav";
-import { loadServers, serversReady } from "./src/state/servers";
+import { loadServers, locked, serversReady } from "./src/state/servers";
 
 function screen(route: Route) {
   switch (route.name) {
     case "servers":
       return <ServersScreen />;
+    case "security":
+      return <SecurityScreen />;
     case "addServer":
       return <ServerFormScreen />;
     case "signIn":
@@ -77,8 +81,10 @@ function screen(route: Route) {
 function App() {
   return (
     <View class="flex-1 bg-background">
+      {/* Locked, nothing of the app is rendered (not just covered): the stack's routes live
+          in `nav`, so it comes back where it was. */}
       <If
-        when={serversReady()}
+        when={serversReady() && !locked()}
         else={
           <View class="flex-1 items-center justify-center">
             <Text class="text-muted-foreground">Loading…</Text>
@@ -89,6 +95,7 @@ function App() {
           {(route) => screen(route)}
         </NavStack>
       </If>
+      <LockHost />
       <ConfirmHost />
     </View>
   );

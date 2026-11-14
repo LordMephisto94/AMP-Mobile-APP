@@ -71,14 +71,25 @@ export function ServersScreen() {
               <Text class="text-center text-xs leading-4 text-muted-foreground">
                 Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.
               </Text>
-              <View
-                role="button"
-                testID="about"
-                onPress={showAbout}
-                class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
-              >
-                <Text class="text-xs text-muted-foreground">ⓘ</Text>
-                <Text class="text-xs font-semibold text-muted-foreground">About</Text>
+              <View class="flex-row gap-2">
+                <View
+                  role="button"
+                  testID="security"
+                  onPress={() => nav.push({ name: "security" })}
+                  class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
+                >
+                  <Text class="text-xs text-muted-foreground">🔒</Text>
+                  <Text class="text-xs font-semibold text-muted-foreground">Security</Text>
+                </View>
+                <View
+                  role="button"
+                  testID="about"
+                  onPress={showAbout}
+                  class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
+                >
+                  <Text class="text-xs text-muted-foreground">ⓘ</Text>
+                  <Text class="text-xs font-semibold text-muted-foreground">About</Text>
+                </View>
               </View>
             </View>
           </View>

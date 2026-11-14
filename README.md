@@ -40,8 +40,12 @@ nsh test    # headless tests (App.test.tsx), network stubbed
 
 - The server address is entered by the user. `https://` is assumed when no scheme is typed. Plain `http://` is blocked
   on Android unless `"android": { "usesCleartextTraffic": true }` is added to `nsh.json`.
-- NSH `Storage` is a plain JSON file in the app's private directory, so the app stores only the session token
-  ("Stay signed in"), never the password.
+- NSH `Storage` is a plain JSON file in the app's private directory (and Android copies it into backups), so nothing
+  secret is written in the clear. The server list holds no secrets; sessions kept with "Stay signed in" are sealed in
+  a vault (`amp.vault`) with AES-256-GCM under a key derived from the app PIN (PBKDF2-SHA-256, 600,000 rounds, random
+  salt). The PIN is never stored. A PIN is required to stay signed in; without one, sessions live in memory only.
+  Wrong PINs are counted on disk: after five each try waits longer, and the tenth erases the vault. The app locks
+  itself after a set time in the background and then holds no session in memory. Passwords are never stored.
 - AMP 3 calls instances **shards** and nodes **spires**. The spec mixes `/api/Shards` and `/api/shards`: use paths
   exactly as written.
 - The app ID (`nsh.json`'s `id`) is `com.meganet.ampmobile`. Changing it makes Android and iOS treat the app as a different one, so saved servers wouldn't carry over.

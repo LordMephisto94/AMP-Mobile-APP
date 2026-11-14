@@ -23,6 +23,9 @@ export function toneStatus(tone: StateTone): BannerStatus {
  * and a shade toward the bottom so text sits on it cleanly.
  */
 function drawTriangles(cx: CanvasRenderingContext2D, width: number, height: number, status: BannerStatus) {
+  // A canvas not laid out yet (or measured off screen) can report 0, NaN or Infinity:
+  // drawing then would loop without end.
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 20_000) return;
   const base = cx.createLinearGradient(0, 0, width, 0);
   BASE_STOPS.forEach((color, i) => base.addColorStop(i / (BASE_STOPS.length - 1), color));
   cx.fillStyle = base;

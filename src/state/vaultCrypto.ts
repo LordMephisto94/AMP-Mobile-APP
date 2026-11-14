@@ -1,0 +1,102 @@
+/**
+ * The cryptography behind the token vault, kept free of app state so tests can build a
+ * vault the same way the app does.
+ *
+ * A PIN never touches the disk. The key is derived from it with PBKDF2-SHA-256 (600,000
+ * rounds, a random 16-byte salt per vault) and seals the saved sessions with AES-256-GCM
+ * (a fresh 12-byte IV per write, so every write is authenticated and tamper-evident).
+ * A wrong PIN is told apart from a damaged vault by a sealed check value.
+ */
+
+export const PBKDF2_ROUNDS = 600_000;
+const CHECK = "amp-mobile-vault-v1";
+
+export interface Sealed {
+  iv: string;
+  ct: string;
+}
+
+export interface VaultBlob {
+  v: 1;
+  salt: string;
+  rounds: number;
+  check: Sealed;
+  data: Sealed;
+}
+
+/** An AES-GCM key from WebCrypto; opaque here (NSH's types declare the class, not the type). */
+export type VaultKey = object;
+
+interface Subtle {
+  importKey(format: "raw", data: Uint8Array, algorithm: "PBKDF2", extractable: false, usages: string[]): Promise<VaultKey>;
+  deriveKey(algorithm: object, base: VaultKey, derived: object, extractable: false, usages: string[]): Promise<VaultKey>;
+  encrypt(algorithm: object, key: VaultKey, data: Uint8Array): Promise<ArrayBuffer>;
+  decrypt(algorithm: object, key: VaultKey, data: Uint8Array): Promise<ArrayBuffer>;
+}
+
+function subtle(): Subtle {
+  const s = (globalThis as unknown as { crypto?: { subtle?: Subtle } }).crypto?.subtle;
+  if (!s) throw new Error("This device can't encrypt saved sign-ins");
+  return s;
+}
+
+export function toB64(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+
+export function fromB64(text: string): Uint8Array {
+  const s = atob(text);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+export function randomBytes(n: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(n));
+}
+
+export async function deriveKey(pin: string, salt: Uint8Array, rounds = PBKDF2_ROUNDS): Promise<VaultKey> {
+  const base = await subtle().importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveKey"]);
+  return subtle().deriveKey({ name: "PBKDF2", salt, iterations: rounds, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+export async function seal(key: VaultKey, value: unknown): Promise<Sealed> {
+  const iv = randomBytes(12);
+  const ct = await subtle().encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(value)));
+  return { iv: toB64(iv), ct: toB64(new Uint8Array(ct)) };
+}
+
+/** Opens a sealed value; throws when the key is wrong or the data was altered. */
+export async function unseal<T>(key: VaultKey, box: Sealed): Promise<T> {
+  const pt = await subtle().decrypt({ name: "AES-GCM", iv: fromB64(box.iv) }, key, fromB64(box.ct));
+  return JSON.parse(new TextDecoder().decode(pt)) as T;
+}
+
+/** A new vault for `pin` holding `data`, with the key that opens it. */
+export async function createVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; key: VaultKey }> {
+  const salt = randomBytes(16);
+  const key = await deriveKey(pin, salt);
+  return { key, blob: { v: 1, salt: toB64(salt), rounds: PBKDF2_ROUNDS, check: await seal(key, CHECK), data: await seal(key, data) } };
+}
+
+/** The key for `pin`, or null when the PIN is wrong. Throws only for a damaged vault. */
+export async function keyFor(blob: VaultBlob, pin: string): Promise<VaultKey | null> {
+  const key = await deriveKey(pin, fromB64(blob.salt), blob.rounds);
+  try {
+    const check = await unseal<string>(key, blob.check);
+    return check === CHECK ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isVaultBlob(value: unknown): value is VaultBlob {
+  const v = value as VaultBlob;
+  // A vault claiming fewer rounds than the app uses would make guessing cheaper: refuse it.
+  return !!v && v.v === 1 && typeof v.salt === "string" && typeof v.rounds === "number" && v.rounds >= PBKDF2_ROUNDS && !!v.check?.iv && !!v.data?.iv;
+}

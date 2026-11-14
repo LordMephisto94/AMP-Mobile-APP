@@ -1,6 +1,34 @@
 import { expect, open, test } from "nsh/test";
+import { createVault } from "./src/state/vaultCrypto";
 
 const SERVER = "https://amp.example.test";
+
+/** The PIN of the vault the tests start with. */
+const PIN = "246810";
+
+/** Storage with the Home Lab server kept signed in: its token sealed in a vault behind `PIN`, as the app writes it. */
+async function vaultStorage(): Promise<Record<string, string>> {
+  const { blob } = await createVault(PIN, { s1: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } });
+  return {
+    "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true }]),
+    "amp.vault": JSON.stringify(blob),
+  };
+}
+
+async function enterPin(app: { press(s: string): Promise<void> }, pin = PIN) {
+  for (const digit of pin) await app.press(`pin-${digit}`);
+  await app.press("pin-done");
+}
+
+/** Opens the app with the vault above and unlocks it, as a returning user does. */
+async function openSignedIn(options: NonNullable<Parameters<typeof open>[1]>) {
+  const app = await open("./App.tsx", { ...options, storage: { ...(await vaultStorage()), ...(options.storage ?? {}) } });
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app);
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  return app;
+}
+
 
 /**
  * Empties an input and waits until it reads empty. A real window reports the change a
@@ -111,6 +139,12 @@ test("adds a server, lists its instances, and keeps it on the home screen", asyn
   await app.type("password", "pw");
   await app.press("text:Add Server");
 
+  // Staying signed in needs a PIN, set twice.
+  await app.waitFor("text:Set a PIN to stay signed in");
+  await enterPin(app, "135790");
+  await app.waitFor("text:Enter it again");
+  await enterPin(app, "135790");
+
   await app.waitFor("text:Minecraft SMP");
   expect(app.texts()).not.toContain("Old server");
 
@@ -118,28 +152,16 @@ test("adds a server, lists its instances, and keeps it on the home screen", asyn
   await app.waitFor("text:Home Lab");
   expect(app.texts()).toContain("Signed in");
 
-  // Remembered without the password.
-  const saved = app.storage()["amp.servers"]!;
-  expect(saved).toContain("tok-1");
-  expect(saved).not.toContain('"pw"');
+  // Remembered without the password, and the token only sealed in the vault.
+  const stored = app.storage();
+  expect(stored["amp.servers"]).not.toContain("tok-1");
+  expect(stored["amp.servers"]).not.toContain('"pw"');
+  expect(stored["amp.vault"]).toBeTruthy();
+  expect(stored["amp.vault"]).not.toContain("tok-1");
 });
 
 test("opens a remembered server straight to its instances", async () => {
-  const app = await open("./App.tsx", {
-    storage: {
-      "amp.servers": JSON.stringify([
-        {
-          id: "s1",
-          name: "Home Lab",
-          serverUrl: SERVER,
-          username: "admin",
-          color: 1,
-          rememberMe: true,
-          token: "tok-1",
-          expiration: "2099-01-01T00:00:00Z",
-        },
-      ]),
-    },
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Shards*`]: shardsRoute,
@@ -186,12 +208,7 @@ test("shows the console, sends a command, and falls back to polling without the 
     { seq: 2, streamId: "stdout", kind: "line", text: "\x1b[32mServer started\x1b[0m on port 2001", timestamp: "2026-11-14T06:00:01Z" },
     { seq: 3, streamId: "stdout", kind: "line", level: "WARN", text: "Low tick rate", timestamp: "2026-11-14T06:00:02Z" },
   ];
-  const app = await open("./App.tsx", {
-    storage: {
-      "amp.servers": JSON.stringify([
-        { id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" },
-      ]),
-    },
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`POST ${SERVER}/api/auth/hub-token`]: { body: { token: "ticket", expiresAt: "2099-01-01T00:00:00Z" } },
@@ -220,16 +237,10 @@ test("shows the console, sends a command, and falls back to polling without the 
   await app.waitFor("text:› say hello");
 });
 
-const signedIn = {
-  "amp.servers": JSON.stringify([
-    { id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" },
-  ]),
-};
 
 test("creates an instance from the catalogue", async () => {
   const created: any[] = [];
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Templates`]: {
@@ -277,8 +288,7 @@ test("edits an instance's details and settings", async () => {
   const patched: Record<string, unknown>[] = [];
   const renamed: Record<string, unknown>[] = [];
   const infraPatched: Record<string, unknown>[] = [];
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Shards/a1/settings/locale`]: { body: { en: { "cat.server": "Server" } } },
@@ -376,8 +386,7 @@ test("deletes an instance, then restores one and permanently deletes another", a
     { id: "c3", displayName: "Scrap", templateSlug: "terraria", deleted: true, deletedAt: "2026-11-11T00:00:00Z" },
   ];
   const mark = (id: string, deletedNow: boolean) => (list = list.map((s) => (s.id === id ? { ...s, deleted: deletedNow } : s)));
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`DELETE ${SERVER}/api/Shards/a1`]: () => (calls.push("delete a1"), mark("a1", true), { status: 200 }),
@@ -429,8 +438,7 @@ test("browses, edits, creates, uploads and deletes files", async () => {
   const listing = (dir: string) =>
     (tree[dir] ?? []).map((e) => ({ ...e, path: dir ? `${dir}/${e.name}` : e.name, modified: "2026-11-14T06:00:00Z" }));
 
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${FILES}/managed*`]: (r) => ({ body: pathOf(r.url) === "" ? [{ path: "eula.txt", kind: "generated", importable: false, source: "config" }] : [] }),
@@ -547,8 +555,7 @@ test("browses, edits, creates, uploads and deletes files", async () => {
 });
 
 test("the server menu is the app's own dropdown, and removing asks first", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: { [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } }, [`POST ${SERVER}/api/Auth/logout`]: { status: 204 } },
   });
   await app.press("more-Home Lab");
@@ -569,8 +576,7 @@ test("the server menu is the app's own dropdown, and removing asks first", async
 
 test("instance controls are a dropdown, enabled by state, and ask before stopping", async () => {
   const sent: string[] = [];
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`POST ${SERVER}/api/Shards/a1/*`]: (r) => (sent.push(r.url.split("/").pop()!), { status: 200 }),
@@ -683,8 +689,7 @@ const analyticsRoute = (request: { url: string }) => {
 };
 
 test("shows player analytics, finds a player and opens their history", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Analytics/*`]: analyticsRoute,
@@ -733,8 +738,7 @@ test("shows player analytics, finds a player and opens their history", async () 
 });
 
 test("analytics for one instance asks for just that instance, and says when numbers are demo", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Analytics/*`]: (r) => analyticsRoute({ url: `${r.url}&demo-server` }),
@@ -750,8 +754,7 @@ test("analytics for one instance asks for just that instance, and says when numb
 });
 
 test("analytics without permission explains why", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Analytics/*`]: { status: 403 },
@@ -783,8 +786,7 @@ const auditEvent = (id: string, action: string, extra: Record<string, unknown> =
 });
 
 test("the activity log lists flows, filters them, and opens one with its details", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Audit/roots*`]: (r) => {
@@ -849,8 +851,7 @@ test("the activity log lists flows, filters them, and opens one with its details
 });
 
 test("the activity log without permission explains why", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Audit/*`]: { status: 403 },
@@ -864,8 +865,7 @@ test("the activity log without permission explains why", async () => {
 });
 
 test("the overview shows totals, hosts and recent activity in the panel's wording", async () => {
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/assets/i18n/en.json`]: {
@@ -959,8 +959,7 @@ test("spires list the machines, and a machine shows its hardware, addresses, sto
       loadAvgPercent: 45,
     },
   };
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/Spires/roster`]: {
@@ -1036,8 +1035,7 @@ test("networking shows the panel's address, ports, publications, tunnels and fir
     { ref: "Main", name: "Game port", protocol: "Tcp", port: 25565, isPublic: true, custom: false, primary: true },
     { ref: "Rcon", name: "RCON", protocol: "Tcp", port: 25575, isPublic: true, custom: false, primary: false },
   ];
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/https`]: {
@@ -1157,8 +1155,7 @@ test("access lists users, roles and invites; edits a user, resets a password and
     lastLoginAt: null,
   };
   const admin = { ...bob, id: "u1", userName: "admin", displayName: null, roleIds: ["r1"], isAdmin: true, lastLoginAt: "2026-11-15T01:00:00Z" };
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/users`]: () => ({ body: [admin, bob] }),
@@ -1256,8 +1253,7 @@ test("access lists users, roles and invites; edits a user, resets a password and
 
 test("adding a user sends the form and opens the new account", async () => {
   const posted: unknown[] = [];
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/api/users`]: { body: [] },
@@ -1298,8 +1294,7 @@ test("settings shows your account, updates, licence and the panel's settings, an
   const passwords: unknown[] = [];
   const actions: string[] = [];
   let values: Record<string, string> = { "smtp.enabled": "false", "smtp.host": "", "smtp.password": "", "security.minLength": "8" };
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/assets/i18n/en.json`]: {
@@ -1445,8 +1440,7 @@ test("roles are edited as a permission tree, with wildcards, blocks and raw gran
   let mods = { id: "r2", name: "Moderators", description: "Start and stop", permissions: ["spire.*.shard.*.view", "spire.*.shard.*.power.*"], createdAt: "" };
   const ALL = "servers/spire.any.shard.any.all";
   const MC = "servers/spire.any.shard.a1.all";
-  const app = await open("./App.tsx", {
-    storage: signedIn,
+  const app = await openSignedIn({
     network: {
       [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
       [`GET ${SERVER}/assets/i18n/en.json`]: { body: { access: { tree: { servers: "Servers", allServers: "All servers", power: "Power", stop: "Stop", files: "Files", platform: "Platform", audit: "Audit log" } } } },
@@ -1513,4 +1507,172 @@ test("roles are edited as a permission tree, with wildcards, blocks and raw gran
   await app.press("text:Create role");
   await app.waitUntil(() => posts.length === 1);
   expect(posts[0]).toEqual({ name: "Auditors", description: null, permissions: ["audit.read"] });
+});
+
+// ---- The token vault and the lock -------------------------------------------------------------
+
+const unlockedHome = {
+  [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+  [`POST ${SERVER}/api/Auth/logout`]: { status: 204 },
+  [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+};
+
+test("a wrong PIN is counted, waits grow after five, and the tenth erases the saved sign-ins", async () => {
+  const app = await open("./App.tsx", { storage: await vaultStorage(), network: unlockedHome });
+  await app.waitFor("text:AMP Mobile is locked");
+  expect(app.requests().length).toBe(0); // nothing is asked of the server while locked
+
+  await enterPin(app, "111222");
+  await app.waitFor("text:Wrong PIN. 9 tries left before your saved sign-ins are erased.");
+  expect(JSON.parse(app.storage()["amp.vault.lockout"]!).failures).toBe(1);
+
+  // A count that survives restarts: at nine, one more wrong PIN erases the vault.
+  const storage = { ...(await vaultStorage()), "amp.vault.lockout": JSON.stringify({ failures: 9, until: 0 }) };
+  const again = await open("./App.tsx", { storage, network: unlockedHome });
+  await again.waitFor("text:AMP Mobile is locked");
+  await enterPin(again, "111222");
+  await again.waitUntil(() => !again.texts().includes("AMP Mobile is locked"));
+  expect(again.texts()).toContain("Signed out");
+  expect(again.storage()["amp.vault"]).toBeUndefined();
+  expect(again.storage()["amp.servers"]).toContain("Home Lab"); // the server stays
+});
+
+test("five wrong PINs make the next try wait", async () => {
+  const storage = { ...(await vaultStorage()), "amp.vault.lockout": JSON.stringify({ failures: 4, until: 0 }) };
+  const app = await open("./App.tsx", { storage, network: unlockedHome });
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app, "111222");
+  await app.waitFor("text:Try again in 30 s");
+  // Even the right PIN is ignored until the wait is over.
+  await enterPin(app);
+  await app.wait(300);
+  expect(app.texts()).toContain("AMP Mobile is locked");
+  expect(JSON.parse(app.storage()["amp.vault.lockout"]!).failures).toBe(5);
+});
+
+test("forgot PIN erases the saved sign-ins after asking", async () => {
+  const app = await open("./App.tsx", { storage: await vaultStorage(), network: unlockedHome });
+  await app.press("forgot-pin");
+  await app.waitFor("text:Forgot your PIN?");
+  await app.press("confirm-erase");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  expect(app.texts()).toContain("Signed out");
+  expect(app.storage()["amp.vault"]).toBeUndefined();
+});
+
+test("a plain-text token from an older version is scrubbed from disk at once", async () => {
+  const app = await open("./App.tsx", {
+    storage: {
+      "amp.servers": JSON.stringify([
+        { id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" },
+      ]),
+    },
+    network: unlockedHome,
+  });
+  await app.waitFor("text:Set a PIN to stay signed in");
+  expect(app.storage()["amp.servers"]).not.toContain("tok-1");
+
+  // Declining keeps this run signed in, from memory, and stops asking.
+  await app.press("pin-cancel");
+  await app.waitFor("text:Signed in");
+  expect(app.storage()["amp.vault"]).toBeUndefined();
+  expect(JSON.parse(app.storage()["amp.servers"]!)[0].rememberMe).toBe(false);
+});
+
+test("a weak or mismatched PIN is refused", async () => {
+  const app = await open("./App.tsx", {
+    storage: { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) },
+    network: unlockedHome,
+  });
+  await app.waitFor("text:Set a PIN to stay signed in");
+  await enterPin(app, "123456");
+  await app.waitFor("text:That PIN is too easy to guess");
+  await enterPin(app, "777777");
+  await app.waitFor("text:That PIN is too easy to guess");
+  await enterPin(app, "135790");
+  await enterPin(app, "135791");
+  await app.waitFor("text:The PINs don't match. Start again.");
+});
+
+test("the app locks itself in the background, and unlocking renews the sessions", async () => {
+  const storage = { ...(await vaultStorage()), "amp.security": JSON.stringify({ autoLockSeconds: 0 }) };
+  const app = await openSignedIn({ storage, network: unlockedHome });
+  await app.waitFor("text:Signed in");
+  expect(app.requests().some((r) => r.url.endsWith("/api/Auth/renew"))).toBe(true);
+
+  // Only headless runs can send the app to the background; a real window stops here.
+  try {
+    await app.setLifecycle("background");
+  } catch {
+    return;
+  }
+  await app.setLifecycle("active");
+  await app.waitFor("text:AMP Mobile is locked");
+  expect(app.texts()).not.toContain("Home Lab"); // hidden behind the lock
+  await enterPin(app);
+  await app.waitFor("text:Signed in");
+});
+
+test("a renewal that finishes after a sign-out doesn't sign the server back in", async () => {
+  const app = await openSignedIn({
+    network: {
+      ...unlockedHome,
+      [`POST ${SERVER}/api/Auth/renew`]: { delay: 400, body: { token: "tok-2", expiration: "2099-01-02T00:00:00Z" } },
+    },
+  });
+  await app.waitFor("server-Home Lab");
+  // Sign out while the launch renewal is still in flight.
+  await app.press("more-Home Lab");
+  await app.press("menu-signOut");
+  await app.waitFor("text:Signed out");
+  await app.wait(700);
+  expect(app.texts()).toContain("Signed out");
+  expect(app.storage()["amp.vault"]).not.toContain("tok-2");
+});
+
+test("a saved session past its token's expiry is still offered for renewal", async () => {
+  const { blob } = await createVault(PIN, { s1: { token: "tok-old", expiration: "2020-01-01T00:00:00Z" } });
+  const renewedWith: string[] = [];
+  const app = await open("./App.tsx", {
+    storage: {
+      "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true }]),
+      "amp.vault": JSON.stringify(blob),
+    },
+    network: {
+      ...unlockedHome,
+      [`POST ${SERVER}/api/Auth/renew`]: (r) => (renewedWith.push(r.headers.authorization), { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } }),
+    },
+  });
+  await enterPin(app);
+  await app.waitFor("text:Signed in");
+  expect(renewedWith).toEqual(["Bearer tok-old"]);
+});
+
+test("the security page changes the PIN, locks on demand and sets the auto-lock", async () => {
+  const app = await openSignedIn({ network: unlockedHome });
+  await app.press("security");
+  await app.waitFor("text:App PIN");
+  expect(app.texts()).toContain("On");
+
+  await app.press("autolock-300");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.security"] ?? "{}").autoLockSeconds === 300);
+
+  // A wrong current PIN is refused; the right one leads on.
+  await app.press("change-pin");
+  await enterPin(app, "999000");
+  await enterPin(app, "864200");
+  await enterPin(app, "864200");
+  await app.waitFor("text:That isn't your current PIN.");
+  await enterPin(app);
+  await enterPin(app, "864200");
+  await enterPin(app, "864200");
+  await app.waitFor("text:PIN changed.");
+
+  await app.press("lock-now");
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app); // the old PIN no longer opens it
+  await app.waitFor("text:Wrong PIN. 9 tries left before your saved sign-ins are erased.");
+  await enterPin(app, "864200");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  await app.waitFor("text:App PIN"); // back where it was
 });

@@ -4,6 +4,8 @@ import { createNavStack } from "nsh/base";
 export type Route =
   | { name: "servers" }
   | { name: "addServer" }
+  /** The app's own lock: PIN, auto-lock, saved sign-ins. */
+  | { name: "security" }
   | { name: "signIn"; serverId: string }
   | { name: "shards"; serverId: string }
   | {
