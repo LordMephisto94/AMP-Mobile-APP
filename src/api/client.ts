@@ -22,7 +22,9 @@ export class AmpError extends Error {
 /**
  * Normalizes what the user typed as their server address into an origin the client
  * can append `/api/...` to: adds `https://` when no scheme is given and drops any
- * trailing slashes. Throws if the result is not a valid http(s) URL.
+ * trailing slashes. Only HTTPS is accepted: the password and the session token cross
+ * this connection. An address with a user name or password in it, a query or a
+ * fragment is refused rather than silently changed.
  */
 export function normalizeServerUrl(input: string): string {
   let value = input.trim();
@@ -34,10 +36,25 @@ export function normalizeServerUrl(input: string): string {
   } catch {
     throw new Error("That doesn't look like a valid address");
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("The address must start with https:// or http://");
+  if (url.protocol === "http:") {
+    throw new Error("Use https://. Plain http:// would send your password and session unencrypted.");
   }
+  if (url.protocol !== "https:") throw new Error("The address must start with https://");
+  if (url.username || url.password) throw new Error("Leave the user name and password out of the address");
+  if (url.search || url.hash) throw new Error("Leave out anything after ? or # in the address");
+  if (!url.hostname) throw new Error("That doesn't look like a valid address");
   return `${url.origin}${url.pathname}`.replace(/\/+$/, "");
+}
+
+/** Biggest response the app reads into memory (file downloads go to the browser instead). */
+const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * An error message with any secret a URL in it carries (a hub ticket, a download ticket,
+ * a token) cut out, since messages are shown on screen.
+ */
+export function redact(message: string): string {
+  return message.replace(/([?&](?:access_token|ticket|token|key)=)[^&\s"')]+/gi, "$1…");
 }
 
 export interface RequestOptions {
@@ -92,6 +109,9 @@ export class AmpClient {
         headers,
         body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
+        // AMP's API never redirects. Refusing keeps the Authorization header from
+        // following a redirect to another host.
+        redirect: "error",
       });
     } catch (error) {
       const aborted = controller.signal.aborted;
@@ -103,7 +123,10 @@ export class AmpClient {
       clearTimeout(timer);
     }
 
+    const length = Number(response.headers.get("content-length") ?? 0);
+    if (length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
     const text = await response.text();
+    if (text.length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
     const data = text ? safeJson(text) : undefined;
 
     if (!response.ok) {
@@ -122,16 +145,20 @@ function safeJson(text: string): unknown {
 }
 
 function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return redact(error instanceof Error ? error.message : String(error));
 }
 
 function errorMessage(status: number, data: unknown): string {
   if (data && typeof data === "object") {
     const problem = data as ProblemDetails & Partial<ApiError>;
     const message = problem.detail || problem.message || problem.title;
-    if (message) return message;
+    if (typeof message === "string" && message) return message.length > 500 ? `${message.slice(0, 500)}…` : message;
   }
-  if (typeof data === "string" && data.trim()) return data.trim();
+  // A plain-text answer (often a proxy's error page): its text, without markup, kept short.
+  if (typeof data === "string" && data.trim()) {
+    const plain = data.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    if (plain) return plain.length > 300 ? `${plain.slice(0, 300)}…` : plain;
+  }
   if (status === 401) return "Your session has expired. Sign in again.";
   if (status === 403) return "You don't have permission to do that.";
   if (status === 404) return "Not found. Is this an AMP 3 server?";

@@ -1,10 +1,11 @@
-import { Clipboard, signal, Text, View } from "nsh";
+import { signal, Text, View } from "nsh";
 import { createInvite, listRoles, type Role } from "../api/access";
 import { AmpError } from "../api/client";
 import { Screen } from "../components/backdrop";
 import { Checkbox, AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
+import { copySecret } from "../lib/links";
 
 const EXPIRY = [
   { hours: 24, label: "1 day" },
@@ -116,7 +117,8 @@ export function InviteLink(props: { userName: string; link: string; onDone: () =
   const copied = signal(false);
   const copy = async () => {
     try {
-      await Clipboard.writeText(props.link);
+      // The link is a password in all but name: it leaves the clipboard after a minute.
+      await copySecret(props.link);
       copied.set(true);
     } catch {
       // no clipboard here
@@ -125,7 +127,7 @@ export function InviteLink(props: { userName: string; link: string; onDone: () =
   return (
     <View class="gap-3 rounded-(--radius) border border-primary/40 bg-primary/10 p-4">
       <Text class="text-base font-semibold text-card-foreground">{`Invite link for ${props.userName}`}</Text>
-      <Text class="text-sm text-muted-foreground">Copy it now and send it to them. It can't be shown again: make a new link if it's lost.</Text>
+      <Text class="text-sm text-muted-foreground">Copy it now and send it to them. It can't be shown again, and it's cleared from your clipboard after a minute.</Text>
       <Text testID="invite-link" class="rounded-lg bg-black/50 p-3 font-mono text-xs text-sky-200">{props.link}</Text>
       <View class="flex-row gap-2">
         <SecondaryButton testID="copy-invite" title={copied() ? "Copied" : "Copy link"} tone={copied() ? "success" : "default"} onPress={copy} />

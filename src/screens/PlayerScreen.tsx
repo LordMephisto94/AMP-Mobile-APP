@@ -1,4 +1,4 @@
-import { openUrl, signal, Text, View } from "nsh";
+import { signal, Text, View } from "nsh";
 import {
   duration,
   flag,
@@ -19,6 +19,7 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
+import { onDomain, openSafe } from "../lib/links";
 
 /** One player: who they are on Steam or Minecraft, their totals, where and when they played. */
 export function PlayerScreen(props: { serverId: string; userKey: string; name?: string | null; shardId?: string }) {
@@ -141,7 +142,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
             <If when={steam()?.profileUrl}>
               {(url) => (
                 <View class="flex-row">
-                  <SecondaryButton title="Open Steam profile" testID="steam-profile" onPress={() => openUrl(url())} />
+                  <SecondaryButton title="Open Steam profile" testID="steam-profile" onPress={() => openSafe(url(), (h) => onDomain(h, "steamcommunity.com")).catch((e) => error.set((e as Error).message))} />
                 </View>
               )}
             </If>

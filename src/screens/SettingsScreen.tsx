@@ -1,4 +1,4 @@
-import { type JSX, openUrl, signal, Text, View } from "nsh";
+import { type JSX, signal, Text, View } from "nsh";
 import { AmpError } from "../api/client";
 import { splitCategory } from "../api/manage";
 import { panelText } from "../api/panelText";
@@ -31,6 +31,7 @@ import { AppPage, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from 
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
 import { SettingRow } from "./ShardSettingsScreen";
+import { openSafe } from "../lib/links";
 
 interface Group {
   key: string;
@@ -360,7 +361,7 @@ export function SettingsScreen(props: { serverId: string }) {
                   </If>
                   <View class="flex-row gap-2">
                     <If when={u().releaseNotesUrl && u().updateAvailable}>
-                      <SecondaryButton title="Release notes" onPress={() => openUrl(u().releaseNotesUrl)} />
+                      <SecondaryButton title="Release notes" onPress={() => openSafe(u().releaseNotesUrl).catch((e) => error.set((e as Error).message))} />
                     </If>
                     <If when={u().canApply}>
                       <SecondaryButton testID="apply-update" title="Update now" tone="warning" onPress={update} />

@@ -1,3 +1,5 @@
+import { safeHttpsUrl } from "../lib/links";
+
 /**
  * Turns a template's `displayImageSource` into an image URL, the way the AMP 3 web
  * panel does: `url:<url>` as is, `steam:<appid>` from Steam's CDN, `internal:<name>`
@@ -7,7 +9,8 @@ export type ArtworkKind = "banner" | "hero" | "icon";
 
 export function artworkUrl(source: string | null | undefined, serverUrl: string, kind: ArtworkKind = "banner"): string | null {
   if (!source) return null;
-  if (source.startsWith("url:")) return source.slice(4);
+  // A template may name any address: only a plain https one is loaded.
+  if (source.startsWith("url:")) return safeHttpsUrl(source.slice(4));
   if (source.startsWith("steam:")) {
     const appId = encodeURIComponent(source.slice(6));
     switch (kind) {

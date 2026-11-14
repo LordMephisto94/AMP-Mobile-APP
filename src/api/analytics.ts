@@ -222,6 +222,8 @@ export async function avatarUrl(client: AmpClient, hash: string): Promise<string
   try {
     const response = await fetch(`${client.baseUrl}/api/Analytics/avatars/${encodeURIComponent(hash)}?full=true`, {
       headers: client.token ? { Authorization: `Bearer ${client.token}` } : {},
+      // Never let the token follow a redirect elsewhere.
+      redirect: "error",
     });
     if (!response.ok) return null;
     return URL.createObjectURL(await response.blob());

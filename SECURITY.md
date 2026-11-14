@@ -1,0 +1,80 @@
+# Security
+
+This file covers how AMP Mobile protects your panel access, what a security audit (November 2026) found and
+fixed, and what's still open. To report a problem, open an issue (or contact the owner privately if it's
+sensitive).
+
+## What the app keeps, and where
+
+| What | Where | Protection |
+|---|---|---|
+| Passwords | Nowhere | Sent once to your panel at sign-in, then dropped |
+| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM, key derived from your app PIN (PBKDF2-SHA-256, 600,000 rounds, random salt). The PIN is never stored |
+| Session tokens you don't keep | Memory only | Gone when the app closes or locks |
+| Server list (name, address, user name) | `amp.servers` in the app's storage | Not secret, so not encrypted |
+| Wrong-PIN count | `amp.vault.lockout` | Survives restarts |
+
+The app's storage is a file in its private folder. Other apps can't read it, but Android copies it into Google
+backups and onto a new phone, which is why tokens are encrypted rather than stored as they are.
+
+## The app lock
+
+- Staying signed in requires a 6–12 digit PIN. Repeated or sequential PINs (`777777`, `123456`) are refused.
+- The app opens locked, and locks again after a chosen time in the background (immediately, 30 s, 1 min or 5 min).
+- While locked, no session is in memory and none of your pages are drawn behind the lock screen.
+- While the app is in the background its screen is covered, so the app switcher shows nothing.
+- After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
+  servers stay, signed out. "Forgot PIN?" does the same.
+
+## Connections
+
+- **HTTPS only.** `http://` addresses are refused; so are addresses with a user name or password in them.
+- **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
+  anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, and nothing
+  else at all (no file system, processes, sockets, web views, notifications or audio).
+- **No redirects.** API calls refuse redirects, so your session token can't be forwarded to another host.
+- **Live console** connects over `wss://` only, with a one-time ticket.
+- **Size cap.** Answers over 64 MB are refused rather than read into memory.
+
+## Content from your panel
+
+AMP Mobile shows what your panel sends as plain text (there is no web view and no HTML), so a panel can't run
+code in the app. Links and images the panel names are checked before use:
+
+- Release notes and the panel address open only if they're `https`. Steam profiles open only on
+  `steamcommunity.com`, and downloads only on your own panel's host.
+- Template artwork given as an address loads only if it's `https`.
+- Error pages from proxies are stripped of markup and cut short.
+- One-time tickets and tokens are cut out of error messages before they're shown.
+
+## Audit findings (November 2026)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | Saved session tokens were stored in plain text, and included in Android backups | High | Fixed: encrypted vault behind a required PIN; old plain tokens scrubbed at launch |
+| 2 | A session renewal could overwrite a newer sign-in or a sign-out; its sign-out wasn't awaited; expired tokens were never offered for renewal | Medium | Fixed: sessions carry a generation number; renewal on a timer |
+| 3 | API requests followed redirects with the session token attached | Medium | Fixed: redirects refused |
+| 4 | `http://` server addresses were accepted (Android blocked them, but with an unclear error) | Medium | Fixed: refused with an explanation; runtime allows HTTPS only |
+| 5 | Links from the panel (release notes, Steam profile, panel address) opened without checks | Medium | Fixed: `https` only, and Steam profiles only on Steam |
+| 6 | Template artwork could name any address, plain `http` included | Low | Fixed: `https` only |
+| 7 | Copied invite links (one-time sign-up secrets) stayed on the clipboard | Low | Fixed: cleared after a minute |
+| 8 | Uploaded file names from the phone's picker weren't checked; the 512 MB limit wasn't enforced | Low | Fixed |
+| 9 | The hub's one-time ticket could appear in connection error messages | Low | Fixed: redacted |
+| 10 | Address, user-name and password fields allowed autocorrect, so the keyboard could learn them | Low | Fixed |
+| 11 | A server's IDs used `Math.random` | Info | Fixed: secure random |
+| 12 | The banner could loop forever when measured at an invalid size (a freeze) | Low | Fixed |
+
+## Still open
+
+- **Release signing.** Builds are signed with this computer's debug key. Make a release key (`keytool`), keep it and
+  its password safe and backed up, and build with `nsh package --keystore …`. Changing keys later means
+  uninstalling the app first.
+- **No hardware keystore.** NSH gives this app no access to Android Keystore or the iOS Keychain, so the vault's
+  strength is your PIN's. Someone holding a copy of the vault file can try PINs offline; at 600,000 rounds a
+  6-digit PIN slows that down but doesn't stop a determined attacker. Use more digits (up to 12).
+- **Screenshots.** NSH can't block screenshots or screen recording (Android's `FLAG_SECURE`).
+- **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
+- **Permissions.** NSH's Android runtime adds the notifications permission; the app never uses it, and its
+  capabilities deny notifications.
+- **Sign-in gaps.** Accounts that must change an expired password, or that sign in with a passkey, are sent to the
+  web panel.

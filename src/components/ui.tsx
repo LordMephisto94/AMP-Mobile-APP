@@ -76,6 +76,8 @@ export function Field(props: {
           masked={props.masked}
           keyboardType={props.keyboardType ?? "default"}
           autoCapitalize="none"
+          // Addresses, user names and passwords: the keyboard shouldn't correct or learn them.
+          autoCorrect={false}
           class="p-0 text-base text-foreground placeholder:text-muted-foreground"
         />
       </View>

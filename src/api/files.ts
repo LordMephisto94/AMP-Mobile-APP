@@ -39,6 +39,18 @@ export interface ExtractResult {
 
 const base = (id: string) => `/api/shards/${encodeURIComponent(id)}/files`;
 
+/** Characters a file name can't hold, or `.`/`..` (which would leave the folder). */
+const BAD_NAME = /[\\/:*?"<>|\u0000-\u001f]|^\.\.?$/;
+/** The biggest file the app uploads; larger ones go by SFTP or the web panel. */
+export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+
+/** Why a file or folder name can't be used, or nothing when it can. */
+export function nameProblem(name: string): string | void {
+  if (!name) return "Enter a name";
+  if (name.length > 255) return "That name is too long";
+  if (BAD_NAME.test(name)) return "Names can't contain / \\ : * ? \" < > |";
+}
+
 export function joinPath(dir: string, name: string): string {
   return dir ? `${dir.replace(/\/+$/, "")}/${name}` : name;
 }
@@ -133,6 +145,10 @@ export async function uploadFile(
   file: Blob & { name: string },
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<void> {
+  // A picked file's name comes from the phone's file provider: checked like a typed one.
+  const problem = nameProblem(file.name);
+  if (problem) throw new Error(`${file.name}: ${problem}`);
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(`${file.name} is over 512 MB. Use SFTP or the web panel for big files.`);
   const path = joinPath(dir, file.name);
   const start = await client.request<{ sessionId: string; received?: number }>(`${base(id)}/upload-start`, {
     method: "POST",

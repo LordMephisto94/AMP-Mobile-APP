@@ -1676,3 +1676,34 @@ test("the security page changes the PIN, locks on demand and sets the auto-lock"
   await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
   await app.waitFor("text:App PIN"); // back where it was
 });
+
+// ---- Transport -----------------------------------------------------------------------------
+
+test("only https server addresses are accepted, without credentials in them", async () => {
+  const app = await open("./App.tsx", { network: {} });
+  await app.press("Add Server");
+  await app.type("server", "http://amp.example.test");
+  await app.type("username", "admin");
+  await app.type("password", "pw");
+  await app.press("text:Add Server");
+  await app.waitFor("text:Use https://. Plain http:// would send your password and session unencrypted.");
+
+  await clearField(app, "server");
+  await app.type("server", "https://admin:pw@amp.example.test");
+  await app.press("text:Add Server");
+  await app.waitFor("text:Leave the user name and password out of the address");
+  expect(app.requests().length).toBe(0); // nothing was sent anywhere
+});
+
+test("a redirect is refused, so the session token never follows it to another host", async () => {
+  const app = await openSignedIn({
+    network: {
+      ...unlockedHome,
+      [`GET ${SERVER}/api/Shards*`]: { status: 302, headers: { Location: "https://evil.example.test/steal" } },
+      "GET https://evil.example.test/*": { body: [] },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Try again");
+  expect(app.requests().some((r) => r.url.startsWith("https://evil.example.test"))).toBe(false);
+});

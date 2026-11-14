@@ -6,5 +6,28 @@
   "icon": "assets/icon.png",
   "theme": "theme.json",
   "appearance": "dark",
-  "statusBar": { "foreground": "light" }
+  "statusBar": {
+    "foreground": "light"
+  },
+  "capabilities": {
+    "network": {
+      "http": [
+        {
+          "host": "*",
+          "schemes": [
+            "https",
+            "wss"
+          ]
+        }
+      ]
+    },
+    "openUrl": {
+      "schemes": [
+        "https"
+      ]
+    },
+    "clipboard": true,
+    "picker": true,
+    "statusBar": true
+  }
 }

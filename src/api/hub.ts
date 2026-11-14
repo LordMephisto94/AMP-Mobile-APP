@@ -1,3 +1,4 @@
+import { redact } from "./client";
 /**
  * A minimal SignalR client (JSON protocol over WebSockets) for AMP 3's hubs, which the
  * OpenAPI spec does not describe. Mirrors what the web panel does:
@@ -88,7 +89,12 @@ export class HubConnection {
     }
     if (this.stopped) return;
 
-    const url = `${this.options.baseUrl.replace(/^http/, "ws")}${this.options.path}?access_token=${encodeURIComponent(ticket)}`;
+    // Only ever wss: the server address is HTTPS-only, and the ticket rides in the URL.
+    if (!this.options.baseUrl.startsWith("https://")) {
+      this.scheduleRetry("The live connection needs https://");
+      return;
+    }
+    const url = `wss://${this.options.baseUrl.slice("https://".length)}${this.options.path}?access_token=${encodeURIComponent(ticket)}`;
     let socket: WebSocket;
     try {
       socket = new WebSocket(url);
@@ -134,7 +140,7 @@ export class HubConnection {
         // The handshake response: `{}` or `{ error }`.
         if (message.error) {
           this.socket?.close();
-          this.options.onStatus?.("reconnecting", String(message.error));
+          this.options.onStatus?.("reconnecting", redact(String(message.error)));
           return;
         }
         this.handshakeDone = true;
@@ -197,7 +203,8 @@ export class HubConnection {
     }
   }
 
-  private scheduleRetry(reason: string): void {
+  private scheduleRetry(why: string): void {
+    const reason = redact(why);
     if (this.stopped) return;
     this.options.onStatus?.("reconnecting", reason);
     // 0.5 s, 2 s, 5 s, 10 s, then every 30 s, as SignalR's automatic reconnect does.

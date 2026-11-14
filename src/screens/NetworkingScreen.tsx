@@ -1,4 +1,4 @@
-import { Clipboard, openUrl, signal, Text, View } from "nsh";
+import { Clipboard, signal, Text, View } from "nsh";
 import { AmpError } from "../api/client";
 import { listSpires, type SpireDefinition } from "../api/manage";
 import {
@@ -33,6 +33,7 @@ import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
+import { openSafe } from "../lib/links";
 
 const REFRESH_MS = 30_000;
 
@@ -252,7 +253,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                 </View>
                 <If when={h().url}>
                   {(url) => (
-                    <View role="button" testID="panel-url" onPress={() => openUrl(url())} class="rounded-lg py-1 active:bg-accent">
+                    <View role="button" testID="panel-url" onPress={() => openSafe(url()).catch((e) => error.set((e as Error).message))} class="rounded-lg py-1 active:bg-accent">
                       <Text class="font-mono text-sm text-sky-300">{url()}</Text>
                       <Text class="text-xs text-muted-foreground">Tap to open</Text>
                     </View>

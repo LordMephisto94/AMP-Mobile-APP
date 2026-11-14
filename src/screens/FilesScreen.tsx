@@ -1,4 +1,4 @@
-import { openUrl, Picker, Scroll, signal, Text, View } from "nsh";
+import { Picker, Scroll, signal, Text, View } from "nsh";
 import { AmpError } from "../api/client";
 import {
   copyFile,
@@ -13,6 +13,7 @@ import {
   isArchive,
   isTextFile,
   joinPath,
+  nameProblem,
   listFiles,
   type ManagedFile,
   managedFiles,
@@ -28,13 +29,9 @@ import { Prompt, type PromptRequest } from "../components/Prompt";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
+import { openSafe } from "../lib/links";
 
-const BAD_NAME = /[\\/:*?"<>|]|^\.\.?$/;
-
-function checkName(name: string): string | void {
-  if (!name) return "Enter a name";
-  if (BAD_NAME.test(name)) return "Names can't contain / \\ : * ? \" < > |";
-}
+const checkName = nameProblem;
 
 function when(iso: string | undefined): string {
   if (!iso) return "";
@@ -120,8 +117,9 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
       // There's no in-app save: the browser downloads it (iOS: Safari → Files › Downloads;
       // Android: the browser's Downloads). Neither needs a storage permission.
       const url = await downloadUrl(client(), props.id, entry);
-      const { opened } = await openUrl(url);
-      if (!opened) throw new Error("No browser on this device could open the download.");
+      // Only ever to this server: the link carries a one-time download ticket.
+      const host = new URL(client().baseUrl).hostname.toLowerCase();
+      await openSafe(url, (h) => h === host);
       return entry.isDirectory
         ? "Downloading as a zip in your browser. It will be in your Downloads."
         : "Downloading in your browser. It will be in your Downloads.";
