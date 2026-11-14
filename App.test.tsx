@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.0");
+  await app.waitFor("text:AMP Mobile 0.1.1");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.0"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.1"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {

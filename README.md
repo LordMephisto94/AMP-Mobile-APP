@@ -65,3 +65,14 @@ nsh test    # headless tests (App.test.tsx), network stubbed
   least: `"network": { "hosts": ["*"] }`, `"picker": true`, `"openUrl": { "schemes": ["https", "http"] }`,
   `"statusBar": true`.
 
+
+## Versions
+
+Versions are `MAJOR.MINOR.PATCH` (semantic versioning), tagged `vMAJOR.MINOR.PATCH`:
+
+- **MAJOR**: big releases, or changes that break how the app is used.
+- **MINOR**: new features and patches.
+- **PATCH**: hotfixes. It counts on without padding (`0.1.9`, then `0.1.10`), since versions can't have leading zeros.
+
+`nsh.json` holds `version` and `build`. Raise `build` by one for every release: Android only installs an update
+over the old app when its build number is higher. Changes are listed in `CHANGELOG.md`.
