@@ -37,7 +37,7 @@ export function ServersScreen() {
           </View>
 
           <View class="w-full max-w-5xl gap-3 self-center px-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-            <View class="flex-row items-baseline justify-between px-1">
+            <View class="flex-row items-baseline justify-between px-1 md:justify-center md:gap-3">
               <Text class="text-xl font-bold text-foreground">Your servers</Text>
               <If when={servers().length > 0}>
                 <Text class="text-sm text-muted-foreground">{`${servers().length} saved`}</Text>
