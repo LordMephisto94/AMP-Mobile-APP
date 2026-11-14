@@ -53,7 +53,7 @@ export function ServersScreen() {
               </View>
             </If>
 
-            <View class="gap-3 md:flex-row md:flex-wrap">
+            <View class="gap-3 md:flex-row md:flex-wrap md:justify-center">
               <Each of={servers()} key={(s: SavedServer) => s.id}>
                 {(server) => (
                   <View class="md:w-[49%]">
