@@ -179,29 +179,14 @@ export function ShardsScreen(props: { serverId: string }) {
                 <View class="gap-3 border-t border-white/10 p-4">
                   <Each of={deleted()} key={(d: DeployedShard) => d.id}>
                     {(d) => (
-                      <View class="gap-2">
-                        <View class="flex-row items-baseline gap-2">
-                          <Text class="flex-1 text-base font-semibold text-card-foreground">{d().displayName || d().name || d().id}</Text>
-                          <If when={d().deletedAt}>
-                            {(at) => <Text class="text-xs text-muted-foreground">{new Date(at()).toLocaleDateString()}</Text>}
-                          </If>
-                        </View>
-                        <View class="flex-row gap-2">
-                          <SecondaryButton
-                            title="Restore"
-                            tone="success"
-                            testID={`restore-${d().displayName || d().id}`}
-                            onPress={() => restore(d())}
-                            disabled={working() === d().id}
-                          />
-                          <SecondaryButton
-                            title="Delete permanently"
-                            tone="danger"
-                            testID={`purge-${d().displayName || d().id}`}
-                            onPress={() => purge(d())}
-                            disabled={working() === d().id}
-                          />
-                        </View>
+                      <View>
+                        <DeletedRow
+                          shard={d()}
+                          busy={working() === d().id}
+                          onRestore={() => restore(d())}
+                          onPurge={() => purge(d())}
+                        />
+
                       </View>
                     )}
                   </Each>
@@ -311,6 +296,33 @@ function MeterRow(props: { label: string; value: string; fraction: number; barCl
         <View class={`h-full rounded-full ${props.barClass}`} style={{ width: percent() }} />
       </View>
       <Text class="w-20 text-right text-xs text-card-foreground tabular-nums">{props.value}</Text>
+    </View>
+  );
+}
+
+/** A deleted instance: its name and when, with Restore / Delete forever in its dropdown. */
+function DeletedRow(props: { shard: DeployedShard; busy: boolean; onRestore: () => void; onPurge: () => void }) {
+  const open = signal(false);
+  const name = () => props.shard.displayName || props.shard.name || props.shard.id;
+  return (
+    <View class="flex-row items-center gap-3 py-1.5" onLongPress={() => open.set(true)}>
+      <Text class="text-lg">🗑️</Text>
+      <View class="flex-1">
+        <Text class="text-base font-semibold text-card-foreground">{name()}</Text>
+        <Text class="text-xs text-muted-foreground">
+          {props.busy ? "Working…" : props.shard.deletedAt ? `Deleted ${new Date(props.shard.deletedAt).toLocaleDateString()}` : "Deleted"}
+        </Text>
+      </View>
+      <Dropdown
+        open={open()}
+        onOpenChange={(o) => open.set(o && !props.busy)}
+        title={name()}
+        items={[
+          { id: "restore", label: "Restore", icon: "♻️", hint: "Back into your instances", onSelect: props.onRestore },
+          { id: "purge", label: "Delete forever", icon: "🔥", tone: "danger", hint: "Removes its files too", onSelect: props.onPurge },
+        ]}
+        trigger={<MoreButton testID={`more-deleted-${name()}`} class="bg-transparent" />}
+      />
     </View>
   );
 }

@@ -4,6 +4,7 @@ import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { type AppSpec, createShard, listSpires, listTemplates, placeableSpires, type SpireDefinition } from "../api/manage";
 import { Backdrop } from "../components/backdrop";
+import { Select } from "../components/Dropdown";
 import { Checkbox, ErrorText, Field, PageHeader, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor, serverById } from "../state/servers";
@@ -172,27 +173,17 @@ export function CreateShardScreen(props: { serverId: string }) {
                   <If when={spires().length > 1}>
                     <View class="gap-1.5">
                       <Text class="text-sm font-semibold text-foreground">Machine</Text>
-                      <View class="gap-2">
-                        <Each of={spires()} key={(s: SpireDefinition) => s.id}>
-                          {(s) => (
-                            <View
-                              role="radio"
-                              onPress={() => spireId.set(s().id)}
-                              class={`flex-row items-center gap-3 rounded-lg border px-3 py-2.5 ${
-                                spireId() === s().id ? "border-primary bg-primary/10" : "border-input bg-background/50"
-                              }`}
-                            >
-                              <View
-                                class={`h-4 w-4 rounded-full border-2 ${spireId() === s().id ? "border-primary bg-primary" : "border-input"}`}
-                              />
-                              <Text class="flex-1 text-base text-foreground">{s().displayName || s().id}</Text>
-                              <If when={s().isLocal}>
-                                <Text class="text-xs text-muted-foreground">this machine</Text>
-                              </If>
-                            </View>
-                          )}
-                        </Each>
-                      </View>
+                      <Select
+                        testID="machine"
+                        title="Machine"
+                        value={spireId() ?? ""}
+                        options={spires().map((sp) => ({
+                          value: sp.id,
+                          label: sp.displayName || sp.id,
+                          hint: sp.isLocal ? "This machine (where AMP runs)" : sp.description || undefined,
+                        }))}
+                        onChange={(v) => spireId.set(v)}
+                      />
                     </View>
                   </If>
                   <Checkbox label="Install and start now" checked={startNow()} onChange={(v) => startNow.set(v)} />

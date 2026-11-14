@@ -144,6 +144,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const rename = (entry: FileEntry) =>
     ask({
       title: `Rename ${entry.isDirectory ? "folder" : "file"}`,
+      icon: "🏷️",
       value: entry.name,
       confirm: "Rename",
       onSubmit: async (name) => {
@@ -160,6 +161,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const copyName = dot > 0 ? `${entry.name.slice(0, dot)} copy${entry.name.slice(dot)}` : `${entry.name} copy`;
     ask({
       title: `Copy ${entry.name}`,
+      icon: "📋",
       message: "Name of the copy, in this folder:",
       value: copyName,
       confirm: "Copy",
@@ -176,6 +178,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const zip = (entry: FileEntry) =>
     ask({
       title: `Zip ${entry.name}`,
+      icon: "🗜️",
       value: `${entry.name}.zip`,
       confirm: "Create zip",
       onSubmit: async (name) => {
@@ -222,6 +225,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const newFolder = () =>
     ask({
       title: "New folder",
+      icon: "📁",
       placeholder: "Folder name",
       confirm: "Create",
       onSubmit: async (name) => {
@@ -235,6 +239,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const newFile = () =>
     ask({
       title: "New text file",
+      icon: "📄",
       placeholder: "e.g. notes.txt",
       confirm: "Create",
       onSubmit: async (name) => {

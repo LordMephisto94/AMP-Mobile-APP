@@ -1,4 +1,4 @@
-import { type JSX, Text, View } from "nsh";
+import { type JSX, Scroll, signal, Text, View } from "nsh";
 import { Popover } from "nsh/base";
 
 export interface DropdownItem {
@@ -11,6 +11,8 @@ export interface DropdownItem {
   hint?: string;
   /** Shown greyed out, not pressable (with `hint` saying why, ideally). */
   disabled?: boolean;
+  /** The current choice of a select: ticked and highlighted. */
+  selected?: boolean;
   onSelect: () => void;
 }
 
@@ -28,7 +30,12 @@ export function Dropdown(props: {
   testID?: string;
   /** How the menu lines up with its trigger (default: right edges). */
   align?: "start" | "center" | "end";
+  /** Make the menu at least as wide as its trigger (selects). */
+  matchWidth?: boolean;
 }) {
+  const triggerWidth = signal(0);
+  // Long lists (a select with many choices) scroll inside the menu.
+  const scrolls = () => props.items.length > 8;
   const normal = () => props.items.filter((i) => i.tone !== "danger");
   const danger = () => props.items.filter((i) => i.tone === "danger");
 
@@ -46,12 +53,17 @@ export function Dropdown(props: {
       align={props.align ?? "end"}
       offset={6}
       margin={12}
+      popupStyle={props.matchWidth && triggerWidth() > 0 ? { minWidth: triggerWidth() } : undefined}
       popupClass="min-w-56 overflow-hidden rounded-2xl border border-white/10 bg-popover/95 py-1.5 shadow-2xl backdrop-blur-xl transition-all duration-150 ease-out"
       popupStartingClass="opacity-0 scale-95 -translate-y-1"
       popupEndingClass="opacity-0 scale-95 -translate-y-1"
-      trigger={props.trigger}
+      trigger={
+        <View onLayout={(e) => triggerWidth.set(e.bounds.size.width)}>
+          {props.trigger}
+        </View>
+      }
     >
-      <View testID={props.testID}>
+      <View testID={props.testID} class={scrolls() ? "max-h-80" : ""}>
         <If when={props.title}>
           {(t) => (
             <Text class="line-clamp-1 px-4 pt-1.5 pb-2 text-xs font-semibold tracking-wider text-muted-foreground">
@@ -59,9 +71,20 @@ export function Dropdown(props: {
             </Text>
           )}
         </If>
-        <Each of={normal()} key={(i: DropdownItem) => i.id}>
-          {(item) => <DropdownRow item={item()} onPress={() => pick(item())} />}
-        </Each>
+        <If
+          when={scrolls()}
+          else={
+            <Each of={normal()} key={(i: DropdownItem) => i.id}>
+              {(item) => <DropdownRow item={item()} onPress={() => pick(item())} />}
+            </Each>
+          }
+        >
+          <Scroll class="max-h-72">
+            <Each of={normal()} key={(i: DropdownItem) => i.id}>
+              {(item) => <DropdownRow item={item()} onPress={() => pick(item())} />}
+            </Each>
+          </Scroll>
+        </If>
         <If when={danger().length > 0 && normal().length > 0}>
           <View class="mx-3 my-1.5 h-px bg-white/10" />
         </If>
@@ -82,7 +105,7 @@ function DropdownRow(props: { item: DropdownItem; onPress: () => void }) {
       onPress={props.onPress}
       class={`mx-1.5 flex-row items-center gap-3 rounded-xl px-3 py-2.5 ${
         props.item.disabled ? "opacity-40" : danger() ? "active:bg-destructive/15" : "active:bg-accent"
-      }`}
+      } ${props.item.selected ? "bg-primary/15" : ""}`}
     >
       <If when={props.item.icon}>
         {(icon) => <Text class={`w-6 text-center text-base ${danger() ? "text-destructive" : "text-foreground"}`}>{icon()}</Text>}
@@ -91,6 +114,9 @@ function DropdownRow(props: { item: DropdownItem; onPress: () => void }) {
         <Text class={`text-[15px] font-medium ${danger() ? "text-destructive" : "text-popover-foreground"}`}>{props.item.label}</Text>
         <If when={props.item.hint}>{(h) => <Text class="text-xs text-muted-foreground">{h()}</Text>}</If>
       </View>
+      <If when={props.item.selected}>
+        <Text class="text-base font-bold text-primary">✓</Text>
+      </If>
     </View>
   );
 }
@@ -107,5 +133,55 @@ export function MoreButton(props: { onPress?: () => void; testID?: string; class
     >
       <Text class="text-lg leading-none text-white/90">⋯</Text>
     </View>
+  );
+}
+
+/**
+ * A choice field drawn as the app's dropdown: a field showing the current choice and a
+ * chevron, opening a menu of the options with the current one ticked.
+ */
+export function Select(props: {
+  value: string;
+  options: { value: string; label: string; hint?: string; disabled?: boolean }[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  /** Extra classes for the field (its border colour, say). */
+  class?: string;
+  testID?: string;
+  title?: string;
+}) {
+  const open = signal(false);
+  const current = () => props.options.find((o) => o.value === props.value);
+  return (
+    <Dropdown
+      open={open()}
+      onOpenChange={(o) => open.set(!props.disabled && o)}
+      align="start"
+      matchWidth
+      title={props.title}
+      items={props.options.map((o) => ({
+        id: o.value,
+        label: o.label || o.value,
+        hint: o.hint,
+        disabled: o.disabled,
+        selected: o.value === props.value,
+        onSelect: () => props.onChange(o.value),
+      }))}
+      trigger={
+        <View
+          role="button"
+          testID={props.testID}
+          class={`flex-row items-center gap-2 rounded-lg border px-3.5 py-2.5 ${props.disabled ? "opacity-60" : "active:bg-accent"} ${
+            props.class ?? "border-input bg-background/60"
+          }`}
+        >
+          <Text class={`flex-1 text-base ${current() ? "text-foreground" : "text-muted-foreground"}`}>
+            {current()?.label || props.value || props.placeholder || "Choose…"}
+          </Text>
+          <Text class="text-sm text-muted-foreground">{open() ? "▴" : "▾"}</Text>
+        </View>
+      }
+    />
   );
 }

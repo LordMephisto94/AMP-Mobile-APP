@@ -23,6 +23,7 @@ import {
   validateSetting,
 } from "../api/manage";
 import { Backdrop } from "../components/backdrop";
+import { Select } from "../components/Dropdown";
 import { ErrorText, Field, PageHeader, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
@@ -402,7 +403,6 @@ function SettingRow(props: {
   };
   const readOnly = () => !!props.spec.readOnly || kind() === "credential";
   const problem = () => (props.problem !== undefined ? props.problem : props.changed ? validateSetting(props.spec, props.value) : null);
-  const dropdown = signal(false);
   // The border, background and padding sit on a wrapping view: Android's text field doesn't
   // inset its text by its own padding, so the text would touch the left edge.
   const inputClass = () =>
@@ -443,36 +443,17 @@ function SettingRow(props: {
       <If when={props.description}>{(d) => <Text class="text-xs text-muted-foreground">{d()}</Text>}</If>
 
       <If when={kind() === "select"}>
-        <View
-          role="button"
-          onPress={() => !readOnly() && dropdown.set(!dropdown())}
-          class={`flex-row items-center ${inputClass()}`}
-        >
-          <Text class="flex-1 text-base text-foreground">
-            {props.options.find(([k]) => k === props.value)?.[1] ?? (props.value || "Choose…")}
-          </Text>
-          <Text class="text-muted-foreground">{dropdown() ? "▴" : "▾"}</Text>
-        </View>
-        <If when={dropdown()}>
-          <View class="overflow-hidden rounded-lg border border-input bg-background/80">
-            <Each of={props.options}>
-              {(option) => (
-                <View
-                  role="radio"
-                  onPress={() => {
-                    props.onChange(option()[0]);
-                    dropdown.set(false);
-                  }}
-                  class={`px-3 py-2.5 active:bg-accent ${option()[0] === props.value ? "bg-primary/15" : ""}`}
-                >
-                  <Text class={`text-sm ${option()[0] === props.value ? "font-semibold text-primary" : "text-foreground"}`}>
-                    {option()[1] || option()[0]}
-                  </Text>
-                </View>
-              )}
-            </Each>
-          </View>
-        </If>
+        <Select
+          testID={`select-${props.spec.fieldName}`}
+          title={props.label}
+          value={props.value}
+          options={props.options.map(([value, label]) => ({ value, label }))}
+          onChange={props.onChange}
+          disabled={readOnly()}
+          class={`${problem() ? "border-destructive" : props.changed ? "border-primary" : "border-input"} ${
+            readOnly() ? "bg-muted/40" : "bg-background/60"
+          }`}
+        />
       </If>
 
       <If when={kind() === "list" || kind() === "multiline"}>

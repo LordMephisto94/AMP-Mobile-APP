@@ -345,10 +345,12 @@ test("deletes an instance, then restores one and permanently deletes another", a
   await app.waitFor("text:Recently deleted");
 
   await app.press("recently-deleted");
-  await app.press("restore-Old server");
+  await app.press("more-deleted-Old server");
+  await app.press("menu-restore");
   await app.waitFor("shard-Old server");
 
-  await app.press("purge-Scrap");
+  await app.press("more-deleted-Scrap");
+  await app.press("menu-purge");
   await app.waitFor("text:Permanently delete Scrap?");
   await app.press("confirm-purge");
   await app.waitUntil(() => calls.includes("purge c3"));
