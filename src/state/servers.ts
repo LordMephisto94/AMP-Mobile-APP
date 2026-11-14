@@ -587,7 +587,14 @@ async function newVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; 
   const salt = randomBytes(16);
   const pinKey = await deriveKey(pin, salt);
   const pinBox = await seal(pinKey, toB64(raw));
-  const pinWrap = await DeviceKey.seal(BOUND_ALIAS, btoa(JSON.stringify(pinBox)), false);
+  let pinWrap: string;
+  try {
+    pinWrap = await DeviceKey.seal(BOUND_ALIAS, btoa(JSON.stringify(pinBox)), false);
+  } catch {
+    // The key store refused: the PIN-only vault still protects the sessions.
+    const fallback = await createVault(pin, data);
+    return { blob: fallback.blob, key: fallback.key, raw: null };
+  }
   const blob: VaultBlobV2 = { v: 2, salt: toB64(salt), rounds: PBKDF2_ROUNDS, pinWrap, data: await seal(key, data) };
   return { blob, key, raw };
 }

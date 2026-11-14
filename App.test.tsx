@@ -1965,3 +1965,26 @@ test("without a recent phone unlock the PIN is asked, and a lost phone key clear
   await elsewhere.waitFor("text:Saved sign-ins cleared");
   expect(elsewhere.storage()["amp.vault"]).toBeUndefined();
 });
+
+test("if the key store refuses, setting a PIN falls back to the PIN-only vault", async () => {
+  const app = await open("./App.tsx", {
+    storage: { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) },
+    network: unlockedHome,
+    modules: {
+      "ampmobile/native": {
+        "DeviceKey.available": true,
+        "DeviceKey.seal": async () => {
+          throw new Error("error: keystore unavailable");
+        },
+        "DeviceKey.open": async () => {
+          throw new Error("error: keystore unavailable");
+        },
+        "DeviceKey.forget": async () => true,
+      },
+    },
+  });
+  await enterPin(app, "135790");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 1);
+  await app.waitFor("text:Signed in");
+});
