@@ -12,6 +12,7 @@ import { InviteScreen } from "./src/screens/InviteScreen";
 import { NetworkingScreen } from "./src/screens/NetworkingScreen";
 import { OverviewScreen } from "./src/screens/OverviewScreen";
 import { PlayerScreen } from "./src/screens/PlayerScreen";
+import { RoleScreen } from "./src/screens/RoleScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -60,6 +61,8 @@ function screen(route: Route) {
       return <AccessScreen serverId={route.serverId} tab={route.tab} />;
     case "user":
       return <UserScreen serverId={route.serverId} userId={route.userId} />;
+    case "role":
+      return <RoleScreen serverId={route.serverId} roleId={route.roleId} />;
     case "invite":
       return <InviteScreen serverId={route.serverId} />;
     case "settings":

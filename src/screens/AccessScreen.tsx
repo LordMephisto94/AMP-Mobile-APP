@@ -205,11 +205,21 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
             <PartView part={roles()} denied="Your AMP account can't see roles." loading="Loading roles…">
               {(list) => (
                 <View class="gap-3">
+                  <View class="md:w-72">
+                    <PrimaryButton title="New role" icon="＋" onPress={() => nav.push({ name: "role", serverId: props.serverId })} />
+                  </View>
                   <If when={list.length === 0}>
                     <Text class="text-sm text-muted-foreground">No roles yet.</Text>
                   </If>
-                  <Each of={list} key={(r: Role) => r.id}>{(r) => <RoleCard role={r()} members={members(users(), r().id)} />}</Each>
-                  <Text class="text-xs text-muted-foreground">Roles are edited in the web panel for now.</Text>
+                  <Each of={list} key={(r: Role) => r.id}>
+                    {(r) => (
+                      <RoleCard
+                        role={r()}
+                        members={members(users(), r().id)}
+                        onEdit={() => nav.push({ name: "role", serverId: props.serverId, roleId: r().id })}
+                      />
+                    )}
+                  </Each>
                 </View>
               )}
             </PartView>
@@ -267,7 +277,7 @@ function PartView<T>(props: { part: Part<T>; denied: string; loading: string; ch
   );
 }
 
-function RoleCard(props: { role: Role; members: string[] }) {
+function RoleCard(props: { role: Role; members: string[]; onEdit: () => void }) {
   const open = signal(false);
   return (
     <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
@@ -290,6 +300,9 @@ function RoleCard(props: { role: Role; members: string[] }) {
           <Each of={props.role.permissions.slice().sort()}>
             {(p) => <Text class={`font-mono text-xs ${p().startsWith("-") ? "text-rose-300" : "text-sky-200"}`}>{p()}</Text>}
           </Each>
+          <View class="flex-row pt-2">
+            <SecondaryButton testID={`edit-role-${props.role.name}`} title="Edit role" onPress={props.onEdit} />
+          </View>
         </View>
       </If>
     </View>

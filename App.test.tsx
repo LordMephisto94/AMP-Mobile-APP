@@ -21,6 +21,21 @@ async function clearField(
   throw new Error(`${selector} never emptied: ${JSON.stringify(app.value(selector))}`);
 }
 
+/**
+ * Presses a row that opens and waits for what it shows. Far down a long page, a real
+ * window scrolls the row in and can tap where it was a moment before, so it tries again.
+ */
+async function openRow(app: { press(s: string): Promise<void>; count(s: string): number; wait(ms: number): Promise<void> }, row: string, shows: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await app.press(row);
+    for (let i = 0; i < 10; i++) {
+      if (app.count(shows) > 0) return;
+      await app.wait(100);
+    }
+  }
+  throw new Error(`${row} never showed ${shows}`);
+}
+
 const shardsRoute = (request: { url: string; headers: Record<string, string> }) => {
   if (request.headers.authorization !== "Bearer tok-1") return { status: 401 };
   if (request.url.includes("/state")) {
@@ -1422,4 +1437,80 @@ test("settings shows your account, updates, licence and the panel's settings, an
   await app.press("save-password");
   await app.waitFor("text:Password changed. Your other sessions were signed out.");
   expect(passwords).toEqual([{ currentPassword: "old", newPassword: "new-1" }]);
+});
+
+test("roles are edited as a permission tree, with wildcards, blocks and raw grants", async () => {
+  const puts: unknown[] = [];
+  const posts: unknown[] = [];
+  let mods = { id: "r2", name: "Moderators", description: "Start and stop", permissions: ["spire.*.shard.*.view", "spire.*.shard.*.power.*"], createdAt: "" };
+  const ALL = "servers/spire.any.shard.any.all";
+  const MC = "servers/spire.any.shard.a1.all";
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/assets/i18n/en.json`]: { body: { access: { tree: { servers: "Servers", allServers: "All servers", power: "Power", stop: "Stop", files: "Files", platform: "Platform", audit: "Audit log" } } } },
+      [`GET ${SERVER}/api/users`]: { body: [] },
+      [`GET ${SERVER}/api/invites`]: { body: [] },
+      [`GET ${SERVER}/api/roles`]: () => ({ body: [mods] }),
+      [`PUT ${SERVER}/api/roles/r2`]: (r) => {
+        const body = JSON.parse(r.body!);
+        puts.push(body);
+        mods = { ...mods, ...body };
+        return { body: mods };
+      },
+      [`POST ${SERVER}/api/roles`]: (r) => (posts.push(JSON.parse(r.body!)), { status: 201, body: { id: "r3", ...JSON.parse(r.body!), createdAt: "" } }),
+      [`GET ${SERVER}/api/me/permissions`]: { body: { grants: ["*"], catalog: [], roleIds: ["r1"] } },
+      [`GET ${SERVER}/api/Spires`]: { body: [{ id: "sp1", displayName: "amp3" }] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-access");
+  await app.press("tab-roles");
+  await app.press("role-Moderators");
+  await app.press("edit-role-Moderators");
+  await app.waitFor("text:All servers");
+
+  // All servers: view and every power action are on; files are off until switched on.
+  await app.press(`perm-open-${ALL}`);
+  await app.waitFor("text:Power");
+  expect(app.texts()).toContain("all, including anything added later");
+  await app.press(`perm-${ALL}/spire.any.shard.any.files.any`);
+
+  // One instance: power is allowed by the wider grant; stopping it there is blocked.
+  await openRow(app, `perm-open-${MC}`, `perm-open-${MC}/spire.any.shard.a1.power.any`);
+  // Scroll it clear of the Cancel / Save bar at the bottom, as a person would.
+  await app.scroll(`perm-open-${MC}`, 400);
+  await openRow(app, `perm-open-${MC}/spire.any.shard.a1.power.any`, `perm-${MC}/spire.any.shard.a1.power.any/spire.any.shard.a1.power.stop`);
+  expect(app.texts()).toContain("allowed by a wider permission");
+  await app.press(`perm-${MC}/spire.any.shard.a1.power.any/spire.any.shard.a1.power.stop`);
+  await app.waitFor("text:Blocked");
+
+  // A grant the tree doesn't show.
+  await app.type("extra-grant", "webhooks.custom");
+  await app.press("add-grant");
+  await app.waitFor("remove-grant-webhooks.custom");
+
+  await app.press("text:Save role");
+  await app.waitUntil(() => puts.length === 1);
+  expect(puts[0]).toEqual({
+    name: "Moderators",
+    description: "Start and stop",
+    permissions: ["spire.*.shard.*.view", "spire.*.shard.*.power.*", "spire.*.shard.*.files.*", "-spire.*.shard.a1.power.stop", "webhooks.custom"],
+  });
+  await app.waitFor("tab-roles");
+
+  // A new role.
+  await app.press("text:New role");
+  await app.waitFor("text:PLATFORM");
+  await app.press("text:Create role");
+  await app.waitFor("text:Give the role a name.");
+  await app.type("role-name", "Auditors");
+  await app.press("perm-platform/audit.read");
+  await app.press("text:Create role");
+  await app.waitUntil(() => posts.length === 1);
+  expect(posts[0]).toEqual({ name: "Auditors", description: null, permissions: ["audit.read"] });
 });
