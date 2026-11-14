@@ -44,7 +44,7 @@ nsh test    # headless tests (App.test.tsx), network stubbed
   ("Stay signed in"), never the password.
 - AMP 3 calls instances **shards** and nodes **spires**. The spec mixes `/api/Shards` and `/api/shards`: use paths
   exactly as written.
-- `nsh.json`'s `id` is still the placeholder `com.example.ampmobile`. Change it before packaging.
+- The app ID (`nsh.json`'s `id`) is `com.meganet.ampmobile`. Changing it makes Android and iOS treat the app as a different one, so saved servers wouldn't carry over.
 
 ## Files on iPhone and Android
 
