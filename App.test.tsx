@@ -8,8 +8,7 @@ const shardsRoute = (request: { url: string; headers: Record<string, string> }) 
     return { body: { shardId: "a1", status: 25, isRunning: true, metrics: { cpuUsagePercent: 3.4, memoryUsageMB: 2678, memoryLimitMB: 8192 } } };
   }
   if (request.url.includes("/endpoints")) {
-    return {
-      body: [
+    const endpoints = [
         { portRef: "QueryPort", name: "Query", port: 17777, protocol: "Udp", isPrimary: false, isPublic: true, addresses: [] },
         {
           portRef: "PrimaryApplicationPort",
@@ -23,8 +22,9 @@ const shardsRoute = (request: { url: string; headers: Record<string, string> }) 
             { reach: "Local", host: "192.168.1.20", port: 2001, showPort: true, display: "192.168.1.20:2001" },
           ],
         },
-      ],
-    };
+    ];
+    // The list asks for every shard's at once, keyed by id.
+    return { body: request.url.includes("/api/Shards/endpoints") ? { a1: endpoints } : endpoints };
   }
   if (request.url.includes("/metrics")) {
     const now = Date.now();
@@ -648,7 +648,12 @@ test("shows player analytics, finds a player and opens their history", async () 
   });
 
   await app.press("server-Home Lab");
-  await app.press("open-analytics");
+  await app.waitFor("text:203.0.113.7:2001"); // the address on the card
+  await app.press("main-menu");
+  await app.waitFor("text:Main Menu");
+  await app.press("nav-spires").catch(() => {}); // not in the app yet: stays open
+  expect(app.texts()).toContain("Main Menu");
+  await app.press("nav-analytics");
   await app.waitFor("text:TOP PLAYERS");
   // Headline figures (minutes as a string), changes, countries and the busiest time.
   expect(app.texts()).toContain("21h 31m");
@@ -672,6 +677,13 @@ test("shows player analytics, finds a player and opens their history", async () 
   await app.waitFor("text:1 VAC ban");
   expect(app.texts()).toContain("Active player");
   expect(app.texts()).toContain("2h 15m");
+
+  // The menu takes you back to the instance list, not deeper into the stack.
+  await app.press("main-menu");
+  await app.press("nav-shards");
+  await app.waitFor("shard-Minecraft SMP");
+  await app.back();
+  await app.waitFor("text:Home Lab");
 });
 
 test("analytics for one instance asks for just that instance, and says when numbers are demo", async () => {
@@ -701,6 +713,7 @@ test("analytics without permission explains why", async () => {
     },
   });
   await app.press("server-Home Lab");
-  await app.press("open-analytics");
+  await app.press("main-menu");
+  await app.press("nav-analytics");
   await app.waitFor("text:Your AMP account can't see analytics. An admin can give your role the analytics permission on this server.");
 });

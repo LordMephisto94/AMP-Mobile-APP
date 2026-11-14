@@ -15,6 +15,7 @@ import { AmpError } from "../api/client";
 import { ago, clockOf, DemoNotice, dayOf, PeriodPicker, type PeriodId, periodOf, Section, ShareRow } from "../components/analyticsUi";
 import { Avatar } from "../components/Avatar";
 import { Screen } from "../components/backdrop";
+import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clearServerSession, clientFor } from "../state/servers";
@@ -95,7 +96,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
   };
 
   return (
-    <AppPage title={name()} subtitle="Player">
+    <AppPage title={name()} subtitle="Player" right={<MainMenu serverId={props.serverId} current="analytics" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <View class="w-full max-w-4xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <If when={error()}>

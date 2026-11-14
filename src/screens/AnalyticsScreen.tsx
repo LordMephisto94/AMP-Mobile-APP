@@ -31,6 +31,7 @@ import {
 } from "../components/analyticsUi";
 import { Avatar } from "../components/Avatar";
 import { Screen } from "../components/backdrop";
+import { MainMenu } from "../components/MainMenu";
 import { MetricChart } from "../components/MetricChart";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
@@ -146,7 +147,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
   const subtitle = props.shardId ? "Players on this instance" : (server?.name ?? "");
 
   return (
-    <AppPage title={title} subtitle={subtitle}>
+    <AppPage title={title} subtitle={subtitle} right={<MainMenu serverId={props.serverId} current="analytics" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <View class="w-full max-w-6xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <View class="flex-row flex-wrap items-center justify-between gap-3">

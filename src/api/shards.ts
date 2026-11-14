@@ -56,3 +56,8 @@ export function connectAddress(endpoints: ShardEndpoint[]): ShardEndpointAddress
   const primary = endpoints.find((e) => e.isPrimary) ?? endpoints[0];
   return primary?.addresses?.[0] ?? null;
 }
+
+/** `GET /api/Shards/endpoints`: every visible shard's endpoints in one call, by shard id. */
+export function getAllShardEndpoints(client: AmpClient): Promise<Record<string, ShardEndpoint[]>> {
+  return client.request<Record<string, ShardEndpoint[]>>("/api/Shards/endpoints");
+}

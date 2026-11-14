@@ -1,12 +1,20 @@
-import { Image, signal, Text, View } from "nsh";
+import { Clipboard, Image, signal, Text, View } from "nsh";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { purgeShard, restoreShard } from "../api/manage";
-import { getShardState, listShards, type ShardPowerAction, shardPower } from "../api/shards";
+import {
+  connectAddress,
+  getAllShardEndpoints,
+  getShardState,
+  listShards,
+  type ShardPowerAction,
+  shardPower,
+} from "../api/shards";
 import { type DeployedShard, type ShardState, stateLabel, stateTone } from "../api/types";
 import { AmpBanner, StatusBadge, toneStatus } from "../components/AmpBanner";
 import { Screen } from "../components/backdrop";
 import { Dropdown, MoreButton } from "../components/Dropdown";
+import { MainMenu } from "../components/MainMenu";
 import { powerItems } from "../components/powerMenu";
 import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
@@ -25,6 +33,8 @@ export function ShardsScreen(props: { serverId: string }) {
   const showDeleted = signal(false);
   const working = signal<string | null>(null);
   const states = signal<Record<string, ShardState>>({});
+  /** Where players connect, by shard id. */
+  const addresses = signal<Record<string, string>>({});
   const error = signal<string | null>(null);
   const refreshing = signal(false);
 
@@ -43,6 +53,17 @@ export function ShardsScreen(props: { serverId: string }) {
         if (r.status === "fulfilled") next[all[i].id] = r.value;
       });
       states.set(next);
+      // Connect addresses in one call; the list works without them.
+      getAllShardEndpoints(client)
+        .then((all) => {
+          const found: Record<string, string> = {};
+          for (const [id, endpoints] of Object.entries(all ?? {})) {
+            const a = Array.isArray(endpoints) ? connectAddress(endpoints) : null;
+            if (a) found[id] = a.display;
+          }
+          addresses.set(found);
+        })
+        .catch(() => {});
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
         await clearServerSession(props.serverId);
@@ -120,7 +141,7 @@ export function ShardsScreen(props: { serverId: string }) {
   const running = () => Object.values(states()).filter((s) => stateTone(s) === "running").length;
 
   return (
-    <AppPage title={name} subtitle={host}>
+    <AppPage title={name} subtitle={host} right={<MainMenu serverId={props.serverId} current="shards" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <AmpBanner
           title={name}
@@ -147,19 +168,8 @@ export function ShardsScreen(props: { serverId: string }) {
             <Text class="text-muted-foreground">No instances on this server yet.</Text>
           </If>
           <If when={shards() !== null}>
-            <View class={`flex-row gap-3 md:w-[30rem] ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
-              <View class="flex-1">
-                <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
-              </View>
-              <View
-                role="button"
-                testID="open-analytics"
-                onPress={() => nav.push({ name: "analytics", serverId: props.serverId })}
-                class="flex-1 flex-row items-center justify-center gap-2 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-md active:bg-accent"
-              >
-                <Text class="text-lg">📊</Text>
-                <Text class="text-base font-semibold text-card-foreground">Analytics</Text>
-              </View>
+            <View class={`md:w-72 ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
+              <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
             </View>
           </If>
           <View class={`gap-4 md:flex-row md:flex-wrap ${shards()?.length === 1 ? "md:justify-center" : ""}`}>
@@ -171,6 +181,7 @@ export function ShardsScreen(props: { serverId: string }) {
                 serverUrl={server?.serverUrl ?? ""}
                 shard={shard()}
                 state={states()[shard().id]}
+                address={addresses()[shard().id]}
                 busy={working() === shard().id}
                 onAction={(action) => power(shard(), action)}
               />
@@ -222,10 +233,22 @@ function ShardCard(props: {
   serverUrl: string;
   shard: DeployedShard;
   state?: ShardState;
+  address?: string;
   busy: boolean;
   onAction: (action: ShardPowerAction) => void;
 }) {
   const menuOpen = signal(false);
+  const copied = signal(false);
+  const copy = async () => {
+    if (!props.address) return;
+    try {
+      await Clipboard.writeText(props.address);
+      copied.set(true);
+      setTimeout(() => copied.set(false), 1500);
+    } catch {
+      // no clipboard here
+    }
+  };
   const title = () => props.shard.displayName || props.shard.name || props.shard.id;
   const art = () => artworkUrl(props.shard.displayImageSource, props.serverUrl, "banner");
   const tone = () => stateTone(props.state);
@@ -286,7 +309,24 @@ function ShardCard(props: {
       </View>
 
       <View class="gap-2.5 p-4">
-        <Text class="text-lg font-semibold text-card-foreground">{title()}</Text>
+        <View class="gap-1">
+          <If when={props.address}>
+            {(a) => (
+              <View
+                role="button"
+                testID={`address-${title()}`}
+                accessibilityLabel={`Address ${a()}. Tap to copy.`}
+                onPress={copy}
+                class="flex-row items-center gap-1.5 self-start rounded-full bg-white/5 px-2.5 py-0.5 active:bg-white/15"
+              >
+                <Text class="text-[11px]">🌐</Text>
+                <Text class="font-mono text-xs font-semibold text-sky-300">{a()}</Text>
+                <Text class="text-[11px] text-muted-foreground">{copied() ? "Copied" : "⧉"}</Text>
+              </View>
+            )}
+          </If>
+          <Text class="text-lg font-semibold text-card-foreground">{title()}</Text>
+        </View>
         <If when={metrics()}>
           <View class="gap-2">
             <MeterRow label="CPU" value={`${cpu().toFixed(cpu() < 10 ? 1 : 0)}%`} fraction={cpu() / 100} barClass="bg-sky-400" />
