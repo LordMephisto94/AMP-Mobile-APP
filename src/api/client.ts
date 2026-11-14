@@ -44,6 +44,8 @@ export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Sent as JSON. */
   body?: unknown;
+  /** Sent as is, as `application/octet-stream` (an upload chunk). */
+  raw?: Blob | Uint8Array;
   query?: Record<string, string | number | boolean | undefined>;
   /** Milliseconds before the request is abandoned. Default 15 s. */
   timeoutMs?: number;
@@ -65,7 +67,7 @@ export class AmpClient {
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { method = "GET", body, query, timeoutMs = 15_000, anonymous = false } = options;
+    const { method = "GET", body, raw, query, timeoutMs = 15_000, anonymous = false } = options;
 
     let url = `${this.baseUrl}${path}`;
     if (query) {
@@ -76,7 +78,8 @@ export class AmpClient {
     }
 
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (raw !== undefined) headers["Content-Type"] = "application/octet-stream";
+    else if (body !== undefined) headers["Content-Type"] = "application/json";
     if (!anonymous && this.token) headers.Authorization = `Bearer ${this.token}`;
 
     const controller = new AbortController();
@@ -86,7 +89,7 @@ export class AmpClient {
       response = await fetch(url, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
     } catch (error) {

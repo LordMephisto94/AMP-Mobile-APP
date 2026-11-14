@@ -1,0 +1,187 @@
+import type { AmpClient } from "./client";
+
+/**
+ * An instance's files, as the web panel's file manager reaches them: everything under
+ * `/api/shards/{id}/files`, paths relative to the instance's working directory with
+ * forward slashes ("" is the root).
+ */
+
+/** `FileEntry`. */
+export interface FileEntry {
+  path: string;
+  name: string;
+  isDirectory: boolean;
+  isLink?: boolean;
+  /** Bytes; 0 for folders. May arrive as a string. */
+  size?: number | string;
+  modified?: string;
+}
+
+/** `ManagedFileDto`: a file AMP writes from the instance's settings. */
+export interface ManagedFile {
+  path: string;
+  /** `generated`: rewritten on every start (read-only); `merged`: AMP writes only its own values. */
+  kind: "generated" | "merged" | string;
+  importable: boolean;
+  source: string;
+  fieldName?: string | null;
+}
+
+/** `ExtractResultDto`, also what a copy returns. */
+export interface ExtractResult {
+  extracted: number;
+  skippedOnDisk: number;
+  skippedDenied: number;
+  skippedBlocked: number;
+  skippedManaged: number;
+  examples: string[];
+}
+
+const base = (id: string) => `/api/shards/${encodeURIComponent(id)}/files`;
+
+export function joinPath(dir: string, name: string): string {
+  return dir ? `${dir.replace(/\/+$/, "")}/${name}` : name;
+}
+
+export function parentOf(path: string): string {
+  const i = path.lastIndexOf("/");
+  return i < 0 ? "" : path.slice(0, i);
+}
+
+/** `GET files?path=`: a folder's entries, without what the caller can't read. */
+export function listFiles(client: AmpClient, id: string, path: string): Promise<FileEntry[]> {
+  return client.request<FileEntry[]>(base(id), { query: { path } });
+}
+
+/** `GET files/start`: the folder the panel's file manager opens at. */
+export async function startFolder(client: AmpClient, id: string): Promise<string> {
+  return (await client.request<{ path: string }>(`${base(id)}/start`)).path ?? "";
+}
+
+/** `GET files/managed?path=`: the AMP-managed config files in a folder. */
+export function managedFiles(client: AmpClient, id: string, path: string): Promise<ManagedFile[]> {
+  return client.request<ManagedFile[]>(`${base(id)}/managed`, { query: { path } });
+}
+
+/** `GET files/content?path=`: a text file's content. */
+export async function readText(client: AmpClient, id: string, path: string): Promise<string> {
+  return (await client.request<{ content: string }>(`${base(id)}/content`, { query: { path }, timeoutMs: 30_000 })).content ?? "";
+}
+
+/** `PUT files/content?path=`: replaces (or creates) a text file. */
+export async function writeText(client: AmpClient, id: string, path: string, content: string): Promise<void> {
+  await client.request<void>(`${base(id)}/content`, { method: "PUT", query: { path }, body: { content }, timeoutMs: 30_000 });
+}
+
+/** `POST files/folder`. */
+export async function createFolder(client: AmpClient, id: string, path: string): Promise<void> {
+  await client.request<void>(`${base(id)}/folder`, { method: "POST", body: { path } });
+}
+
+/** `POST files/move`: move or rename. */
+export async function moveFile(client: AmpClient, id: string, from: string, to: string): Promise<void> {
+  await client.request<void>(`${base(id)}/move`, { method: "POST", body: { from, to } });
+}
+
+/** `POST files/copy`. */
+export function copyFile(client: AmpClient, id: string, from: string, to: string): Promise<ExtractResult> {
+  return client.request<ExtractResult>(`${base(id)}/copy`, { method: "POST", body: { from, to }, timeoutMs: 120_000 });
+}
+
+/** `DELETE files?path=`: a file, or a folder with everything in it. */
+export async function deleteFile(client: AmpClient, id: string, path: string): Promise<void> {
+  await client.request<void>(base(id), { method: "DELETE", query: { path }, timeoutMs: 60_000 });
+}
+
+/** `POST files/extract`: unpacks an archive next to it (or into `destination`). */
+export function extractArchive(client: AmpClient, id: string, path: string, overwrite = false): Promise<ExtractResult> {
+  return client.request<ExtractResult>(`${base(id)}/extract`, {
+    method: "POST",
+    body: { path, destination: null, overwrite },
+    timeoutMs: 300_000,
+  });
+}
+
+/** `POST files/archive`: zips paths into `destination` (which should end in .zip). */
+export async function createArchive(client: AmpClient, id: string, paths: string[], destination: string): Promise<void> {
+  await client.request<void>(`${base(id)}/archive`, { method: "POST", body: { paths, destination }, timeoutMs: 300_000 });
+}
+
+/**
+ * A one-time download link: `POST files/download-ticket` (or `zip-ticket` for a folder),
+ * then the URL with `?ticket=`, which a browser can open without the session token.
+ */
+export async function downloadUrl(client: AmpClient, id: string, entry: FileEntry): Promise<string> {
+  if (entry.isDirectory) {
+    const { ticket } = await client.request<{ ticket: string }>(`${base(id)}/zip-ticket`, { method: "POST", body: { paths: [entry.path] } });
+    return `${client.baseUrl}${base(id)}/zip?ticket=${encodeURIComponent(ticket)}`;
+  }
+  const { ticket } = await client.request<{ ticket: string }>(`${base(id)}/download-ticket`, { method: "POST", body: { path: entry.path } });
+  return `${client.baseUrl}${base(id)}/download?path=${encodeURIComponent(entry.path)}&ticket=${encodeURIComponent(ticket)}`;
+}
+
+const CHUNK = 8 * 1024 * 1024;
+
+/**
+ * Uploads a file the chunked way the panel does: `upload-start` (which says how much a
+ * resumed session already has), 8 MB `upload-chunk`s, then `upload-commit`.
+ */
+export async function uploadFile(
+  client: AmpClient,
+  id: string,
+  dir: string,
+  file: Blob & { name: string },
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<void> {
+  const path = joinPath(dir, file.name);
+  const start = await client.request<{ sessionId: string; received?: number }>(`${base(id)}/upload-start`, {
+    method: "POST",
+    body: { path, size: file.size },
+  });
+  let received = Number(start.received ?? 0);
+  onProgress?.(received, file.size);
+  while (received < file.size) {
+    const chunk = file.slice(received, received + CHUNK);
+    const result = await client.request<{ received: number }>(`${base(id)}/upload-chunk`, {
+      method: "POST",
+      query: { session: start.sessionId },
+      raw: chunk,
+      timeoutMs: 300_000,
+    });
+    const next = Number(result?.received ?? received + chunk.size);
+    if (next <= received) throw new Error("The upload stopped making progress");
+    received = next;
+    onProgress?.(received, file.size);
+  }
+  await client.request<void>(`${base(id)}/upload-commit`, { method: "POST", query: { session: start.sessionId }, timeoutMs: 120_000 });
+}
+
+/** Files the editor opens as text. */
+const TEXT_EXTENSIONS = new Set(
+  (
+    "txt log cfg conf config ini json json5 jsonc yml yaml toml xml properties env sh bat cmd ps1 lua js ts py " +
+    "md csv tsv sql html htm css txt ban whitelist ops lst list dat2 mcmeta motd vdf acf kvp cs java"
+  ).split(" "),
+);
+
+export function isTextFile(entry: FileEntry): boolean {
+  if (entry.isDirectory) return false;
+  const dot = entry.name.lastIndexOf(".");
+  if (dot < 0) return Number(entry.size ?? 0) < 512 * 1024; // extensionless: small files are usually text
+  return TEXT_EXTENSIONS.has(entry.name.slice(dot + 1).toLowerCase());
+}
+
+export function isArchive(entry: FileEntry): boolean {
+  return !entry.isDirectory && /\.(zip|7z|rar|tar|tgz|tar\.gz|gz|bz2|xz)$/i.test(entry.name);
+}
+
+export function formatBytes(bytes: number | string | undefined): string {
+  let n = Number(bytes ?? 0);
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let u = 0;
+  while (n >= 1024 && u < units.length - 1) {
+    n /= 1024;
+    u++;
+  }
+  return `${n < 10 && u > 0 ? n.toFixed(1) : Math.round(n)} ${units[u]}`;
+}

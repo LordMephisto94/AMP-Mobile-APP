@@ -2,6 +2,8 @@ import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConsoleScreen } from "./src/screens/ConsoleScreen";
 import { CreateShardScreen } from "./src/screens/CreateShardScreen";
+import { FileEditScreen } from "./src/screens/FileEditScreen";
+import { FilesScreen } from "./src/screens/FilesScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
@@ -28,6 +30,10 @@ function screen(route: Route) {
       return <CreateShardScreen serverId={route.serverId} />;
     case "shardSettings":
       return <ShardSettingsScreen serverId={route.serverId} id={route.id} title={route.title} />;
+    case "files":
+      return <FilesScreen serverId={route.serverId} id={route.id} title={route.title} path={route.path} />;
+    case "fileEdit":
+      return <FileEditScreen serverId={route.serverId} id={route.id} path={route.path} managed={route.managed} />;
   }
 }
 

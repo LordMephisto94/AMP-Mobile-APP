@@ -347,3 +347,111 @@ test("deletes an instance, then restores one and permanently deletes another", a
   expect(app.dialogs()[1]).toMatchObject({ title: "Permanently delete Scrap?" });
   expect(calls).toEqual(["delete a1", "restore b2", "purge c3"]);
 });
+
+test("browses, edits, creates, uploads and deletes files", async () => {
+  const FILES = `${SERVER}/api/shards/a1/files`;
+  const tree: Record<string, { name: string; isDirectory: boolean; size?: number }[]> = {
+    "": [
+      { name: "server.properties", isDirectory: false, size: 1200 },
+      { name: "world", isDirectory: true },
+      { name: "eula.txt", isDirectory: false, size: 10 },
+    ],
+    world: [{ name: "level.dat", isDirectory: false, size: 4096 }],
+  };
+  const contents: Record<string, string> = { "server.properties": "motd=Hello\nmax-players=20\n", "eula.txt": "eula=true\n" };
+  const calls: string[] = [];
+  const chunks: number[] = [];
+  const pathOf = (url: string) => decodeURIComponent(new URL(url).searchParams.get("path") ?? "");
+  const listing = (dir: string) =>
+    (tree[dir] ?? []).map((e) => ({ ...e, path: dir ? `${dir}/${e.name}` : e.name, modified: "2026-11-14T06:00:00Z" }));
+
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${FILES}/managed*`]: (r) => ({ body: pathOf(r.url) === "" ? [{ path: "eula.txt", kind: "generated", importable: false, source: "config" }] : [] }),
+      [`GET ${FILES}/content*`]: (r) => ({ body: { content: contents[pathOf(r.url)] ?? "" } }),
+      [`PUT ${FILES}/content*`]: (r) => {
+        const path = pathOf(r.url);
+        contents[path] = JSON.parse(r.body!).content;
+        if (!tree[""].some((e) => e.name === path)) tree[""].push({ name: path, isDirectory: false, size: 0 });
+        calls.push(`write ${path}`);
+        return { status: 204 };
+      },
+      [`POST ${FILES}/folder`]: (r) => {
+        const path = JSON.parse(r.body!).path;
+        tree[""].push({ name: path, isDirectory: true });
+        calls.push(`folder ${path}`);
+        return { status: 204 };
+      },
+      [`POST ${FILES}/upload-start`]: (r) => {
+        calls.push(`upload-start ${JSON.parse(r.body!).path} ${JSON.parse(r.body!).size}`);
+        return { body: { sessionId: "sess1", received: 0 } };
+      },
+      [`POST ${FILES}/upload-chunk*`]: (r) => {
+        chunks.push(r.body!.length);
+        return { body: { received: 5 } };
+      },
+      [`POST ${FILES}/upload-commit*`]: () => {
+        tree[""].push({ name: "mod.jar", isDirectory: false, size: 5 });
+        calls.push("upload-commit");
+        return { status: 204 };
+      },
+      [`DELETE ${FILES}*`]: (r) => {
+        const path = pathOf(r.url);
+        tree[""] = tree[""].filter((e) => e.name !== path);
+        calls.push(`delete ${path}`);
+        return { status: 204 };
+      },
+      [`GET ${FILES}*`]: (r) => ({ body: listing(pathOf(r.url)) }),
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await app.press("open-files");
+  await app.waitFor("text:server.properties");
+  expect(app.texts()).toContain("AMP"); // eula.txt is AMP-managed
+
+  // Folders open as their own page.
+  await app.press("file-world");
+  await app.waitFor("text:level.dat");
+  await app.back();
+
+  // Edit and save a text file.
+  await app.press("file-server.properties");
+  await app.waitFor("file-content");
+  await app.type("file-content", "online-mode=false\n");
+  await app.press("save-file >> nth=1");
+  await app.waitFor("text:Saved.");
+  expect(contents["server.properties"]).toBe("motd=Hello\nmax-players=20\nonline-mode=false\n");
+  await app.back();
+
+  // A generated managed file opens read-only.
+  await app.press("file-eula.txt");
+  await app.waitFor("text:AMP rewrites this file from the instance's settings on every start, so it's read-only here. Change the settings instead.");
+  await app.back();
+
+  // New folder through the prompt.
+  await app.press("new-folder");
+  await app.type("prompt-input", "mods");
+  await app.press("text:Create");
+  await app.waitFor("file-mods");
+
+  // Upload through the picker, in chunks.
+  app.onPick(() => [{ name: "mod.jar", data: new Uint8Array([1, 2, 3, 4, 5]) }]);
+  await app.press("upload");
+  await app.waitFor("text:Uploaded.");
+  await app.waitFor("file-mod.jar");
+  expect(chunks).toEqual([5]);
+
+  // Delete, confirmed.
+  app.onDialog(() => "Delete"); // the actions menu, then the confirmation
+  await app.press("more-mod.jar");
+  await app.waitUntil(() => calls.includes("delete mod.jar"));
+
+  expect(calls).toEqual(["write server.properties", "folder mods", "upload-start mod.jar 5", "upload-commit", "delete mod.jar"]);
+});

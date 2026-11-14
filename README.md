@@ -28,8 +28,9 @@ nsh test    # headless tests (App.test.tsx), network stubbed
 | `src/components/AmpBanner.tsx` | The AMP 3 panel's triangle header, drawn on a Canvas, with a status triangle and badge (online / offline / warning / danger) |
 | `src/api/` | AMP 3 REST client (`client.ts`), endpoints (`auth.ts`, `shards.ts`), hand-written types (`types.ts`) |
 | `src/state/` | Saved servers and their sessions (`servers.ts`, persisted with NSH `Storage`) and navigation routes |
-| `src/screens/` | Servers home, Add Server / sign-in form, instance list, instance detail (graphs), console, new instance, instance settings |
+| `src/screens/` | Servers home, Add Server / sign-in form, instance list, instance detail (graphs), console, new instance, instance settings, file browser, text file editor |
 | `src/api/manage.ts` | Templates, spires, creating instances, the three settings surfaces (record, app settings, infrastructure), and delete / restore / permanent delete |
+| `src/api/files.ts` | Instance files: list, read/write text, folder, move, copy, delete, zip/extract, download tickets, chunked upload |
 | `src/api/infraFields.ts` | Which infrastructure settings the app edits, and how their values convert to and from the form |
 | `src/api/hub.ts` | Minimal SignalR client for AMP's live hubs (`/hubs/shard`), used by the console; not in the OpenAPI spec |
 | `src/components/` | Shared UI pieces (buttons, fields, pills, desktop page header) |
