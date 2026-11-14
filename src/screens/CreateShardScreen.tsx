@@ -115,15 +115,17 @@ export function CreateShardScreen(props: { serverId: string }) {
             <View class="flex-1">
               <View class="gap-3 px-4 pt-4 pb-2">
                 <Text class="text-2xl font-bold text-foreground">Choose a game</Text>
-                <Input
-                  testID="template-search"
-                  value={search()}
-                  onChange={({ value }) => search.set(value)}
-                  placeholder="Search the catalogue"
-                  autoCapitalize="none"
-                  returnKeyType="search"
-                  class="rounded-(--radius) border border-input bg-card px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground"
-                />
+                <View class="rounded-(--radius) border border-input bg-card px-3.5 py-3">
+                  <Input
+                    testID="template-search"
+                    value={search()}
+                    onChange={({ value }) => search.set(value)}
+                    placeholder="Search the catalogue"
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                    class="p-0 text-base text-foreground placeholder:text-muted-foreground"
+                  />
+                </View>
                 <If when={error()}>{(m) => <ErrorText message={m()} />}</If>
                 <If when={!error() && templates() === null}>
                   <Text class="text-sm text-muted-foreground">Loading the catalogue…</Text>

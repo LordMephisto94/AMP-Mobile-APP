@@ -249,15 +249,17 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
               />
             </View>
 
-            <Input
-              testID="settings-search"
-              value={search()}
-              onChange={({ value }) => search.set(value)}
-              placeholder="Search settings"
-              autoCapitalize="none"
-              returnKeyType="search"
-              class="rounded-(--radius) border border-input bg-card px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground"
-            />
+            <View class="rounded-(--radius) border border-input bg-card px-3.5 py-3">
+              <Input
+                testID="settings-search"
+                value={search()}
+                onChange={({ value }) => search.set(value)}
+                placeholder="Search settings"
+                autoCapitalize="none"
+                returnKeyType="search"
+                class="p-0 text-base text-foreground placeholder:text-muted-foreground"
+              />
+            </View>
 
             <If when={error()}>{(m) => <ErrorText message={m()} />}</If>
             <If when={notice()}>{(m) => <Text class="text-sm text-warning">{m()}</Text>}</If>
@@ -401,10 +403,13 @@ function SettingRow(props: {
   const readOnly = () => !!props.spec.readOnly || kind() === "credential";
   const problem = () => (props.problem !== undefined ? props.problem : props.changed ? validateSetting(props.spec, props.value) : null);
   const dropdown = signal(false);
+  // The border, background and padding sit on a wrapping view: Android's text field doesn't
+  // inset its text by its own padding, so the text would touch the left edge.
   const inputClass = () =>
-    `rounded-lg border px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground ${
-      problem() ? "border-destructive" : props.changed ? "border-primary" : "border-input"
-    } ${readOnly() ? "bg-muted/40 opacity-70" : "bg-background/60"}`;
+    `rounded-lg border px-3.5 py-2.5 ${problem() ? "border-destructive" : props.changed ? "border-primary" : "border-input"} ${
+      readOnly() ? "bg-muted/40 opacity-70" : "bg-background/60"
+    }`;
+  const fieldText = "p-0 text-base text-foreground placeholder:text-muted-foreground";
 
   return (
     <View class="gap-1.5" testID={`setting-${props.spec.fieldName}`}>
@@ -471,6 +476,7 @@ function SettingRow(props: {
       </If>
 
       <If when={kind() === "list" || kind() === "multiline"}>
+        <View class={`min-h-24 ${inputClass()}`}>
         <Input
           multiline
           value={kind() === "list" ? listItems(props.value).join("\n") : props.value}
@@ -481,12 +487,14 @@ function SettingRow(props: {
           autoCapitalize="none"
           autoCorrect={false}
           placeholder={kind() === "list" ? "One per line" : props.spec.placeholder}
-          class={`min-h-24 ${inputClass()}`}
+          class={`min-h-20 flex-1 ${fieldText}`}
         />
+        </View>
       </If>
 
       <If when={["text", "password", "number", "quantity", "combo", "ipbinding"].includes(kind())}>
         <View class="flex-row items-center gap-2">
+          <View class={`flex-1 ${inputClass()}`}>
           <Input
             value={props.value}
             onChange={({ value }) => props.onChange(value)}
@@ -496,8 +504,9 @@ function SettingRow(props: {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder={props.spec.placeholder || props.spec.defaultValue || ""}
-            class={`flex-1 ${inputClass()}`}
+            class={fieldText}
           />
+          </View>
           <If when={props.spec.suffix}>{(s) => <Text class="text-sm text-muted-foreground">{s()}</Text>}</If>
         </View>
       </If>

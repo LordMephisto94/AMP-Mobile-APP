@@ -193,18 +193,20 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
 
         <View class="flex-row items-center gap-2 border-t border-white/10 bg-card/90 px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+10px)] mb-[env(keyboard-inset-height)]">
           <Text class="font-mono text-base text-primary">›</Text>
-          <Input
-            testID="command"
-            value={command()}
-            onChange={({ value }) => command.set(value)}
-            onSubmit={send}
-            submitBehavior="submit"
-            returnKeyType="send"
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder={state()?.status === ApplicationState.AwaitingUserAction ? "Reply to the prompt…" : "Type a command…"}
-            class="flex-1 rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground"
-          />
+          <View class="flex-1 rounded-lg border border-input bg-background px-3 py-2">
+            <Input
+              testID="command"
+              value={command()}
+              onChange={({ value }) => command.set(value)}
+              onSubmit={send}
+              submitBehavior="submit"
+              returnKeyType="send"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder={state()?.status === ApplicationState.AwaitingUserAction ? "Reply to the prompt…" : "Type a command…"}
+              class="p-0 font-mono text-sm text-foreground placeholder:text-muted-foreground"
+            />
+          </View>
           <View
             role="button"
             onPress={send}

@@ -53,17 +53,19 @@ export function Prompt(props: { request: PromptRequest | null; onClose: () => vo
           <View class="gap-3 rounded-(--radius) border border-white/10 bg-popover p-5 shadow-2xl">
             <Text class="text-lg font-semibold text-popover-foreground">{request().title}</Text>
             <If when={request().message}>{(m) => <Text class="text-sm text-muted-foreground">{m()}</Text>}</If>
-            <Input
-              testID="prompt-input"
-              value={value()}
-              onChange={({ value: v }) => value.set(v)}
-              onSubmit={submit}
-              submitBehavior="submit"
-              placeholder={request().placeholder}
-              autoCapitalize="none"
-              autoCorrect={false}
-              class="rounded-lg border border-input bg-background px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground"
-            />
+            <View class="rounded-lg border border-input bg-background px-3 py-2.5">
+              <Input
+                testID="prompt-input"
+                value={value()}
+                onChange={({ value: v }) => value.set(v)}
+                onSubmit={submit}
+                submitBehavior="submit"
+                placeholder={request().placeholder}
+                autoCapitalize="none"
+                autoCorrect={false}
+                class="p-0 text-base text-foreground placeholder:text-muted-foreground"
+              />
+            </View>
             <If when={error()}>{(m) => <Text class="text-sm text-destructive">{m()}</Text>}</If>
             <View class="flex-row gap-3 pt-1">
               <SecondaryButton title="Cancel" onPress={props.onClose} disabled={busy()} />

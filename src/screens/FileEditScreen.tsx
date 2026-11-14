@@ -130,16 +130,18 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
         >
           <View class="flex-1 pb-[env(safe-area-inset-bottom)]">
             <View class="flex-1 px-3 pt-3 pb-[calc(env(keyboard-inset-height)+12px)]">
-              <Input
-                testID="file-content"
-                multiline
-                value={text()}
-                onChange={({ value }) => (saved.set(false), text.set(value))}
-                readonly={readOnly()}
-                autoCapitalize="none"
-                autoCorrect={false}
-                class="flex-1 rounded-lg border border-input bg-black/50 p-3 font-mono text-xs leading-5 text-foreground"
-              />
+              <View class="flex-1 rounded-lg border border-input bg-black/50 p-3">
+                <Input
+                  testID="file-content"
+                  multiline
+                  value={text()}
+                  onChange={({ value }) => (saved.set(false), text.set(value))}
+                  readonly={readOnly()}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  class="p-0 flex-1 font-mono text-xs leading-5 text-foreground"
+                />
+              </View>
             </View>
           </View>
         </If>

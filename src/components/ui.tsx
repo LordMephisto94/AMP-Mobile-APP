@@ -66,16 +66,19 @@ export function Field(props: {
   return (
     <View class="gap-1.5">
       <Text class="text-sm font-semibold text-foreground">{props.label}</Text>
-      <Input
-        testID={props.testID}
-        value={props.value}
-        onChange={({ value }) => props.onChange(value)}
-        placeholder={props.placeholder}
-        masked={props.masked}
-        keyboardType={props.keyboardType ?? "default"}
-        autoCapitalize="none"
-        class="rounded-(--radius) border border-input bg-card px-3.5 py-3 text-base text-foreground placeholder:text-muted-foreground"
-      />
+      {/* Border and padding on a wrapper: Android's text field doesn't inset its text by its own padding. */}
+      <View class="rounded-(--radius) border border-input bg-card px-3.5 py-3">
+        <Input
+          testID={props.testID}
+          value={props.value}
+          onChange={({ value }) => props.onChange(value)}
+          placeholder={props.placeholder}
+          masked={props.masked}
+          keyboardType={props.keyboardType ?? "default"}
+          autoCapitalize="none"
+          class="p-0 text-base text-foreground placeholder:text-muted-foreground"
+        />
+      </View>
       <If when={props.hint}>{(hint) => <Text class="text-xs text-muted-foreground">{hint()}</Text>}</If>
     </View>
   );
