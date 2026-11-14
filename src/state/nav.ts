@@ -21,6 +21,8 @@ export type Route =
   /** Player analytics for a server, or for one instance when `shardId` is given. */
   | { name: "analytics"; serverId: string; shardId?: string; title?: string }
   | { name: "player"; serverId: string; userKey: string; playerName?: string | null; shardId?: string }
+  /** The panel's audit log for a server. */
+  | { name: "activity"; serverId: string }
   | { name: "fileEdit"; serverId: string; id: string; path: string; managed?: string | null };
 
 export const nav = createNavStack<Route>([{ name: "servers" }]);

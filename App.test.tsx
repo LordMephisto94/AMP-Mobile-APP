@@ -717,3 +717,102 @@ test("analytics without permission explains why", async () => {
   await app.press("nav-analytics");
   await app.waitFor("text:Your AMP account can't see analytics. An admin can give your role the analytics permission on this server.");
 });
+
+const auditEvent = (id: string, action: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  tenantId: "t1",
+  timestamp: "2026-11-15T03:10:00Z",
+  severity: 0,
+  principal: { kind: 1, userId: "u1", userDisplayName: "admin", onBehalfOfUserId: null, onBehalfOfUserDisplayName: null, systemSource: null },
+  action,
+  targetType: "Shard",
+  targetId: "a1",
+  taskId: null,
+  correlationId: { value: `c-${id}` },
+  origin: 1,
+  details: null,
+  originIp: "198.51.100.4",
+  originNode: "node-1",
+  ...extra,
+});
+
+test("the activity log lists flows, filters them, and opens one with its details", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Audit/roots*`]: (r) => {
+        const warnings = r.url.includes("minSeverity=Warning");
+        const items = [
+          {
+            correlationId: "c-e1",
+            root: auditEvent("e1", "ShardStopped"),
+            eventCount: 2,
+            startedAt: "2026-11-15T03:10:00Z",
+            endedAt: "2026-11-15T03:10:05Z",
+            maxSeverity: 1,
+            rootMissing: false,
+          },
+          {
+            correlationId: "c-e3",
+            root: auditEvent("e3", "UserLoggedIn", { origin: 0, principal: { kind: 0, userId: null, userDisplayName: null, systemSource: "Daily Backup" }, targetType: "", targetId: "" }),
+            eventCount: 1,
+            startedAt: "2026-11-15T02:00:00Z",
+            endedAt: "2026-11-15T02:00:00Z",
+            maxSeverity: 0,
+            rootMissing: false,
+          },
+        ].filter((f) => !warnings || f.maxSeverity >= 1);
+        return { body: { total: warnings ? 1 : 45, page: 1, pageSize: 30, caughtUp: true, items } };
+      },
+      [`GET ${SERVER}/api/Audit/tree/*`]: {
+        body: {
+          correlationId: "c-e1",
+          rootMissing: false,
+          eventCount: 2,
+          startedAt: "",
+          endedAt: "",
+          root: {
+            event: auditEvent("e1", "ShardStopped"),
+            children: [{ event: auditEvent("e2", "ShardSettingChanged", { severity: 1, details: '{"PreviousValue":"20","NewValue":"40"}' }), children: [] }],
+          },
+        },
+      },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-activity");
+  await app.waitFor("text:Shard stopped");
+  expect(app.texts()).toContain("User logged in");
+  expect(app.texts()).toContain("admin · Minecraft SMP"); // the instance by name, not its id
+  expect(app.texts()).toContain("Daily Backup");
+  expect(app.texts()).toContain("2 of 45");
+
+  await app.press("flow-ShardStopped");
+  await app.waitFor("text:Shard setting changed");
+  await app.press("details-e2");
+  await app.waitUntil(() => app.texts().some((x) => x.includes('"NewValue": "40"')));
+
+  await app.press("filter-warnings");
+  await app.waitUntil(() => !app.texts().includes("User logged in"));
+  expect(app.requests().some((r) => r.url.includes("/api/Audit/roots") && r.url.includes("minSeverity=Warning"))).toBe(true);
+});
+
+test("the activity log without permission explains why", async () => {
+  const app = await open("./App.tsx", {
+    storage: signedIn,
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Audit/*`]: { status: 403 },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("main-menu");
+  await app.press("nav-activity");
+  await app.waitFor("text:Your AMP account can't read the activity log. It needs the audit read permission (platform.audit.read).");
+});

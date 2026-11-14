@@ -1,6 +1,7 @@
 import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConfirmHost } from "./src/components/Confirm";
+import { ActivityScreen } from "./src/screens/ActivityScreen";
 import { AnalyticsScreen } from "./src/screens/AnalyticsScreen";
 import { ConsoleScreen } from "./src/screens/ConsoleScreen";
 import { CreateShardScreen } from "./src/screens/CreateShardScreen";
@@ -39,6 +40,8 @@ function screen(route: Route) {
       return <AnalyticsScreen serverId={route.serverId} shardId={route.shardId} title={route.title} />;
     case "player":
       return <PlayerScreen serverId={route.serverId} userKey={route.userKey} name={route.playerName} shardId={route.shardId} />;
+    case "activity":
+      return <ActivityScreen serverId={route.serverId} />;
     case "fileEdit":
       return <FileEditScreen serverId={route.serverId} id={route.id} path={route.path} managed={route.managed} />;
   }
