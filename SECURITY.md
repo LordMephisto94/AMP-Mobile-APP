@@ -103,5 +103,5 @@ code in the app. Links and images the panel names are checked before use:
   capabilities deny notifications.
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (and go into
   backups). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting the servers.
-- **Sign-in gaps.** Accounts that must change an expired password, or that sign in with a passkey, are sent to the
-  web panel.
+- **Passkeys.** Accounts that sign in with a passkey are sent to the web panel. (Accounts held for a password
+  change now set the new password in the app.)

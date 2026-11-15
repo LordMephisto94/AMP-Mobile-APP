@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.3");
+  await app.waitFor("text:AMP Mobile 0.1.4");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.3"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.4"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -1987,4 +1987,38 @@ test("if the key store refuses, setting a PIN falls back to the PIN-only vault",
   await enterPin(app, "135790");
   await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 1);
   await app.waitFor("text:Signed in");
+});
+
+test("an account held for a password change sets a new one and signs in", async () => {
+  const changes: unknown[] = [];
+  const app = await open("./App.tsx", {
+    network: {
+      [`POST ${SERVER}/api/Auth/login`]: (r) =>
+        JSON.parse(r.body!).password === "N3w-pass!"
+          ? { body: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } }
+          : { body: { passwordChangeRequired: true, reason: "expired" } },
+      [`GET ${SERVER}/api/Auth/password-policy`]: { body: { requiredLength: 8, requireDigit: true } },
+      [`POST ${SERVER}/api/Auth/change-expired-password`]: (r) => (changes.push(JSON.parse(r.body!)), { status: 200 }),
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.press("Add Server");
+  await app.type("server", "amp.example.test");
+  await app.type("username", "admin");
+  await app.type("password", "old-pass");
+  await app.press("text:Add Server");
+  await app.waitFor("text:Set a new password");
+  expect(app.texts()).toContain("Needs at least 8 characters, a digit.");
+
+  await app.type("new-password", "N3w-pass!");
+  await app.type("repeat-password", "N3w-pass?");
+  await app.press("text:Change password and sign in");
+  await app.waitFor("text:The new passwords don't match");
+  expect(changes).toEqual([]);
+
+  await clearField(app, "repeat-password");
+  await app.type("repeat-password", "N3w-pass!");
+  await app.press("text:Change password and sign in");
+  await app.waitFor("text:Set a PIN to stay signed in");
+  expect(changes).toEqual([{ username: "admin", currentPassword: "old-pass", newPassword: "N3w-pass!" }]);
 });

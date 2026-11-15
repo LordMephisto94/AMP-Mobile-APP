@@ -1,6 +1,6 @@
 import { signal, Text, View } from "nsh";
 import { Screen } from "../components/backdrop";
-import { login } from "../api/auth";
+import { changeExpiredPassword, login, passwordRules } from "../api/auth";
 import { AmpClient, normalizeServerUrl } from "../api/client";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
@@ -20,6 +20,10 @@ export function ServerFormScreen(props: { serverId?: string }) {
   const password = signal("");
   const rememberMe = signal(existing?.rememberMe ?? true);
   const busy = signal(false);
+  /** The account must set a new password before it can sign in (AMP's hold). */
+  const mustChange = signal<{ reason?: string; rules: string | null } | null>(null);
+  const newPassword = signal("");
+  const repeatPassword = signal("");
   const error = signal<string | null>(null);
 
   const submit = async () => {
@@ -39,8 +43,34 @@ export function ServerFormScreen(props: { serverId?: string }) {
 
     busy.set(true);
     try {
-      const outcome = await login(new AmpClient(serverUrl), { username: user, password: password(), rememberMe: rememberMe() });
+      const client = new AmpClient(serverUrl);
+      let outcome;
+      if (mustChange()) {
+        if (!newPassword()) {
+          error.set("Enter a new password");
+          return;
+        }
+        if (newPassword() !== repeatPassword()) {
+          error.set("The new passwords don't match");
+          return;
+        }
+        if (newPassword() === password()) {
+          error.set("Choose a password different from the current one");
+          return;
+        }
+        outcome = await changeExpiredPassword(client, {
+          username: user,
+          currentPassword: password(),
+          newPassword: newPassword(),
+          rememberMe: rememberMe(),
+        });
+      } else {
+        outcome = await login(client, { username: user, password: password(), rememberMe: rememberMe() });
+      }
       if (outcome.kind === "signedIn") {
+        newPassword.set("");
+        repeatPassword.set("");
+        mustChange.set(null);
         password.set("");
         let id: string;
         if (existing) {
@@ -53,8 +83,8 @@ export function ServerFormScreen(props: { serverId?: string }) {
         const top = nav.routes().at(-1);
         if (top?.name === "addServer" || top?.name === "signIn") nav.replace({ name: "shards", serverId: id });
       } else if (outcome.kind === "passwordChangeRequired") {
-        // TODO: forced password change flow (POST /api/Auth/change-expired-password).
-        error.set(`Your password must be changed first${outcome.reason ? ` (${outcome.reason})` : ""}. Use the web panel for now.`);
+        // AMP holds this account until it sets a new password: ask for one here.
+        mustChange.set({ reason: outcome.reason, rules: await passwordRules(client) });
       } else {
         // TODO: passkey sign-in (POST /api/auth/passkey/begin + complete).
         error.set("This account signs in with a passkey, which the app doesn't support yet.");
@@ -106,10 +136,32 @@ export function ServerFormScreen(props: { serverId?: string }) {
             <Checkbox label="Stay signed in" checked={rememberMe()} onChange={(v) => rememberMe.set(v)} />
           </View>
 
+          <If when={mustChange()}>
+            {(m) => (
+              <View class="gap-4 rounded-(--radius) border border-warning/40 bg-warning/10 p-4">
+                <View class="gap-1">
+                  <Text class="text-base font-semibold text-warning">Set a new password</Text>
+                  <Text class="text-sm text-muted-foreground">
+                    {`AMP needs this account to change its password before signing in${m().reason ? ` (${m().reason})` : ""}. The password above is your current one.`}
+                  </Text>
+                </View>
+                <Field
+                  testID="new-password"
+                  label="New password"
+                  value={newPassword()}
+                  onChange={(v) => newPassword.set(v)}
+                  masked
+                  hint={m().rules ?? undefined}
+                />
+                <Field testID="repeat-password" label="New password again" value={repeatPassword()} onChange={(v) => repeatPassword.set(v)} masked />
+              </View>
+            )}
+          </If>
+
           <If when={error()}>{(message) => <ErrorText message={message()} />}</If>
 
           <PrimaryButton
-            title={busy() ? "Connecting…" : adding ? "Add Server" : "Sign in"}
+            title={busy() ? "Connecting…" : mustChange() ? "Change password and sign in" : adding ? "Add Server" : "Sign in"}
             onPress={submit}
             disabled={busy()}
           />

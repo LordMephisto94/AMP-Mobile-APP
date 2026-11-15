@@ -12,7 +12,55 @@ export async function login(client: AmpClient, request: LoginRequest): Promise<L
     body: request,
     anonymous: true,
   });
+  return readLoginAnswer(data);
+}
 
+/**
+ * `POST /api/Auth/change-expired-password`: for an account held by a required password
+ * change. Proves who it is with the current password, sets the new one, and goes on as a
+ * sign-in would (other sessions are ended). When the answer carries no token, the app
+ * signs in with the new password.
+ */
+export async function changeExpiredPassword(
+  client: AmpClient,
+  request: { username: string; currentPassword: string; newPassword: string; rememberMe: boolean },
+): Promise<LoginOutcome> {
+  const data = await client.request<Record<string, unknown> | undefined>("/api/Auth/change-expired-password", {
+    method: "POST",
+    body: { username: request.username, currentPassword: request.currentPassword, newPassword: request.newPassword },
+    anonymous: true,
+  });
+  if (data && typeof data === "object" && (typeof data.token === "string" || data.passkeyRequired || data.PasskeyRequired)) return readLoginAnswer(data);
+  return login(client, { username: request.username, password: request.newPassword, rememberMe: request.rememberMe });
+}
+
+export interface PasswordPolicy {
+  requiredLength?: number;
+  requiredUniqueChars?: number;
+  requireUppercase?: boolean;
+  requireLowercase?: boolean;
+  requireDigit?: boolean;
+  requireNonAlphanumeric?: boolean;
+}
+
+/** `GET /api/Auth/password-policy`: what a new password must have, in a sentence. */
+export async function passwordRules(client: AmpClient): Promise<string | null> {
+  try {
+    const p = await client.request<PasswordPolicy>("/api/Auth/password-policy", { anonymous: true });
+    const parts: string[] = [];
+    if (p?.requiredLength) parts.push(`at least ${p.requiredLength} characters`);
+    if (p?.requireUppercase) parts.push("a capital letter");
+    if (p?.requireLowercase) parts.push("a small letter");
+    if (p?.requireDigit) parts.push("a digit");
+    if (p?.requireNonAlphanumeric) parts.push("a symbol");
+    if (p?.requiredUniqueChars && p.requiredUniqueChars > 1) parts.push(`${p.requiredUniqueChars} different characters`);
+    return parts.length ? `Needs ${parts.join(", ")}.` : null;
+  } catch {
+    return null;
+  }
+}
+
+function readLoginAnswer(data: Record<string, unknown> | undefined): LoginOutcome {
   if (typeof data?.token === "string") {
     return { kind: "signedIn", auth: data as unknown as AuthResponse };
   }

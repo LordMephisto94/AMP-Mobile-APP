@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- An account AMP holds for a password change (expired, or forced by an admin) now sets its new password in the app
+  and signs straight in, with the panel's password rules shown. Previously it was sent to the web panel.
+
 ## 0.1.3
 
 - Saved sign-ins are locked to the phone's secure hardware (Android Keystore, Android 12+): a copy of the vault from
