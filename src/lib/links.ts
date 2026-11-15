@@ -1,4 +1,5 @@
 import { Clipboard, openUrl } from "nsh";
+import { isTailscaleHost } from "../api/client";
 
 /**
  * Links and images whose address comes from a server (release notes, a Steam profile,
@@ -7,7 +8,12 @@ import { Clipboard, openUrl } from "nsh";
  * `nsh.json` grants `openUrl` for `https` alone, so this is the app's own check in front
  * of the runtime's.
  */
-export function safeHttpsUrl(raw: string | null | undefined, hostAllowed?: (host: string) => boolean): string | null {
+export function safeHttpsUrl(
+  raw: string | null | undefined,
+  hostAllowed?: (host: string) => boolean,
+  /** Also plain http:// to a Tailscale address (a download from a plain-HTTP Tailscale panel). */
+  tailscaleHttp = false,
+): string | null {
   if (!raw || typeof raw !== "string") return null;
   let url: URL;
   try {
@@ -15,7 +21,8 @@ export function safeHttpsUrl(raw: string | null | undefined, hostAllowed?: (host
   } catch {
     return null;
   }
-  if (url.protocol !== "https:" || url.username || url.password || !url.hostname) return null;
+  const plainOk = tailscaleHttp && url.protocol === "http:" && isTailscaleHost(url.hostname);
+  if ((url.protocol !== "https:" && !plainOk) || url.username || url.password || !url.hostname) return null;
   if (hostAllowed && !hostAllowed(url.hostname.toLowerCase())) return null;
   return url.href;
 }
@@ -26,8 +33,8 @@ export function onDomain(host: string, domain: string): boolean {
 }
 
 /** Opens a server-supplied link in the browser, or throws when it isn't a safe one. */
-export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean): Promise<void> {
-  const url = safeHttpsUrl(raw, hostAllowed);
+export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean, tailscaleHttp = false): Promise<void> {
+  const url = safeHttpsUrl(raw, hostAllowed, tailscaleHttp);
   if (!url) throw new Error("That link isn't a secure https:// address, so it wasn't opened.");
   const { opened } = await openUrl(url);
   if (!opened) throw new Error("No browser on this device could open it.");

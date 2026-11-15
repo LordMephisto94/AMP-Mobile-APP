@@ -1,4 +1,4 @@
-import { redact } from "./client";
+import { isTailscaleHost, redact } from "./client";
 /**
  * A minimal SignalR client (JSON protocol over WebSockets) for AMP 3's hubs, which the
  * OpenAPI spec does not describe. Mirrors what the web panel does:
@@ -109,12 +109,22 @@ export class HubConnection {
     // Stopped, or opened again, while the ticket came: this attempt is out of date.
     if (this.stopped || seq !== this.openSeq) return;
 
-    // Only ever wss: the server address is HTTPS-only, and the ticket rides in the URL.
-    if (!this.options.baseUrl.startsWith("https://")) {
+    // wss, as the address is HTTPS; ws only for a plain-HTTP Tailscale address, whose tunnel
+    // encrypts it. The ticket rides in the URL, so nothing else is ever allowed.
+    let base: URL;
+    try {
+      base = new URL(this.options.baseUrl);
+    } catch {
+      this.scheduleRetry("The server address isn't valid");
+      return;
+    }
+    const secure = base.protocol === "https:";
+    if (!secure && !(base.protocol === "http:" && isTailscaleHost(base.hostname))) {
       this.scheduleRetry("The live connection needs https://");
       return;
     }
-    const url = `wss://${this.options.baseUrl.slice("https://".length)}${this.options.path}?access_token=${encodeURIComponent(ticket)}`;
+    const rest = this.options.baseUrl.slice(base.protocol.length + 2);
+    const url = `${secure ? "wss" : "ws"}://${rest}${this.options.path}?access_token=${encodeURIComponent(ticket)}`;
     let socket: WebSocket;
     try {
       socket = new WebSocket(url);

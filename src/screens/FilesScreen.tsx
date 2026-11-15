@@ -122,7 +122,8 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
       const url = await downloadUrl(client(), props.id, entry);
       // Only ever to this server: the link carries a one-time download ticket.
       const host = new URL(client().baseUrl).hostname.toLowerCase();
-      await openSafe(url, (h) => h === host);
+      // A plain-HTTP Tailscale panel's download is plain HTTP too, inside the tunnel.
+      await openSafe(url, (h) => h === host, true);
       return entry.isDirectory
         ? "Downloading as a zip in your browser. It will be in your Downloads."
         : "Downloading in your browser. It will be in your Downloads.";

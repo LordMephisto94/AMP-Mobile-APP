@@ -11,6 +11,7 @@
         android:supportsRtl="true"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">
 
         <!-- Files the app shares with other apps (as the packaged app declared it). -->

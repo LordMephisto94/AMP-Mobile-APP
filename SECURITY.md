@@ -46,9 +46,14 @@ While it's on:
 
 ## Connections
 
-- **HTTPS only.** `http://` addresses are refused; so are addresses with a user name or password in them.
+- **HTTPS, or Tailscale.** `http://` addresses are refused, except Tailscale's own (100.64.0.0/10, fd7a:115c:a1e0::/48
+  and `*.ts.net` names), whose WireGuard tunnel encrypts the connection end to end. Those may be plain `http://`
+  (and `ws://` for the console) when typed so; HTTPS stays the default, and the app marks such a server "HTTP over
+  Tailscale". Addresses with a user name or password in them are refused.
 - **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
-  anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, the clipboard,
+  anything else for every request, image and WebSocket. NSH's capabilities can't name an address range, so they
+  allow `http`/`ws` to any host and the app's own address check alone keeps plain HTTP to Tailscale; `https`/`wss`
+  and links (`https`, or `http` for a Tailscale panel's downloads) are as before. Also allowed: the clipboard,
   the file picker, and the Android app's key-store calls (`deviceKey.*`); nothing else at all (no file system,
   processes, sockets, web views, notifications or audio).
 - **Online check.** The home page asks each panel for its password policy (no sign-in needed), sending no token,
@@ -228,6 +233,11 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **iOS.** The Keychain and Face ID need the same work in an Xcode project, which needs a Mac.
 - **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning (panels
   bring their own certificates, so there's nothing fixed to pin to).
+- **Plain HTTP to Tailscale addresses.** It relies on the address really being Tailscale's. 100.64.0.0/10 is also
+  the range ISPs use for carrier-grade NAT: on such a network, a 100.x address that isn't on your tailnet would get
+  your password unencrypted. Only add a plain `http://` address you know is on your tailnet; HTTPS (Tailscale's own
+  HTTPS for `ts.net` names, say) avoids the question. Android's own block on plain HTTP is lifted for the app (it
+  can't be scoped to a range), so the app's check is the only one for those.
 - **Rooted phones and tampering.** The app doesn't detect a rooted phone or a modified APK. On a rooted phone,
   code running as the app could reach the vault as the app does (still behind the PIN or fingerprint).
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (outside

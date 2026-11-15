@@ -1,7 +1,7 @@
 import { signal, Text, View } from "nsh";
 import { Screen } from "../components/backdrop";
 import { changeExpiredPassword, login, passwordRules } from "../api/auth";
-import { AmpClient, normalizeServerUrl } from "../api/client";
+import { AmpClient, isPlainHttp, normalizeServerUrl } from "../api/client";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { addServer, serverById, setServerSession } from "../state/servers";
@@ -17,6 +17,14 @@ export function ServerFormScreen(props: { serverId?: string }) {
 
   const name = signal(existing?.name ?? "");
   const server = signal(existing?.serverUrl ?? "");
+  /** The typed address is plain HTTP to a Tailscale address (allowed, with a word about why). */
+  const plainTailscale = () => {
+    try {
+      return isPlainHttp(normalizeServerUrl(server()));
+    } catch {
+      return false;
+    }
+  };
   const username = signal(existing?.username ?? "");
   const password = signal("");
   const rememberMe = signal(existing?.rememberMe ?? true);
@@ -127,7 +135,11 @@ export function ServerFormScreen(props: { serverId?: string }) {
                 onChange={(v) => server.set(v)}
                 placeholder="panel.example.com"
                 keyboardType="url"
-                hint="https:// is added if you leave it out."
+                hint={
+                  plainTailscale()
+                    ? "Plain HTTP: allowed only because this is a Tailscale address, which Tailscale encrypts end to end. Your phone must be on the same tailnet."
+                    : "https:// is added if you leave it out. Plain http:// works only for Tailscale addresses."
+                }
               />
             </If>
             <Field testID="username" personal label="Username" value={username()} onChange={(v) => username.set(v)} />

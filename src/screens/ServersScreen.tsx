@@ -12,6 +12,7 @@ import { nav } from "../state/nav";
 import { checkServers, reachOf } from "../state/reachability";
 import { isSignedIn, locked, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
 import { priv } from "../lib/privacy";
+import { isPlainHttp } from "../api/client";
 
 /** The About dialog: what this app is, and that it is not official. */
 function showAbout() {
@@ -151,7 +152,9 @@ function ServerCard(props: { server: SavedServer }) {
           status: ({ checking: "offline", online: "online", offline: "danger" } as const)[reachOf(props.server)],
           testID: `reach-${props.server.name}`,
         }}
-        subtitle={`${priv(props.server.username)} · ${priv(props.server.serverUrl.replace(/^https?:\/\//, ""))}`}
+        subtitle={`${priv(props.server.username)} · ${priv(props.server.serverUrl.replace(/^https?:\/\//, ""))}${
+          isPlainHttp(props.server.serverUrl) ? " · HTTP over Tailscale" : ""
+        }`}
       />
       <View class="absolute top-3 right-3">
         <Dropdown

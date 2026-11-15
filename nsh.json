@@ -18,12 +18,20 @@
             "https",
             "wss"
           ]
+        },
+        {
+          "host": "*",
+          "schemes": [
+            "http",
+            "ws"
+          ]
         }
       ]
     },
     "openUrl": {
       "schemes": [
-        "https"
+        "https",
+        "http"
       ]
     },
     "clipboard": true,
