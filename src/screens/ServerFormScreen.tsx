@@ -5,7 +5,7 @@ import { AmpClient, normalizeServerUrl } from "../api/client";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { addServer, serverById, setServerSession } from "../state/servers";
-import { priv } from "../lib/privacy";
+import { PrivText, priv } from "../lib/privacy";
 
 /**
  * Adds a server (no `serverId`), or signs in again to a saved one. Either way the
@@ -105,11 +105,9 @@ export function ServerFormScreen(props: { serverId?: string }) {
         <View class="w-full max-w-2xl gap-5 self-center px-5 pt-8 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <View class="gap-1">
             <Text class="text-2xl font-bold text-foreground">{adding ? "Connect a server" : existing!.name}</Text>
-            <Text class="text-sm text-muted-foreground">
-              {adding
+            <PrivText class="text-sm text-muted-foreground" text={adding
                 ? "Your AMP 3 panel must be reachable from this device. Your password is only sent to the server, never stored."
-                : `Your session on ${priv(existing!.serverUrl.replace(/^https?:\/\//, ""))} has ended. Sign in again.`}
-            </Text>
+                : `Your session on ${priv(existing!.serverUrl.replace(/^https?:\/\//, ""))} has ended. Sign in again.`} />
           </View>
 
           <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">

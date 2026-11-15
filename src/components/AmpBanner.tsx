@@ -1,5 +1,6 @@
 import { Canvas, type CanvasRenderingContext2D, type JSX, Text, View } from "nsh";
 import type { StateTone } from "../api/types";
+import { PrivText } from "../lib/privacy";
 
 /** Colours of the AMP 3 panel's header: purple to magenta, with a status triangle. */
 const BASE_STOPS = ["#5a3a8e", "#6a2a8c", "#7e2483", "#8d2a7f"];
@@ -138,7 +139,7 @@ export function AmpBanner(props: {
             </>
           )}
         </If>
-        <If when={props.subtitle}>{(s) => <Text class="text-sm text-white/75">{s()}</Text>}</If>
+        <If when={props.subtitle}>{(s) => <PrivText class="text-sm text-white/75" text={s()} />}</If>
         {props.children}
       </View>
     </View>

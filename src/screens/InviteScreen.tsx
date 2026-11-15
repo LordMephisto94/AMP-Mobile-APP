@@ -6,7 +6,7 @@ import { Checkbox, AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } f
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { copySecret } from "../lib/links";
-import { priv, Private } from "../lib/privacy";
+import { PrivText, Private, priv } from "../lib/privacy";
 
 const EXPIRY = [
   { hours: 24, label: "1 day" },
@@ -128,7 +128,7 @@ export function InviteLink(props: { userName: string; link: string; onDone: () =
   };
   return (
     <View class="gap-3 rounded-(--radius) border border-primary/40 bg-primary/10 p-4">
-      <Text class="text-base font-semibold text-card-foreground">{`Invite link for ${priv(props.userName)}`}</Text>
+      <PrivText class="text-base font-semibold text-card-foreground" text={`Invite link for ${priv(props.userName)}`} />
       <Text class="text-sm text-muted-foreground">Copy it now and send it to them. It can't be shown again, and it's cleared from your clipboard after a minute.</Text>
       <Private testID="invite-link" class="rounded-lg bg-black/50 p-3 font-mono text-xs text-sky-200" text={props.link} />
       <View class="flex-row gap-2">

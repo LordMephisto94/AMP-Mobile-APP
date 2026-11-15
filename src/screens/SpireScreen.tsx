@@ -22,7 +22,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { priv, Private } from "../lib/privacy";
+import { PrivText, Private, priv } from "../lib/privacy";
 
 const REFRESH_MS = 30_000;
 /** Enum values the API may send as names; numbers say nothing to a person. */
@@ -315,9 +315,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                     <Text class="w-10 text-[11px] font-semibold text-muted-foreground">{String(x().protocol ?? "").toUpperCase()}</Text>
                     <View class="flex-1">
                       <Text class="line-clamp-1 text-sm text-card-foreground">{x().name}</Text>
-                      <Text class="line-clamp-1 text-xs text-muted-foreground">
-                        {[x().shardName, x().ipBinding && x().ipBinding !== "0.0.0.0" ? priv(x().ipBinding) : null].filter(Boolean).join(" · ")}
-                      </Text>
+                      <PrivText class="line-clamp-1 text-xs text-muted-foreground" text={[x().shardName, x().ipBinding && x().ipBinding !== "0.0.0.0" ? priv(x().ipBinding) : null].filter(Boolean).join(" · ")} />
                     </View>
                     <If when={x().conflict}>
                       <Pill label="Clash" tone="danger" />
@@ -346,7 +344,7 @@ function Fact(props: { label: string; value: string | null }) {
       {(v) => (
         <View class="flex-row gap-3">
           <Text class="w-24 text-xs text-muted-foreground">{props.label}</Text>
-          <Text class="flex-1 text-sm text-card-foreground">{v()}</Text>
+          <PrivText box="flex-1" class="text-sm text-card-foreground" text={v()} />
         </View>
       )}
     </If>

@@ -25,7 +25,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { priv, privIps, privJson } from "../lib/privacy";
+import { PrivText, priv, privIps, privJson } from "../lib/privacy";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -310,9 +310,7 @@ function FlowRow(props: {
             <Text class={`shrink text-[15px] font-semibold ${KIND_TEXT[actionKind(root().action)]}`}>{props.label(root().action)}</Text>
             <SeverityPill severity={props.flow.maxSeverity} />
           </View>
-          <Text class="line-clamp-1 text-xs text-muted-foreground">
-            {[actorOf(root(), priv), props.target(root())].filter(Boolean).join(" · ")}
-          </Text>
+          <PrivText class="line-clamp-1 text-xs text-muted-foreground" text={[actorOf(root(), priv), props.target(root())].filter(Boolean).join(" · ")} />
         </View>
         <View class="shrink-0 items-end gap-0.5">
           <Text class="text-xs text-muted-foreground">{ago(props.flow.startedAt || root().timestamp)}</Text>
@@ -324,9 +322,7 @@ function FlowRow(props: {
 
       <If when={props.open}>
         <View class="gap-2 bg-black/20 px-4 py-3">
-          <Text class="text-xs text-muted-foreground">
-            {[`${dayOf(when())}, ${clockOf(when())}`, root().originIp ? `from ${priv(root().originIp)}` : null, root().originNode].filter(Boolean).join(" · ")}
-          </Text>
+          <PrivText class="text-xs text-muted-foreground" text={[`${dayOf(when())}, ${clockOf(when())}`, root().originIp ? `from ${priv(root().originIp)}` : null, root().originNode].filter(Boolean).join(" · ")} />
           <If when={error()}>{(m) => <Text class="text-sm text-destructive">{m()}</Text>}</If>
           <If when={!tree() && !error()}>
             <Text class="text-sm text-muted-foreground">Loading…</Text>
@@ -361,9 +357,7 @@ function EventRow(props: {
             <Text class={`shrink text-sm font-semibold ${KIND_TEXT[actionKind(props.event.action)]}`}>{props.label(props.event.action)}</Text>
             <SeverityPill severity={props.event.severity} />
           </View>
-          <Text class="text-[11px] text-muted-foreground">
-            {[clockOf(t()) + `:${String(t().getSeconds()).padStart(2, "0")}`, actorOf(props.event, priv), props.target(props.event)].filter(Boolean).join(" · ")}
-          </Text>
+          <PrivText class="text-[11px] text-muted-foreground" text={[clockOf(t()) + `:${String(t().getSeconds()).padStart(2, "0")}`, actorOf(props.event, priv), props.target(props.event)].filter(Boolean).join(" · ")} />
         </View>
         <If when={details()}>
           <Text
@@ -376,8 +370,13 @@ function EventRow(props: {
           </Text>
         </If>
       </View>
+      {/* Line by line, so hidden values blur where they are. */}
       <If when={showDetails() ? details() : null}>
-        {(d) => <Text class="ml-4 rounded-lg bg-black/50 p-2.5 font-mono text-[11px] text-sky-200">{d()}</Text>}
+        {(d) => (
+          <View class="ml-4 rounded-lg bg-black/50 p-2.5">
+            <Each of={d().split("\n")}>{(line) => <PrivText class="font-mono text-[11px] text-sky-200" text={line()} />}</Each>
+          </View>
+        )}
       </If>
     </View>
   );

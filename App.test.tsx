@@ -2759,7 +2759,8 @@ test("Hide personal details dots out addresses and names on the fly, and is reme
   await app.press("back");
   await app.waitFor("text:Your servers");
   expect(app.texts()).not.toContain("admin · amp.example.test");
-  expect(app.texts()).toContain("••••• · •••.•••••••.••••");
+  // Each hidden run is its own blurred piece; the separator between them stays sharp.
+  for (const piece of ["•••••", " · ", "•••.•••••••.••••"]) expect(app.texts()).toContain(piece);
   expect(JSON.parse(app.storage()["amp.privacy"]!)).toEqual({ hideDetails: true });
 
   // The instances page: neither its header nor its banner names the panel.
@@ -2773,7 +2774,7 @@ test("Hide personal details dots out addresses and names on the fly, and is reme
   await again.waitFor("text:AMP Mobile is locked");
   await enterPin(again);
   await again.waitFor("text:Your servers");
-  expect(again.texts()).toContain("••••• · •••.•••••••.••••");
+  for (const piece of ["•••••", "•••.•••••••.••••"]) expect(again.texts()).toContain(piece);
 });
 
 test("hidden details: IPs inside console lines are dotted out, times and versions aren't", () => {

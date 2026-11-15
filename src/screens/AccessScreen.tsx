@@ -12,7 +12,7 @@ import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { InviteLink } from "./InviteScreen";
-import { priv } from "../lib/privacy";
+import { PrivText, priv } from "../lib/privacy";
 
 const REFRESH_MS = 60_000;
 type Tab = "users" | "roles" | "invites";
@@ -168,13 +168,11 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
                           class="flex-row items-center gap-3 border-b border-white/5 px-4 py-3 active:bg-accent"
                         >
                           <View class={`h-10 w-10 items-center justify-center rounded-full ${u().suspended ? "bg-white/10" : "bg-primary/25"}`}>
-                            <Text class="text-base font-bold text-white">{priv((u().displayName || u().userName || "?")[0].toUpperCase())}</Text>
+                            <PrivText class="text-base font-bold text-white" text={priv((u().displayName || u().userName || "?")[0].toUpperCase())} />
                           </View>
                           <View class="flex-1 gap-1">
                             <View class="flex-row flex-wrap items-center gap-1.5">
-                              <Text class={`text-[15px] font-semibold ${u().suspended ? "text-muted-foreground" : "text-card-foreground"}`}>
-                                {priv(u().displayName || u().userName || "Unnamed")}
-                              </Text>
+                              <PrivText class={`text-[15px] font-semibold ${u().suspended ? "text-muted-foreground" : "text-card-foreground"}`} text={priv(u().displayName || u().userName || "Unnamed")} />
                               <If when={u().userName?.toLowerCase() === me}>
                                 <Text class="text-xs text-muted-foreground">(you)</Text>
                               </If>
@@ -188,11 +186,9 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
                               </If>
                               <Each of={u().roleIds ?? []}>{(id) => <Pill label={roleName(id())} tone="muted" />}</Each>
                             </View>
-                            <Text class="text-xs text-muted-foreground">
-                              {[u().displayName ? priv(u().userName) : null, u().lastLoginAt ? `last signed in ${ago(u().lastLoginAt)}` : "never signed in"]
+                            <PrivText class="text-xs text-muted-foreground" text={[u().displayName ? priv(u().userName) : null, u().lastLoginAt ? `last signed in ${ago(u().lastLoginAt)}` : "never signed in"]
                                 .filter(Boolean)
-                                .join(" · ")}
-                            </Text>
+                                .join(" · ")} />
                           </View>
                           <Text class="text-lg text-muted-foreground">›</Text>
                         </View>
@@ -332,14 +328,12 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
     <View class="flex-row items-center gap-3 border-b border-white/5 px-4 py-3">
       <View class="flex-1 gap-1">
         <View class="flex-row flex-wrap items-center gap-1.5">
-          <Text class="text-[15px] font-semibold text-card-foreground">{priv(inv().displayName || inv().userName)}</Text>
+          <PrivText class="text-[15px] font-semibold text-card-foreground" text={priv(inv().displayName || inv().userName)} />
           <Pill label={capitalize(inv().status)} tone={tone()} />
         </View>
-        <Text class="text-xs text-muted-foreground">
-          {[inv().displayName ? priv(inv().userName) : null, (inv().roleIds ?? []).map(props.roleName).join(", "), when(), inv().createdByName ? `by ${priv(inv().createdByName)}` : null]
+        <PrivText class="text-xs text-muted-foreground" text={[inv().displayName ? priv(inv().userName) : null, (inv().roleIds ?? []).map(props.roleName).join(", "), when(), inv().createdByName ? `by ${priv(inv().createdByName)}` : null]
             .filter(Boolean)
-            .join(" · ")}
-        </Text>
+            .join(" · ")} />
       </View>
       <If when={inv().status !== "accepted"}>
         <Dropdown

@@ -21,7 +21,7 @@ import { nav } from "../state/nav";
 import { clientFor } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { onDomain, openSafe } from "../lib/links";
-import { priv } from "../lib/privacy";
+import { PrivText, priv } from "../lib/privacy";
 
 /** One player: who they are on Steam or Minecraft, their totals, where and when they played. */
 export function PlayerScreen(props: { serverId: string; userKey: string; name?: string | null; shardId?: string }) {
@@ -123,7 +123,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
             <View class="flex-row items-center gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
               <Avatar client={client()} hash={steam()?.avatarHash} name={name()} size="lg" />
               <View class="flex-1 gap-1.5">
-                <Text class="text-xl font-bold text-card-foreground">{priv(name())}</Text>
+                <PrivText class="text-xl font-bold text-card-foreground" text={priv(name())} />
                 <View class="flex-row flex-wrap gap-1.5">
                   <If when={online()}>
                     <Pill label="Online now" tone="success" />

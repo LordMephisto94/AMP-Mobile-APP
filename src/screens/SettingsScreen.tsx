@@ -33,7 +33,7 @@ import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { SettingRow } from "./ShardSettingsScreen";
 import { openSafe } from "../lib/links";
-import { priv } from "../lib/privacy";
+import { PrivText, priv } from "../lib/privacy";
 
 interface Group {
   key: string;
@@ -273,8 +273,8 @@ export function SettingsScreen(props: { serverId: string }) {
             <If when={profile()} else={<Text class="text-sm text-muted-foreground">Loading…</Text>}>
               {(p) => (
                 <View class="gap-0.5">
-                  <Text class="text-base font-semibold text-card-foreground">{priv(p().displayName || p().userName)}</Text>
-                  <Text class="text-xs text-muted-foreground">{[p().displayName ? priv(p().userName) : null, priv(p().email)].filter(Boolean).join(" · ")}</Text>
+                  <PrivText class="text-base font-semibold text-card-foreground" text={priv(p().displayName || p().userName)} />
+                  <PrivText class="text-xs text-muted-foreground" text={[p().displayName ? priv(p().userName) : null, priv(p().email)].filter(Boolean).join(" · ")} />
                 </View>
               )}
             </If>
@@ -309,7 +309,7 @@ export function SettingsScreen(props: { serverId: string }) {
                         <Pill label="This app" tone="success" />
                       </If>
                     </View>
-                    <Text class="text-xs text-muted-foreground">{`${priv(s().remoteIp)} · active ${ago(s().lastSeenAt)}`}</Text>
+                    <PrivText class="text-xs text-muted-foreground" text={`${priv(s().remoteIp)} · active ${ago(s().lastSeenAt)}`} />
                   </View>
                   <If when={!s().isCurrent}>
                     <Text

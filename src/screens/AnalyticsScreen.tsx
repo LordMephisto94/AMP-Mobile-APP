@@ -37,7 +37,7 @@ import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { priv } from "../lib/privacy";
+import { PrivText, priv } from "../lib/privacy";
 
 /** Who plays on a server (or one instance): headline figures, activity, countries, top players. */
 export function AnalyticsScreen(props: { serverId: string; shardId?: string; title?: string }) {
@@ -274,9 +274,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                               <Avatar client={client()} hash={steamHash(u().userKey)} name={u().displayName ?? "?"} />
                               <View class="flex-1">
                                 <View class="flex-row items-center gap-1.5">
-                                  <Text class="line-clamp-1 text-sm font-semibold text-card-foreground">
-                                    {priv(u().displayName ?? "Unnamed player")}
-                                  </Text>
+                                  <PrivText class="line-clamp-1 text-sm font-semibold text-card-foreground" text={priv(u().displayName ?? "Unnamed player")} />
                                   <If when={u().online}>
                                     <View class="h-2 w-2 rounded-full bg-success" />
                                   </If>
@@ -311,9 +309,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                             >
                               <Avatar client={client()} name={u().displayName ?? "?"} />
                               <View class="flex-1">
-                                <Text class="line-clamp-1 text-sm font-semibold text-card-foreground">
-                                  {priv(u().displayName ?? u().userId ?? "Unnamed player")}
-                                </Text>
+                                <PrivText class="line-clamp-1 text-sm font-semibold text-card-foreground" text={priv(u().displayName ?? u().userId ?? "Unnamed player")} />
                                 <Text class="text-xs text-muted-foreground">{`Last seen ${ago(u().lastSeen)}`}</Text>
                               </View>
                               <Text class="text-lg text-muted-foreground">›</Text>

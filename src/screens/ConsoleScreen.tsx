@@ -12,7 +12,7 @@ import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { privIps } from "../lib/privacy";
+import { PrivText, privIps } from "../lib/privacy";
 
 /** How many lines the console keeps in memory. */
 const MAX_LINES = 3_000;
@@ -269,9 +269,7 @@ function ConsoleRow(props: { line: ConsoleLine }) {
     >
       <View selectable class="flex-row gap-2 px-3 py-px">
         <Text class="font-mono text-[11px] leading-5 text-muted-foreground/70">{clock(props.line.timestamp)}</Text>
-        <Text class={`flex-1 font-mono text-xs leading-5 ${colour()}`}>
-          {isInput() ? `› ${text()}` : text()}
-        </Text>
+        <PrivText box="flex-1" class={`font-mono text-xs leading-5 ${colour()}`} text={isInput() ? `› ${text()}` : text()} />
       </View>
     </If>
   );

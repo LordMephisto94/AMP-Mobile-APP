@@ -2,6 +2,7 @@ import { Image, type JSX, Text, View } from "nsh";
 import mark from "../../assets/amp-mark.png";
 import { Button, Input, NavPage } from "nsh/base";
 import { nav } from "../state/nav";
+import { PrivText } from "../lib/privacy";
 
 /** The app's main call to action: a violet-to-pink gradient button. */
 export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean; icon?: string }) {
@@ -148,8 +149,8 @@ export function PageHeader(props: { title: string; subtitle?: string; right?: JS
       </If>
       <Image src={mark} accessibilityLabel="AMP" class="h-6 w-6 object-contain" />
       <View class="flex-1">
-        <Text class="line-clamp-1 text-[17px] font-semibold text-foreground">{props.title}</Text>
-        <If when={props.subtitle}>{(s) => <Text class="line-clamp-1 text-xs text-muted-foreground">{s()}</Text>}</If>
+        <PrivText class="line-clamp-1 text-[17px] font-semibold text-foreground" text={props.title} />
+        <If when={props.subtitle}>{(s) => <PrivText class="line-clamp-1 text-xs text-muted-foreground" text={s()} />}</If>
       </View>
       {props.right}
     </View>

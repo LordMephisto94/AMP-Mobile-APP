@@ -1,4 +1,4 @@
-import { signal, Storage, Text } from "nsh";
+import { signal, Storage, Text, View } from "nsh";
 
 /**
  * "Hide personal details" (Security): for screenshots, screen sharing and streams. While it's
@@ -80,5 +80,41 @@ export function Private(props: { text: string | null | undefined; class?: string
     <Text testID={props.testID} class={`${props.class ?? ""} ${hideDetails() ? "blur-[3px]" : ""}`} accessibilityLabel={hideDetails() ? "Hidden" : undefined}>
       {priv(props.text)}
     </Text>
+  );
+}
+
+/** A run of hidden characters, with the separators inside it (an address, a full name, an email). */
+const HIDDEN_RUN = /•(?:[•.:@\-_/]|\s(?=•))*/g;
+
+/**
+ * A line that may hold hidden details among plain words ("•••.•.•.• · active 1 min ago"): while
+ * details are hidden, each hidden run is blurred on its own and the rest stays sharp, as the
+ * web panel does. Shown as one plain text otherwise. `box` lays out the line (flex-1, a width);
+ * `class` styles the text.
+ */
+export function PrivText(props: { text: string | null | undefined; class?: string; box?: string; testID?: string }) {
+  const parts = () => {
+    const text = props.text ?? "";
+    if (!hideDetails() || !text.includes("•")) return null;
+    const out: { text: string; hidden: boolean }[] = [];
+    let at = 0;
+    for (const m of text.matchAll(HIDDEN_RUN)) {
+      if (m.index! > at) out.push({ text: text.slice(at, m.index), hidden: false });
+      out.push({ text: m[0], hidden: true });
+      at = m.index! + m[0].length;
+    }
+    if (at < text.length) out.push({ text: text.slice(at), hidden: false });
+    return out;
+  };
+  return (
+    <If when={parts()} else={<Text testID={props.testID} class={`${props.box ?? ""} ${props.class ?? ""}`}>{props.text ?? ""}</Text>}>
+      {(list) => (
+        <View testID={props.testID} accessibilityLabel="Partly hidden" class={`flex-row flex-wrap items-center ${props.box ?? ""}`}>
+          <Each of={list()}>
+            {(part) => <Text class={`shrink ${props.class ?? ""} ${part().hidden ? "blur-[3px]" : ""}`}>{part().text}</Text>}
+          </Each>
+        </View>
+      )}
+    </If>
   );
 }
