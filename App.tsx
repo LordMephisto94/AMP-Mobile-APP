@@ -1,4 +1,4 @@
-import { mount, Text, View } from "nsh";
+import { effect, mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConfirmHost } from "./src/components/Confirm";
 import { LockHost } from "./src/components/Lock";
@@ -27,7 +27,8 @@ import { SpireScreen } from "./src/screens/SpireScreen";
 import { SpiresScreen } from "./src/screens/SpiresScreen";
 import { UserScreen } from "./src/screens/UserScreen";
 import { nav, type Route } from "./src/state/nav";
-import { loadServers, locked, serversReady } from "./src/state/servers";
+import { isSignedIn, loadServers, locked, serverById, serversReady } from "./src/state/servers";
+import { alertOpened, listenForAlertPresses } from "./src/lib/crashWatch";
 import { withPageDepth } from "./src/components/backdrop";
 
 function screen(route: Route) {
@@ -89,7 +90,25 @@ function screen(route: Route) {
   }
 }
 
+/**
+ * A pressed crash alert opens its instance once the app is unlocked, on top of wherever the
+ * app was (nothing unsaved is dropped); signed out, it opens the sign-in.
+ */
+function followAlertPresses() {
+  effect(() => {
+    const target = alertOpened();
+    if (!target || !serversReady() || locked()) return;
+    alertOpened.set(null);
+    const server = serverById(target.serverId);
+    if (!server) return;
+    if (!isSignedIn(server)) nav.push({ name: "signIn", serverId: server.id });
+    else if (target.shardId) nav.push({ name: "shard", serverId: server.id, id: target.shardId, title: target.title ?? "Instance" });
+    else nav.push({ name: "shards", serverId: server.id });
+  });
+}
+
 function App() {
+  followAlertPresses();
   return (
     <View class="flex-1 bg-background">
       {/* Locked, nothing of the app is rendered (not just covered): the stack's routes live
@@ -112,5 +131,6 @@ function App() {
   );
 }
 
+listenForAlertPresses();
 loadServers();
 mount(App);

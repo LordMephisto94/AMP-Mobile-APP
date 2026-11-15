@@ -59,6 +59,7 @@ ICONS = {
     "sign-out": ("Sign out", '<path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4"/><path d="M15 8l4 4-4 4M19 12H9"/>'),
     "key": ("Sign in, password", '<circle cx="7.5" cy="15.5" r="3.8"/><path d="M10.2 12.8l9.3-9.3M16 7l2.5 2.5M13.5 9.5l2 2"/>'),
     "lock": ("Locked, private, security", '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/><path d="M12 14.5v2.5"/>'),
+    "bell": ("Notifications, crash alerts", '<path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2H4.5z"/><path d="M10 21h4"/>'),
     "unlock": ("Remove the lock", '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 017.7-1.5"/><path d="M12 14.5v2.5"/>'),
     "fingerprint": ("Fingerprint unlock", '<path d="M5.2 8.6A8 8 0 0119.4 9"/><path d="M4.6 13.2a8.2 8.2 0 01.4-2.3"/><path d="M8.3 19.6c-.9-1.9-1.4-4-1.4-6.3a5.1 5.1 0 0110.2 0v1"/><path d="M12 13.3c0 2.9.8 5.3 2 7.2"/><path d="M9.5 13.2a2.5 2.5 0 015 0c0 1.9.4 3.6 1.2 5.1"/><path d="M17.1 17.3c.3 1 .7 1.9 1.2 2.7"/>'),
     "shield": ("Security, admin", '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/>'),

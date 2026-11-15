@@ -1,8 +1,8 @@
 {
   "name": "AMP Mobile",
   "id": "com.meganet.ampmobile",
-  "version": "0.2.6",
-  "build": 18,
+  "version": "0.3.0",
+  "build": 19,
   "icon": "assets/icon.png",
   "theme": "theme.json",
   "appearance": "dark",
@@ -38,7 +38,8 @@
     "picker": true,
     "statusBar": true,
     "host": [
-      "deviceKey.*"
+      "deviceKey.*",
+      "crashWatch.*"
     ]
   }
 }

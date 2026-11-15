@@ -18,6 +18,7 @@ import {
   setupPin,
 } from "../state/servers";
 import { Icon } from "../components/Icon";
+import { CrashAlertsCard } from "../components/CrashAlertsCard";
 
 // Non-breaking spaces: a chip mustn't wrap its label onto a line it then cuts off.
 const AUTO_LOCK = [
@@ -188,6 +189,8 @@ export function SecurityScreen() {
               </View>
             </View>
           </View>
+
+          <CrashAlertsCard />
         </View>
       </Scroll>
 

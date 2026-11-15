@@ -121,7 +121,7 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.2.6");
+  await app.waitFor("text:AMP Mobile 0.3.0");
   await app.press("confirm-ok");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
@@ -2969,4 +2969,110 @@ test("names from the panel never pick up JavaScript's built-in keys", () => {
   expect(splitCategory("Odd:constructor")).toEqual({ name: "Odd", icon: null });
   expect(splitCategory("Odd:toString")).toEqual({ name: "Odd", icon: null });
   expect(statusLabel("constructor")).toBe("constructor");
+});
+
+// ---- Crash alerts --------------------------------------------------------------------------
+
+/** The Android app's crash alerts, played by the test: what it keeps, and the permission. */
+function fakeCrashWatch(state: { permission: string; askAnswer?: string; watched: Map<string, { token: string; url: string }>; paused?: string[]; cleared?: number }) {
+  type Args = { serverId: string; url?: string; name?: string; token?: string; expiration?: string };
+  return {
+    handlers: {
+      "crashWatch.status": () => ({ permission: state.permission, watched: [...state.watched.keys()], paused: state.paused ?? [] }),
+      "crashWatch.requestPermission": () => {
+        if (state.permission === "default") state.permission = state.askAnswer ?? "granted";
+        return state.permission;
+      },
+      "crashWatch.openSettings": () => true,
+      "crashWatch.set": (a: Args) => {
+        state.watched.set(a.serverId, { token: a.token!, url: a.url! });
+        return true;
+      },
+      "crashWatch.token": (a: Args) => {
+        const w = state.watched.get(a.serverId);
+        if (!w) return false;
+        w.token = a.token!;
+        return true;
+      },
+      "crashWatch.remove": (a: Args) => state.watched.delete(a.serverId),
+      "crashWatch.clear": () => {
+        state.watched.clear();
+        state.cleared = (state.cleared ?? 0) + 1;
+        return true;
+      },
+    },
+  };
+}
+
+test("crash alerts: turned on in Security after the permission and a warning, handed new tokens, and gone with the PIN", async () => {
+  const state = { permission: "default", watched: new Map<string, { token: string; url: string }>() };
+  const app = await openSignedIn({
+    network: { ...unlockedHome, [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-2", expiration: "2099-01-03T00:00:00Z" } } },
+    host: fakeCrashWatch(state),
+  });
+  await app.press("security");
+  await app.waitFor("id:crash-alerts");
+  await app.press("crash-alerts-Home Lab");
+  // The permission was asked, then what it costs is said once.
+  await app.waitFor("text:Turn on crash alerts?");
+  expect(state.permission).toBe("granted");
+  await app.press("confirm-on");
+  await app.waitUntil(() => state.watched.has("s1"));
+  expect(state.watched.get("s1")!.url).toBe(SERVER);
+  expect(["tok-1", "tok-2"]).toContain(state.watched.get("s1")!.token);
+  await app.waitFor("id:crash-alerts >> text:On");
+
+  // Off, then on again: with none on, the warning is said again.
+  await app.press("crash-alerts-Home Lab");
+  await app.waitUntil(() => !state.watched.has("s1"));
+  await app.press("crash-alerts-Home Lab");
+  await app.waitFor("text:Turn on crash alerts?");
+  await app.press("confirm-on");
+  await app.waitUntil(() => state.watched.has("s1"));
+
+  // Removing the PIN erases the saved sign-ins, and the alerts' copies with them.
+  await app.press("remove-pin");
+  await app.press("confirm-erase");
+  await app.waitUntil(() => state.watched.size === 0);
+});
+
+test("crash alerts: a refused permission offers the phone's settings and turns nothing on", async () => {
+  const state = { permission: "default", askAnswer: "denied", watched: new Map<string, { token: string; url: string }>() };
+  const app = await openSignedIn({ network: unlockedHome, host: fakeCrashWatch(state) });
+  await app.press("security");
+  await app.waitFor("id:crash-alerts");
+  await app.press("crash-alerts-Home Lab");
+  await app.waitFor("text:Notifications are off");
+  await app.press("confirm-settings");
+  await app.waitUntil(() => app.host.calls().some((c) => c.name === "crashWatch.openSettings"));
+  expect(state.watched.size).toBe(0);
+});
+
+test("crash alerts: a fresh sign-in hands the token over, and signing out takes it back", async () => {
+  const state = { permission: "granted", watched: new Map([["s1", { token: "old", url: SERVER }]]) };
+  const app = await openSignedIn({ network: unlockedHome, host: fakeCrashWatch(state) });
+  // Unlocking applied the saved session: the alerts have it.
+  await app.waitUntil(() => state.watched.get("s1")?.token === "tok-1");
+  await app.press("more-Home Lab");
+  await app.waitFor("menu-signOut");
+  await app.press("menu-signOut");
+  await app.waitUntil(() => !state.watched.has("s1"));
+});
+
+test("crash alerts: a pressed alert opens its instance once the app is unlocked", async () => {
+  const state = { permission: "granted", watched: new Map([["s1", { token: "tok-1", url: SERVER }]]) };
+  const app = await open("./App.tsx", {
+    storage: await vaultStorage(),
+    network: { ...unlockedHome, [`GET ${SERVER}/api/shards/a1/snapshots*`]: { body: { nodes: [], headId: null, settings: null } }, [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 } },
+    host: fakeCrashWatch(state),
+  });
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.host.send("crashWatch.open", { serverId: "s1", shardId: "a1", title: "Minecraft SMP" });
+  expect(app.texts()).toContain("AMP Mobile is locked"); // nothing opens behind the lock
+  await enterPin(app);
+  await app.waitFor("controls");
+  expect(app.texts()).toContain("Minecraft SMP");
+  // An alert for a server that's gone does nothing.
+  await app.host.send("crashWatch.open", { serverId: "nope", shardId: "x" });
+  expect(app.texts()).toContain("Minecraft SMP");
 });

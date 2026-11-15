@@ -30,8 +30,8 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 | `assets/` | Artwork and branding: the backdrop, the AMP wordmark and hex mark, the 1024 px app icon, the menu icons |
 | `src/api/` | The AMP 3 REST client (`client.ts`) and one file per area: sign-in (`auth.ts`), instances (`shards.ts`, `manage.ts`, `infraFields.ts`), console (`console.ts`, plus `hub.ts`, a minimal SignalR client for AMP's live hubs, not in the OpenAPI spec), files, snapshots, schedules, machines (`spires.ts`), networking, users and roles (`access.ts`, `permissions.ts`), activity (`audit.ts`), player analytics, panel settings, the panel's own wording (`panelText.ts`) and template artwork. `types.ts` holds the hand-written types |
 | `src/state/` | Saved servers, sessions, the PIN vault and the lock (`servers.ts`, with the crypto in `vaultCrypto.ts`); navigation routes (`nav.ts`); each server's Online check (`reachability.ts`) |
-| `src/lib/` | The Android key store over NSH's host channel (`deviceKeys.ts`), Hide personal details (`privacy.tsx`: `priv()`, `privIps()` and `privJson()` make the stand-in, `PrivText` and `Private` draw it blurred; draw every address, name or email through them), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), and the shared 401 handling (`session.ts`) |
-| `src/components/` | Shared UI: the lock screen and PIN pad (`Lock.tsx`), the AMP panel's triangle banner (`AmpBanner.tsx`), dialogs, dropdowns, prompts, charts, buttons and fields, and the icon set (`Icon.tsx`) |
+| `src/lib/` | The Android key store over NSH's host channel (`deviceKeys.ts`), crash alerts (`crashWatch.ts`, the Android side's switch and token handover), Hide personal details (`privacy.tsx`: `priv()`, `privIps()` and `privJson()` make the stand-in, `PrivText` and `Private` draw it blurred; draw every address, name or email through them), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), and the shared 401 handling (`session.ts`) |
+| `src/components/` | Shared UI: the lock screen and PIN pad (`Lock.tsx`), the AMP panel's triangle banner (`AmpBanner.tsx`), dialogs, dropdowns, prompts, charts, buttons and fields, Security's crash alerts card (`CrashAlertsCard.tsx`), and the icon set (`Icon.tsx`) |
 | `assets/icons/`, `scripts/make-icons.py` | The app's own icons (no emoji anywhere): 24-point white line SVGs, tinted by `<Icon name tone>`. Edit and run the script to change or add one; it writes the SVGs and `Icon.tsx` together |
 | `src/screens/` | One file per page: servers home, sign-in, the server overview, instances (and a new one) and an instance (graphs, console, files and the editor, settings, snapshots, schedules), machines, networking, users and roles, activity, player analytics, panel settings, the app's Security page |
 | `android/` | The Gradle project that is the Android app (see below) |
@@ -79,6 +79,11 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
 - `DeviceKeys.java` is the phone's key store and the fingerprint prompt, answered over NSH's host channel
   (`host.call("deviceKey.…")`, wrapped in `src/lib/deviceKeys.ts`). Without a host (tests, `nsh run`, desktops)
   there are no device keys and the vault uses the PIN alone; the tests play the host with `open`'s `host.handlers`.
+- `CrashWatch.java` and `CrashWatchJob.java` are crash alerts: a JobScheduler job, about every 15 minutes with a
+  network, that reads watched servers' instance states and activity log and posts notifications. The app turns it on
+  and hands it tokens over `host.call("crashWatch.…")` (`src/lib/crashWatch.ts`); a pressed alert comes back as the
+  event `crashWatch.open`. To try it on an emulator, force a check:
+  `adb shell cmd jobscheduler run -f com.meganet.ampmobile 4101`.
 - The app's id, version and build come from `nsh.json`. Gradle runs `nsh build --release` and puts the bytecode in
   the APK's `assets/nsh`, with `app.json` naming the app's id, so NSH keeps the app's storage where the packaged
   app kept it and updates keep saved servers.

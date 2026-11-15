@@ -3,6 +3,10 @@
 
     <!-- The fingerprint or face prompt that unlocks the saved sign-ins. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Crash alerts: their notifications, and their background check kept across restarts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:label="AMP Mobile"
@@ -20,6 +24,12 @@
             android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true" />
+
+        <!-- The crash alerts' background check (CrashWatch); only the system may start it. -->
+        <service
+            android:name=".CrashWatchJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

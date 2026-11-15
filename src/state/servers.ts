@@ -21,6 +21,7 @@ import {
   type VaultKey,
 } from "./vaultCrypto";
 import { loadPrivacy } from "../lib/privacy";
+import { handOverToken, refreshCrashWatch, unwatchAll, unwatchServer } from "../lib/crashWatch";
 
 /** The device key store's keys for the vault: one used with the PIN, one for quick unlock, one for fingerprint unlock. */
 const BOUND_ALIAS = "amp.vault.bound";
@@ -236,6 +237,8 @@ function applySession(id: string, auth: { token: string; expiration: string }): 
   clients.delete(id);
   sessions.set(id, { token: auth.token, expiration: auth.expiration, gen: ++generation });
   touched();
+  // Crash alerts check in the background with the same session: they get every fresh token.
+  if (serverById(id)?.rememberMe) void handOverToken(id, auth);
 }
 
 // ---- Signing in and out ------------------------------------------------------------------
@@ -294,6 +297,8 @@ export async function setServerSession(id: string, username: string, auth: AuthR
   refuseWhileLocked(serverById(id)?.serverUrl ?? "", auth);
   update(id, (s) => ({ ...s, username, rememberMe }));
   applySession(id, auth);
+  // Not staying signed in: no session may outlive the app, the crash alerts' included.
+  if (!rememberMe) await unwatchServer(id);
   await persistServers();
   await persistSessions();
 }
@@ -313,6 +318,7 @@ export async function signOutServer(id: string): Promise<void> {
   const session = sessions.get(id);
   // Forget it first, so nothing renews or reuses it while the server is told.
   await clearServerSession(id);
+  await unwatchServer(id);
   if (server && session) {
     try {
       await apiLogout(new AmpClient(server.serverUrl, session.token));
@@ -326,6 +332,7 @@ export async function removeServer(id: string): Promise<void> {
   const server = serverById(id);
   const session = sessions.get(id);
   await clearServerSession(id);
+  await unwatchServer(id);
   servers.set(servers().filter((s) => s.id !== id));
   await persistServers();
   await persistSessions();
@@ -840,6 +847,8 @@ export async function eraseVault(): Promise<void> {
   servers.set(servers().map((s) => ({ ...s, rememberMe: false })));
   await Storage.removeItem(VAULT_KEY);
   await Storage.removeItem(LOCKOUT_KEY);
+  // The crash alerts' copies of the sessions go with them.
+  await unwatchAll();
   await persistServers();
   hasPin.set(false);
   bound.set(false);
@@ -925,6 +934,7 @@ export async function loadServers(): Promise<void> {
   } finally {
     // "Hide personal details" is known before anything is shown.
     await loadPrivacy();
+    await refreshCrashWatch();
     serversReady.set(true);
   }
 

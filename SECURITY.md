@@ -1,6 +1,6 @@
 # Security
 
-This file covers how AMP Mobile protects your panel access, what five audits (November 2026) found and fixed,
+This file covers how AMP Mobile protects your panel access, what nine audits (November 2026) found and fixed,
 and what's still open. To report a problem, open an issue (or contact the owner privately if it's
 sensitive).
 
@@ -11,6 +11,7 @@ sensitive).
 | Passwords | Nowhere | Sent once to your panel at sign-in, then dropped |
 | Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM under a random data key. On Android that key is sealed by keys in the phone's Keystore (secure hardware), which never leave it: one together with your PIN (PBKDF2-SHA-256, 600,000 rounds), and a second way in that's either quick unlock (works only within a minute of unlocking the phone) or, with fingerprint unlock on, a key that needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added. Without a key store (desktops): the PIN-derived key alone. The PIN is never stored |
 | Session tokens you don't keep | Memory only | Gone when the app closes or locks |
+| Crash alerts' copy of a session (only for servers you turn them on for) | `amp.watch` in the Android app's private preferences | AES-256-GCM under a Keystore key of its own that works without the user, since the check runs while the app is closed. Used only to read instance states and the activity log, and to renew itself. Taken back on sign-out, on turning off "Stay signed in", on removing the server and on erasing the PIN; a session AMP refuses pauses it |
 | Server list (name, address, user name) | `amp.servers` in the app's storage | Not secret, so not encrypted |
 | Wrong-PIN count | `amp.vault.lockout` | Survives restarts |
 
@@ -242,6 +243,22 @@ Checked and found sound: tokens and tickets only ever go to the server's own add
 fall to the stricter internet class; the tick and the confirmation are asked at every sign-in, and a changed address
 asks again; avatars dropped from the cache are released and fetched again if shown; a page that misses its depth
 draws the artwork as before.
+
+## Ninth audit: icons, and crash alerts (November 2026, 0.3.0)
+
+Covers the icon set (0.2.6) and the new crash alerts: the background check, the session it keeps, its notifications
+and how a pressed one reaches the app.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 63 | A settings category from the panel such as `Foo:constructor` looked up `constructor` on a plain object and got JavaScript's built-in function as its icon; schedule status and port-listener names had the same lookup | Low | Fixed: only the tables' own keys count |
+| 64 | Crash alerts' design: a background check needs a session that opens without the PIN | Medium (by design) | Opt-in per server, said plainly before the first is turned on; sealed by its own Keystore key, outside backups (`allowBackup=false`); never sent anywhere but that server (no redirects followed); taken back on sign-out, "Stay signed in" off, removal and PIN erase |
+| 65 | Turning alerts on when the phone refused the background job (found on the emulator: it needs `ACCESS_NETWORK_STATE`) kept the session anyway | Low | Fixed: the permission is declared, and the job is set before anything is kept |
+
+Checked and found sound: a pressed alert carries only ids and the instance's name, opens nothing behind the lock, and
+is pushed on top of the current page (nothing unsaved is dropped); the activity is not exported and there's no deep
+link; the lock screen shows "An instance stopped" without names; a renewal never overwrites a token the app handed over
+meanwhile; two checks never run at once.
 
 ## Release signing
 

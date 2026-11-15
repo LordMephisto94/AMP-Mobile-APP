@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Crash alerts (Security, Android): a notification when an instance stops unexpectedly, fails to start or restarts
+  on its own. Before alerting, the app checks AMP's activity log, and a stop, restart or update that a person or a
+  schedule started raises no alert. Checked about every 15 minutes, while the app is closed too (longer when the phone
+  is idle). Turned on per server; tapping an alert opens that instance once the app is unlocked. To check in the
+  background, the phone keeps a copy of that server's session outside the PIN, sealed by a key-store key of its own;
+  signing out, turning off "Stay signed in", removing the server or erasing the PIN takes it back. When AMP ends the
+  session, one notice says so and alerts for that server pause until you sign in again.
+- A ninth audit (SECURITY.md, findings 63 to 65): category names from the panel such as `constructor` no longer reach
+  JavaScript's built-ins.
+
 ## 0.2.6
 
 - Icons: every emoji in the app is replaced by the app's own icon set, 97 line icons drawn for it in one style (24-point

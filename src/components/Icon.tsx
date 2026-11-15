@@ -44,6 +44,7 @@ import linkIcon from "../../assets/icons/link.svg";
 import signOutIcon from "../../assets/icons/sign-out.svg";
 import keyIcon from "../../assets/icons/key.svg";
 import lockIcon from "../../assets/icons/lock.svg";
+import bellIcon from "../../assets/icons/bell.svg";
 import unlockIcon from "../../assets/icons/unlock.svg";
 import fingerprintIcon from "../../assets/icons/fingerprint.svg";
 import shieldIcon from "../../assets/icons/shield.svg";
@@ -147,6 +148,7 @@ const ICONS = {
   "sign-out": signOutIcon, // Sign out
   "key": keyIcon, // Sign in, password
   "lock": lockIcon, // Locked, private, security
+  "bell": bellIcon, // Notifications, crash alerts
   "unlock": unlockIcon, // Remove the lock
   "fingerprint": fingerprintIcon, // Fingerprint unlock
   "shield": shieldIcon, // Security, admin
