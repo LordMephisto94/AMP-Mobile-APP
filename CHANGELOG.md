@@ -112,7 +112,7 @@ A third security audit, covering races and edge cases (details in SECURITY.md, f
   its PIN. It turns on at the first PIN unlock made within that minute.
 - If the phone's key is gone (a reset, or a copy from another phone), the saved sign-ins are cleared with a message.
 - The app now includes a small Rust crate (`native/`); building needs Rust (rustup) with the Android targets and the
-  Android NDK.
+  Android NDK. (Replaced by Java in the Gradle app from 0.2.0.)
 
 ## 0.1.2
 

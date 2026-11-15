@@ -6,46 +6,47 @@ A mobile app for managing a publicly exposed AMP 3 server, built with [NSH (Nati
 
 ```sh
 nsh run                    # GTK window on Linux (phone-sized, 390×844)
-nsh run --target android   # needs an Android SDK + a device/emulator (adb devices)
+nsh run --target android   # NSH's development host on a device or emulator (adb devices)
 nsh run --target web       # in the browser
 ```
+
+`nsh run` uses NSH's own hosts, which have no device key store: the vault falls back to the PIN alone and there's no
+fingerprint unlock. The real Android app is the Gradle project in `android/` (below).
 
 ## Check and test
 
 ```sh
 nsh check   # TypeScript
-nsh test    # headless tests (App.test.tsx), network stubbed
+nsh test    # headless tests (App.test.tsx), network and the Android key store stubbed
 ```
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `App.tsx` | Entry: loads saved servers, routes the navigation stack |
+| `App.tsx` | Entry: loads saved servers, routes the navigation stack, puts the lock over everything |
+| `nsh.json` | App id, name, version and build, theme, and the capabilities NSH enforces |
 | `theme.json` | Colour theme (shadcn `cssVars`), plus `success`, `warning`, `glow`, `hero-from`/`hero-to` tokens. The app is dark-only (`"appearance": "dark"` in `nsh.json`) to suit the artwork |
-| `assets/backdrop.webp` | The neon artwork behind every screen (`src/components/backdrop.tsx`) |
-| `assets/amp-wordmark.webp`, `assets/amp-mark.png`, `assets/icon.png` | AMP branding: the wordmark on the home screen, the hex mark in the desktop header, and the 1024 px app icon (made from the mark) |
-| `src/components/AmpBanner.tsx` | The AMP 3 panel's triangle header, drawn on a Canvas, with a status triangle and badge (online / offline / warning / danger) |
-| `src/api/` | AMP 3 REST client (`client.ts`), endpoints (`auth.ts`, `shards.ts`), hand-written types (`types.ts`) |
-| `src/state/` | Saved servers and their sessions (`servers.ts`, persisted with NSH `Storage`) and navigation routes |
-| `src/screens/` | Servers home, Add Server / sign-in form, instance list, instance detail (graphs), console, new instance, instance settings, file browser, text file editor |
-| `src/api/manage.ts` | Templates, spires, creating instances, the three settings surfaces (record, app settings, infrastructure), and delete / restore / permanent delete |
-| `src/api/files.ts` | Instance files: list, read/write text, folder, move, copy, delete, zip/extract, download tickets, chunked upload |
-| `src/api/infraFields.ts` | Which infrastructure settings the app edits, and how their values convert to and from the form |
-| `src/api/hub.ts` | Minimal SignalR client for AMP's live hubs (`/hubs/shard`), used by the console; not in the OpenAPI spec |
-| `src/components/` | Shared UI pieces (buttons, fields, pills, desktop page header) |
-| `docs/reference/` | AMP 3.0.1 OpenAPI spec and the full NSH docs (`nsh-llms-full.txt`) |
+| `assets/` | Artwork and branding: the backdrop, the AMP wordmark and hex mark, the 1024 px app icon, the menu icons |
+| `src/api/` | The AMP 3 REST client (`client.ts`) and one file per area: sign-in (`auth.ts`), instances (`shards.ts`, `manage.ts`, `infraFields.ts`), console (`console.ts`, plus `hub.ts`, a minimal SignalR client for AMP's live hubs, not in the OpenAPI spec), files, snapshots, schedules, machines (`spires.ts`), networking, users and roles (`access.ts`, `permissions.ts`), activity (`audit.ts`), player analytics, panel settings, the panel's own wording (`panelText.ts`) and template artwork. `types.ts` holds the hand-written types |
+| `src/state/` | Saved servers, sessions, the PIN vault and the lock (`servers.ts`, with the crypto in `vaultCrypto.ts`); navigation routes (`nav.ts`); each server's Online check (`reachability.ts`) |
+| `src/lib/` | The Android key store over NSH's host channel (`deviceKeys.ts`), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), and the shared 401 handling (`session.ts`) |
+| `src/components/` | Shared UI: the lock screen and PIN pad (`Lock.tsx`), the AMP panel's triangle banner (`AmpBanner.tsx`), dialogs, dropdowns, prompts, charts, buttons and fields |
+| `src/screens/` | One file per page: servers home, sign-in, the server overview, instances (and a new one) and an instance (graphs, console, files and the editor, settings, snapshots, schedules), machines, networking, users and roles, activity, player analytics, panel settings, the app's Security page |
+| `android/` | The Gradle project that is the Android app (see below) |
+| `scripts/` | `build-release.sh` (the signed release APKs) and `fetch-nsh-sdk.sh` (NSH's Android runtime) |
+| `App.test.tsx` | The headless tests |
+
+`docs/reference/` (the AMP 3.0.1 OpenAPI spec and NSH's full docs) is kept locally and isn't in git.
 
 ## Notes
 
-- The server address is entered by the user. `https://` is assumed when no scheme is typed. Plain `http://` is blocked
-  on Android unless `"android": { "usesCleartextTraffic": true }` is added to `nsh.json`.
-- NSH `Storage` is a plain JSON file in the app's private directory (and Android copies it into backups), so nothing
-  secret is written in the clear. The server list holds no secrets; sessions kept with "Stay signed in" are sealed in
-  a vault (`amp.vault`) with AES-256-GCM under a key derived from the app PIN (PBKDF2-SHA-256, 600,000 rounds, random
-  salt). The PIN is never stored. A PIN is required to stay signed in; without one, sessions live in memory only.
-  Wrong PINs are counted on disk: after five each try waits longer, and the tenth erases the vault. The app locks
-  itself after a set time in the background and then holds no session in memory. Passwords are never stored.
+- The server address is entered by the user, with `https://` assumed when no scheme is typed. Only `https://` is
+  accepted: the app refuses `http://`, and `nsh.json`'s capabilities allow nothing else.
+- NSH `Storage` is a plain JSON file in the app's private directory (the Android app is left out of Android's
+  backups). The server list holds no secrets; sessions kept with "Stay signed in" are sealed in a vault
+  (`amp.vault`) that needs the app PIN, locked to the phone's secure hardware, and optionally opened by fingerprint.
+  Passwords are never stored. SECURITY.md has the details.
 - AMP 3 calls instances **shards** and nodes **spires**. The spec mixes `/api/Shards` and `/api/shards`: use paths
   exactly as written.
 - The app ID (`nsh.json`'s `id`) is `com.meganet.ampmobile`. Changing it makes Android and iOS treat the app as a different one, so saved servers wouldn't carry over.
@@ -63,7 +64,6 @@ nsh test    # headless tests (App.test.tsx), network stubbed
 - `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTPS and WSS to any host (the server
   address is the user's), `openUrl` for `https`, the clipboard, the picker, the status bar, and the host calls
   `deviceKey.*` (the key store, from the Android app around it).
-
 
 ## The Android app (android/)
 

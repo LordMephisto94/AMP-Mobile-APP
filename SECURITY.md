@@ -1,7 +1,7 @@
 # Security
 
-This file covers how AMP Mobile protects your panel access, what a security audit (November 2026) found and
-fixed, and what's still open. To report a problem, open an issue (or contact the owner privately if it's
+This file covers how AMP Mobile protects your panel access, what five audits (November 2026) found and fixed,
+and what's still open. To report a problem, open an issue (or contact the owner privately if it's
 sensitive).
 
 ## What the app keeps, and where
@@ -9,18 +9,22 @@ sensitive).
 | What | Where | Protection |
 |---|---|---|
 | Passwords | Nowhere | Sent once to your panel at sign-in, then dropped |
-| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM. On Android the data key is locked by keys in the phone's Keystore (secure hardware) that never leave it: one needs your PIN too (PBKDF2-SHA-256, 600,000 rounds); either one works only within a minute of unlocking the phone, or, with fingerprint unlock on, one needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added. Elsewhere: PIN-derived key alone. The PIN is never stored |
+| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM under a random data key. On Android that key is sealed by keys in the phone's Keystore (secure hardware), which never leave it: one together with your PIN (PBKDF2-SHA-256, 600,000 rounds), and a second way in that's either quick unlock (works only within a minute of unlocking the phone) or, with fingerprint unlock on, a key that needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added. Without a key store (desktops): the PIN-derived key alone. The PIN is never stored |
 | Session tokens you don't keep | Memory only | Gone when the app closes or locks |
 | Server list (name, address, user name) | `amp.servers` in the app's storage | Not secret, so not encrypted |
 | Wrong-PIN count | `amp.vault.lockout` | Survives restarts |
 
-The app's storage is a file in its private folder. Other apps can't read it, but Android copies it into Google
-backups and onto a new phone, which is why tokens are encrypted rather than stored as they are.
+The app's storage is a file in its private folder that other apps can't read. From 0.2.0 the app is left out of
+Android's backups; before that, Android copied the file into Google backups, which is why tokens have always been
+encrypted rather than stored as they are (and the vault can't be opened on another phone anyway).
 
 ## The app lock
 
 - Staying signed in requires a 6–12 digit PIN. Repeated or sequential PINs (`777777`, `123456`) are refused.
 - The app opens locked, and locks again after a chosen time in the background (immediately, 30 s, 1 min or 5 min).
+- It opens with the PIN, or by itself within a minute of unlocking the phone (quick unlock). With fingerprint unlock
+  on (Security; Android 11+, strong biometrics), it asks for a fingerprint or face instead, and doesn't open by
+  itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
 - While the app is in the background its screen is covered, so the app switcher shows nothing.
 - After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
@@ -30,8 +34,11 @@ backups and onto a new phone, which is why tokens are encrypted rather than stor
 
 - **HTTPS only.** `http://` addresses are refused; so are addresses with a user name or password in them.
 - **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
-  anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, and nothing
-  else at all (no file system, processes, sockets, web views, notifications or audio).
+  anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, the clipboard,
+  the file picker, and the Android app's key-store calls (`deviceKey.*`); nothing else at all (no file system,
+  processes, sockets, web views, notifications or audio).
+- **Online check.** The home page asks each panel for its password policy (no sign-in needed), sending no token,
+  and never while the app is locked.
 - **No redirects.** API calls refuse redirects, so your session token can't be forwarded to another host.
 - **Live console** connects over `wss://` only, with a one-time ticket.
 - **Size cap.** Answers over 64 MB are refused rather than read into memory.
@@ -168,8 +175,9 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **Screenshots.** Screenshots and screen recording aren't blocked (Android's `FLAG_SECURE`); the Gradle app could
   now set it, perhaps as a setting.
 - **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
-- **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (and go into
-  backups before 0.2.0; from 0.2.0 the app is left out of Android's backups). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting the servers.
+- **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (outside
+  Android's backups from 0.2.0). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting
+  the servers.
 - **PIN guessing on the phone itself.** The vault's PIN-bound key works without a recent phone unlock, so code
   running as the app on an unlocked or rooted phone could try PINs without the wrong-PIN count. Each try still costs
   600,000 PBKDF2 rounds on the phone; a longer PIN makes this impractical.

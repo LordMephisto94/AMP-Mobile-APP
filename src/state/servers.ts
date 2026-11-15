@@ -31,10 +31,11 @@ const UNLOCK_PROMPT: PromptText = { title: "Unlock AMP Mobile", subtitle: "Your 
 /**
  * Saved AMP servers and their sessions.
  *
- * What's on disk (NSH `Storage`, a JSON file in the app's private folder, which Android
- * also copies into backups): the server list without any secret, and, for servers kept
- * signed in, their session tokens sealed in a vault whose key comes from the app PIN
- * (see `vaultCrypto.ts`). No password and no plain token is ever written.
+ * What's on disk (NSH `Storage`, a JSON file in the app's private folder, left out of
+ * Android's backups): the server list without any secret, and, for servers kept signed
+ * in, their session tokens sealed in a vault opened by the app PIN, and on Android also
+ * by quick or fingerprint unlock (see `vaultCrypto.ts` and `src/lib/deviceKeys.ts`). No
+ * password and no plain token is ever written.
  *
  * In memory: every live session, tagged with a generation number. A renewal applies its
  * answer only if the session it renewed is still the current one, so a sign-out or a
