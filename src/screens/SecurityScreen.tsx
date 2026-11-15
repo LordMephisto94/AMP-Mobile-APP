@@ -78,7 +78,7 @@ export function SecurityScreen() {
 
   return (
     <AppPage title="Security" subtitle="This app on this device">
-      {/* Scrolls: with fingerprint unlock and Block screenshots it's taller than a phone. */}
+      {/* Scrolls: with all its cards it's taller than a phone. */}
       <Scroll class="flex-1 bg-background">
         <View class="w-full max-w-2xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+32px)]">
           <If when={notice()}>
