@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- Settings: the panel's setting groups have proper names ("Public address", "Shard defaults") instead of their raw
+  keys ("public-address", "shard-defaults"), in the panel's own wording where it has one.
+- Overview: recent activity says what each event acted on, as the Activity page does ("Address: …", "User: …"),
+  with Hide personal details blurring addresses and names there too (account names weren't hidden on it before).
+  Long titles wrap instead of running under the time.
+
 ## 0.2.3
 
 - Security: **Hide personal details**, a switch you can flip at any time, for screenshots, screen sharing and

@@ -1,19 +1,6 @@
 import { signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
-import {
-  actionKind,
-  actionLabel,
-  actorOf,
-  type AuditEvent,
-  AuditOrigin,
-  type AuditQuery,
-  type AuditRootItem,
-  AuditSeverity,
-  type AuditTreeNode,
-  getAuditTree,
-  listAuditFlows,
-  prettyDetails,
-} from "../api/audit";
+import { actionKind, actionLabel, actorOf, type AuditEvent, AuditOrigin, type AuditQuery, type AuditRootItem, AuditSeverity, type AuditTreeNode, getAuditTree, listAuditFlows, prettyDetails, targetOf } from "../api/audit";
 import { AmpError } from "../api/client";
 import { panelText } from "../api/panelText";
 import { listShards } from "../api/shards";
@@ -25,7 +12,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { personalKey, PrivText, priv, privIps, privJson } from "../lib/privacy";
+import { PrivText, priv, privJson } from "../lib/privacy";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -158,17 +145,7 @@ export function ActivityScreen(props: { serverId: string }) {
     refreshing.set(false);
   };
 
-  const target = (e: AuditEvent) => {
-    if (!e.targetId && !e.targetType) return null;
-    const name = shardNames()[e.targetId];
-    if (name) return name;
-    if (!e.targetId) return e.targetType;
-    // Long ids say nothing to a person; show the type alone.
-    if (/^[0-9a-f-]{20,}$/i.test(e.targetId)) return e.targetType;
-    // An address, a user or an account is personal; any other id still has its IPs hidden.
-    const personal = personalKey(e.targetType ?? "") || /session/i.test(e.targetType ?? "");
-    return `${e.targetType}: ${personal ? priv(e.targetId) : privIps(e.targetId)}`;
-  };
+  const target = (e: AuditEvent) => targetOf(e, shardNames());
 
   return (
     <AppPage title="Activity" subtitle={server?.name ?? ""} right={<MainMenu serverId={props.serverId} current="activity" />}>

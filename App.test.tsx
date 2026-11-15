@@ -117,9 +117,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.2.3");
+  await app.waitFor("text:AMP Mobile 0.2.4");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.3"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.4"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -917,12 +917,21 @@ test("the overview shows totals, hosts and recent activity in the panel's wordin
       [`GET ${SERVER}/api/Spires`]: { body: [{ id: "sp1", displayName: "amp3" }] },
       [`GET ${SERVER}/api/Audit/roots*`]: {
         body: {
-          total: 2,
+          total: 3,
           page: 1,
           pageSize: 6,
           caughtUp: true,
           items: [
             { correlationId: "c1", root: auditEvent("e1", "ShardStopped"), eventCount: 1, startedAt: "2026-11-15T03:10:00Z", endedAt: "", maxSeverity: 0, rootMissing: false },
+            {
+              correlationId: "c3",
+              root: { ...auditEvent("e3", "SftpLoginFailed", { origin: 0, principal: { kind: 0, userId: null, userDisplayName: null, systemSource: "Sftp" } }), targetType: "Address", targetId: "203.0.113.9" },
+              eventCount: 1,
+              startedAt: "2026-11-15T03:05:00Z",
+              endedAt: "",
+              maxSeverity: 0,
+              rootMissing: false,
+            },
             {
               correlationId: "c2",
               root: auditEvent("e2", "ShardBusCredentialPruned", { origin: 0, principal: { kind: 0, userId: null, userDisplayName: null, systemSource: "BusCredentials" } }),
@@ -953,6 +962,8 @@ test("the overview shows totals, hosts and recent activity in the panel's wordin
   await app.waitFor("text:Stopped a server");
   expect(app.texts()).toContain("Removed a server's old message bus credential after its renewal");
   expect(app.texts()).toContain("BusCredentials · Minecraft SMP");
+  // Like the Activity page: what an event acted on, an address included.
+  expect(app.texts()).toContain("Sftp · Address: 203.0.113.9");
 
   await app.press("view-all-activity");
   await app.waitFor("filter-all");
@@ -1361,7 +1372,9 @@ test("settings shows your account, updates, licence and the panel's settings, an
               conditionSetting: "smtp.enabled",
               conditionValue: "true",
             },
-            { fieldName: "security.minLength", displayName: "settings.security.minLength", category: "settings.category.security", inputType: "number", order: 1 },
+            // Panels also send bare group keys: worded by the panel when it can, made readable otherwise.
+            { fieldName: "security.minLength", displayName: "settings.security.minLength", category: "security", inputType: "number", order: 1 },
+            { fieldName: "net.publicHost", displayName: "Public host", category: "public-address", inputType: "text", order: 1 },
           ],
           values,
           secretHasValue: { "smtp.password": true },
@@ -1436,6 +1449,8 @@ test("settings shows your account, updates, licence and the panel's settings, an
   expect(app.texts()).toContain("4 instances of 10 allowed");
 
   // Settings in the panel's words; the SMTP fields show once email is on.
+  for (const group of ["Email", "Security", "Public address"]) expect(app.texts()).toContain(group);
+  expect(app.texts()).not.toContain("public-address");
   await app.press("group-Email");
   await app.waitFor("text:Send email");
   expect(app.texts()).not.toContain("SMTP server");

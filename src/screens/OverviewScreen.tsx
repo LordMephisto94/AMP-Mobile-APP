@@ -1,5 +1,6 @@
 import { signal, Text, View } from "nsh";
-import { actionKind, actionLabel, actorOf, type AuditRootItem, listAuditFlows } from "../api/audit";
+import { actionKind, actionLabel, actorOf, type AuditRootItem, listAuditFlows, targetOf } from "../api/audit";
+import { PrivText, priv } from "../lib/privacy";
 import { AmpError } from "../api/client";
 import { getSpireState, listSpires, type SpireDefinition, type SpireState } from "../api/manage";
 import { panelText } from "../api/panelText";
@@ -161,16 +162,16 @@ export function OverviewScreen(props: { serverId: string }) {
                   <Each of={activity() ?? []} key={(f: AuditRootItem) => f.correlationId}>
                     {(flow) => {
                       const e = () => flow().root;
-                      const target = () => shardNames()[e().targetId] ?? (e().targetType || null);
+                      const target = () => targetOf(e(), shardNames());
                       return (
                         <View role="button" onPress={showActivity} class="gap-0.5 border-b border-white/5 px-4 py-3 active:bg-accent">
                           <View class="flex-row items-start gap-3">
-                            <Text class={`flex-1 text-sm font-semibold ${KIND_TEXT[actionKind(e().action)]}`}>
+                            <Text class={`min-w-0 flex-1 text-sm font-semibold ${KIND_TEXT[actionKind(e().action)]}`}>
                               {actionLabel(e().action, text())}
                             </Text>
-                            <Text class="text-xs text-muted-foreground">{ago(flow().startedAt || e().timestamp)}</Text>
+                            <Text class="shrink-0 text-xs text-muted-foreground">{ago(flow().startedAt || e().timestamp)}</Text>
                           </View>
-                          <Text class="line-clamp-1 text-xs text-muted-foreground">{[actorOf(e()), target()].filter(Boolean).join(" · ")}</Text>
+                          <PrivText class="line-clamp-1 text-xs text-muted-foreground" text={[actorOf(e(), priv), target()].filter(Boolean).join(" · ")} />
                         </View>
                       );
                     }}

@@ -116,6 +116,16 @@ export function SettingsScreen(props: { serverId: string }) {
     return /^[\w-]+(\.[\w-]+)+$/.test(key) ? keyLabel(key) : key;
   };
 
+  /**
+   * A settings group's name. Panels send it as a wording key ("settings.category.email") or as a
+   * bare one ("public-address"): the panel's own words for either, else the key made readable.
+   */
+  const groupName = (key: string) => {
+    if (!key) return "General";
+    const words = text();
+    return words[key] || words[`settings.category.${key}`] || (/[.\-_]|^[a-z]/.test(key) ? keyLabel(key) : key);
+  };
+
   // ---- Panel settings ----------------------------------------------------------------------
   const m = () => valueOf(manifest());
   const stored = (node: string) => m()?.values?.[node] ?? "";
@@ -131,7 +141,7 @@ export function SettingsScreen(props: { serverId: string }) {
       let g = out.find((x) => x.key === key);
       if (!g) {
         const { name, icon } = splitCategory(spec.category);
-        g = { key, name: tr(name) || "General", icon, specs: [], actions: [] };
+        g = { key, name: groupName(name), icon, specs: [], actions: [] };
         out.push(g);
       }
       g.specs.push(spec);

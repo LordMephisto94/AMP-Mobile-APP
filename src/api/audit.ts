@@ -1,3 +1,4 @@
+import { personalKey, priv, privIps } from "../lib/privacy";
 import type { AmpClient } from "./client";
 
 /**
@@ -139,6 +140,21 @@ export function actorOf(event: AuditEvent, name: (n: string) => string = (n) => 
   if (event.origin === AuditOrigin.Scheduled) return p?.systemSource ? `Schedule: ${p.systemSource}` : person ? `Schedule (${name(person)})` : "Schedule";
   if (person) return name(person);
   return p?.systemSource || "System";
+}
+
+/**
+ * What an event acted on, for a line under its title: an instance by its name, "Address: 1.2.3.4",
+ * "User: root", or just the type when its id is a long one that says nothing to a person. Under
+ * "Hide personal details" an address, a user or an account is hidden, and IPs in any other id.
+ */
+export function targetOf(e: AuditEvent, shardNames: Record<string, string>): string | null {
+  if (!e.targetId && !e.targetType) return null;
+  const name = shardNames[e.targetId];
+  if (name) return name;
+  if (!e.targetId) return e.targetType;
+  if (/^[0-9a-f-]{20,}$/i.test(e.targetId)) return e.targetType;
+  const personal = personalKey(e.targetType ?? "") || /session/i.test(e.targetType ?? "");
+  return `${e.targetType}: ${personal ? priv(e.targetId) : privIps(e.targetId)}`;
 }
 
 /** `details` pretty-printed when it's JSON, as it came otherwise; null when empty. */
