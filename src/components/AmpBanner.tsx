@@ -116,11 +116,28 @@ export function AmpBanner(props: {
     <View class={`overflow-hidden ${props.class ?? ""}`}>
       <Canvas class="absolute inset-0" draw={(cx, { width, height }) => drawTriangles(cx, width, height, props.status)} />
       <View class="gap-1.5 px-5 py-5">
-        <View class="flex-row flex-wrap items-center gap-2.5">
-          <Text class="text-2xl font-light text-white">{props.title}</Text>
-          <StatusBadge label={props.statusLabel} status={props.status} />
-          <If when={props.extraBadge}>{(b) => <StatusBadge label={b().label} status={b().status} testID={b().testID} />}</If>
-        </View>
+        <If
+          when={props.extraBadge}
+          else={
+            <View class="flex-row flex-wrap items-center gap-2.5">
+              <Text class="text-2xl font-light text-white">{props.title}</Text>
+              <StatusBadge label={props.statusLabel} status={props.status} />
+            </View>
+          }
+        >
+          {(b) => (
+            <>
+              {/* Two badges: the name gets its own line (clear of a corner button), the badges the next. */}
+              <Text class="line-clamp-1 pr-10 text-2xl font-light text-white">
+                {props.title}
+              </Text>
+              <View class="flex-row flex-wrap items-center gap-2">
+                <StatusBadge label={props.statusLabel} status={props.status} />
+                <StatusBadge label={b().label} status={b().status} testID={b().testID} />
+              </View>
+            </>
+          )}
+        </If>
         <If when={props.subtitle}>{(s) => <Text class="text-sm text-white/75">{s()}</Text>}</If>
         {props.children}
       </View>
