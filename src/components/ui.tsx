@@ -94,13 +94,14 @@ export function Checkbox(props: { label: string; checked: boolean; onChange: (ch
   return (
     <View role="checkbox" testID={props.testID} onPress={() => props.onChange(!props.checked)} class="flex-row items-center gap-3 py-1">
       <View
-        class={`h-6 w-6 items-center justify-center rounded-md border-2 ${props.checked ? "border-primary bg-primary" : "border-input bg-card"}`}
+        class={`h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${props.checked ? "border-primary bg-primary" : "border-input bg-card"}`}
       >
         <If when={props.checked}>
           <Text class="text-sm font-bold text-primary-foreground">✓</Text>
         </If>
       </View>
-      <Text class="text-base text-foreground">{props.label}</Text>
+      {/* shrink: a long label wraps inside its card instead of running past it. */}
+      <Text class="shrink text-base text-foreground">{props.label}</Text>
     </View>
   );
 }
