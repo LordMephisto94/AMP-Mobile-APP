@@ -2928,3 +2928,30 @@ test("a panel on a plain-HTTP Tailscale address signs in, and says how it's reac
   expect(app.texts().some((t) => t.includes("HTTP over Tailscale"))).toBe(true);
   expect(app.requests().every((r) => r.url.startsWith(TS))).toBe(true);
 });
+
+test("a page that let its artwork go while buried draws it again when it's back on top", async () => {
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/api/shards/a1/snapshots*`]: { body: { nodes: [], headId: null, settings: null } },
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  expect(app.count("backdrop-art")).toBe(1); // home
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Running");
+  await app.press("shard-Minecraft SMP");
+  await app.waitFor("controls");
+  await app.press("open-snapshots");
+  await app.waitFor("text:Snapshots");
+  expect(app.count("backdrop-art")).toBe(1); // the snapshots page's own
+  // Home and the instances list were two and three deep, with no artwork; back on top they draw it.
+  await app.press("back");
+  await app.press("back");
+  await app.waitFor("text:Running");
+  await app.waitUntil(() => app.count("backdrop-art") === 1);
+  await app.press("back");
+  await app.waitFor("text:Your servers");
+  await app.waitUntil(() => app.count("backdrop-art") === 1);
+});

@@ -2,9 +2,14 @@
 
 ## 0.2.5
 
-- Less memory: the AMP wordmark and logo are stored at the most they're ever drawn at (about 6 MB less once
-  decoded, no visible change), and player avatars are kept for the 100 most recently shown instead of every one
-  seen since the app opened.
+- Less memory:
+  - The backdrop art is drawn only by the page showing and the one under it (for the swipe back), not by every
+    page left open underneath; deeper pages let their copy go and draw it again when they're back on top.
+  - Phones get a portrait slice of the backdrop (the only part a portrait screen ever shows), a third of the
+    memory of the full picture.
+  - The AMP wordmark and logo are stored at the most they're ever drawn at (about 6 MB less once decoded).
+  - Player avatars are kept for the 100 most recently shown instead of every one seen since the app opened.
+  No visible change.
 
 ## 0.2.4
 

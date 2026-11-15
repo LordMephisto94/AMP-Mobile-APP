@@ -3,7 +3,7 @@ import { NavPage } from "nsh/base";
 import wordmark from "../../assets/amp-wordmark.webp";
 import app from "../../nsh.json";
 import { AmpBanner } from "../components/AmpBanner";
-import { Backdrop } from "../components/backdrop";
+import { Backdrop, PageDepth, pageDepthHere } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { PrimaryButton } from "../components/ui";
@@ -30,6 +30,7 @@ function showAbout() {
 
 /** Home: the saved AMP servers and the button to add one. */
 export function ServersScreen() {
+  const depth = pageDepthHere();
   // Whether each panel answers: checked when the page shows and every minute while it does.
   // Reading the list inside also checks a server as soon as it's added or edited. Nothing
   // is asked of any server while the app is locked.
@@ -37,6 +38,7 @@ export function ServersScreen() {
 
   return (
     <NavPage title="Servers" headerVisible={false}>
+      <PageDepth.Provider value={depth}>
       <View class="flex-1 bg-background">
         <Backdrop />
         <Scroll class="flex-1">
@@ -104,6 +106,7 @@ export function ServersScreen() {
           </View>
         </Scroll>
       </View>
+      </PageDepth.Provider>
     </NavPage>
   );
 }

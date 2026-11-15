@@ -28,6 +28,7 @@ import { SpiresScreen } from "./src/screens/SpiresScreen";
 import { UserScreen } from "./src/screens/UserScreen";
 import { nav, type Route } from "./src/state/nav";
 import { loadServers, locked, serversReady } from "./src/state/servers";
+import { withPageDepth } from "./src/components/backdrop";
 
 function screen(route: Route) {
   switch (route.name) {
@@ -102,7 +103,7 @@ function App() {
         }
       >
         <NavStack state={nav} class="flex-1">
-          {(route) => screen(route)}
+          {(route, index) => withPageDepth(() => nav.routes().length - 1 - index(), () => screen(route))}
         </NavStack>
       </If>
       <LockHost />

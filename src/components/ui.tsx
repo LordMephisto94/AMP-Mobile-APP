@@ -3,6 +3,7 @@ import mark from "../../assets/amp-mark.png";
 import { Button, Input, NavPage } from "nsh/base";
 import { nav } from "../state/nav";
 import { hideDetails, PrivText } from "../lib/privacy";
+import { PageDepth, pageDepthHere } from "./backdrop";
 
 /** The app's main call to action: a violet-to-pink gradient button. */
 export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean; icon?: string }) {
@@ -175,6 +176,8 @@ export function AppPage(props: {
   onBack?: () => void;
   children?: JSX.Element;
 }) {
+  // How deep this page sits in the stack, for what it draws (the artwork only near the top).
+  const depth = pageDepthHere();
   return (
     <NavPage
       title={props.title}
@@ -184,10 +187,12 @@ export function AppPage(props: {
         if (props.popOnBack === false) props.onBack?.();
       }}
     >
-      <View class="flex-1 bg-background">
-        <PageHeader title={props.title} subtitle={props.subtitle} right={props.right} onBack={props.onBack} />
-        <View class="flex-1">{props.children}</View>
-      </View>
+      <PageDepth.Provider value={depth}>
+        <View class="flex-1 bg-background">
+          <PageHeader title={props.title} subtitle={props.subtitle} right={props.right} onBack={props.onBack} />
+          <View class="flex-1">{props.children}</View>
+        </View>
+      </PageDepth.Provider>
     </NavPage>
   );
 }
