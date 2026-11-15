@@ -285,7 +285,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                   </If>
                 </View>
                 <If when={(h().trustedProxies ?? []).length}>
-                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${(h().trustedProxies ?? []).map(priv).join(", ")}`}</Text>
+                  <PrivText class="text-xs text-muted-foreground" text={`Trusted proxies: ${(h().trustedProxies ?? []).map((p) => priv(p)).join(", ")}`} />
                 </If>
               </Section>
             )}
