@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.9
+
+- Schedules: a new page on each instance (Schedules, under Snapshots) for what AMP runs on its own.
+  - See every schedule: when it runs, its next time, how the last run went, repeated failures, and why AMP turned
+    one off or skipped a step.
+  - Turn one on or off with its switch, run it now, or delete it (both ask first).
+  - Add or edit one: every few minutes or hours, hourly, daily, weekly, a custom cron expression (with a time zone),
+    or when something happens (a user connects, the server changes state…). The next times it would run show as you
+    type.
+  - Its actions run in order: send a console command, wait, take a backup, call a webhook, start, stop, restart,
+    update or kill the server. Reorder, add or remove them.
+  - Schedules with conditions or follow-up steps are shown in full and can be renamed, retimed, turned on or off and
+    run; their steps are kept exactly as they are (edit those in the web panel).
+  - Run history: each run's result, how long it took, and what every step did.
+
 ## 0.1.8
 
 - Snapshots: a new page on each instance (Snapshots, under Files) for AMP 3's backups.

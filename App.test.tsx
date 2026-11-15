@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.8");
+  await app.waitFor("text:AMP Mobile 0.1.9");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.8"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.9"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -2168,4 +2168,230 @@ test("snapshots: the timeline, taking one, following it, restoring, pinning, del
   await app.press("limits-save");
   await app.waitUntil(() => calls.includes("limits 5000 20000"));
   await app.waitFor("text:Limits saved.");
+});
+
+test("schedules: the list, on and off, run now, editing a straight one, keeping a branched one, a new one, history and delete", async () => {
+  const SCH = `${SERVER}/api/shards/a1/schedules`;
+  const calls: string[] = [];
+  const bodies: Record<string, any> = {};
+  const nightlySteps = [
+    { type: "task", id: "t1", taskType: "app.consoleSend", parameters: { command: "say restarting" }, await: true, onSuccess: [], onFailure: [], failureOverride: null },
+    { type: "task", id: "t2", taskType: "flow.wait", parameters: { seconds: "60" }, await: true, onSuccess: [], onFailure: [], failureOverride: "Continue" },
+    { type: "task", id: "t3", taskType: "power.restart", parameters: {}, await: true, onSuccess: [], onFailure: [], failureOverride: null },
+  ];
+  const greetSteps = [
+    {
+      type: "if", id: "c1", match: "All",
+      conditions: [{ value: "{@PlayerName}", operator: "NotEquals", comparand: "Steve" }],
+      then: [{ type: "task", id: "t9", taskType: "app.consoleSend", parameters: { command: "say hi {@PlayerName}" }, await: true, onSuccess: [], onFailure: [], failureOverride: null }],
+      else: [],
+    },
+  ];
+  let list: any[] = [
+    {
+      definition: {
+        id: "s1", name: "Nightly restart", description: "", enabled: true, timeout: "00:30:00",
+        trigger: { type: "cron", expression: "0 4 * * *", timeZoneId: "Australia/Brisbane" }, steps: nightlySteps,
+      },
+      status: { lastRunAt: "2026-11-15T04:00:00Z", lastRunStatus: "Succeeded", consecutiveFailures: 0 },
+      nextFireTime: "2026-11-16T04:00:00Z",
+      withheld: [],
+    },
+    {
+      definition: { id: "s2", name: "Greet players", description: "Says hello", enabled: true, timeout: "00:05:00", trigger: { type: "event", eventType: "player.joined" }, steps: greetSteps },
+      status: { lastRunAt: "2026-11-15T03:00:00Z", lastRunStatus: "Failed", lastError: "Console not ready", consecutiveFailures: 3 },
+      nextFireTime: null,
+      withheld: [],
+    },
+  ];
+  const catalog = {
+    triggers: [
+      { id: "player.joined", category: "players", emits: [] },
+      { id: "app.stateChanged", category: "application", emits: [] },
+    ],
+    tasks: [
+      { id: "app.consoleSend", category: "app", isAsync: false, defaultFailure: "Abort", parameters: [{ name: "command", inputType: "text", required: true }] },
+      { id: "backup.create", category: "backups", isAsync: true, defaultFailure: "Abort", parameters: [{ name: "name", inputType: "text", required: false }] },
+      { id: "flow.wait", category: "flow", isAsync: false, defaultFailure: "Abort", parameters: [{ name: "seconds", inputType: "number", required: true }] },
+      { id: "power.restart", category: "power", isAsync: true, defaultFailure: "Abort", parameters: [] },
+    ],
+    commonEmits: [],
+  };
+  const en = {
+    schedule: {
+      task: {
+        app_consoleSend: { name: "Send a console command" },
+        backup_create: { name: "Create a backup", note: "Creating a backup may shut down the application temporarily." },
+        flow_wait: { name: "Wait" },
+        power_restart: { name: "Restart the server" },
+      },
+      taskCategory: { app: "Application", backups: "Backups", flow: "Flow", power: "Power" },
+      taskParam: { command: "Command", seconds: "Seconds", name: "Backup name" },
+      trigger: { player_joined: { name: "A user connects", desc: "When a user connects to the server." } },
+      op: { NotEquals: "does not equal" },
+    },
+  };
+  const byId = (url: string) => url.split("/schedules/")[1].split(/[/?]/)[0];
+
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/assets/i18n/en.json`]: { body: en },
+      [`GET ${SCH}/catalog`]: { body: catalog },
+      [`POST ${SCH}/preview-firings`]: (r) => {
+        calls.push(`preview ${JSON.stringify(JSON.parse(r.body!).trigger)}`);
+        return { body: ["2026-11-16T05:30:00Z", "2026-11-17T05:30:00Z"] };
+      },
+      [`POST ${SCH}/*/enabled`]: (r) => {
+        const id = byId(r.url);
+        const on = JSON.parse(r.body!).enabled;
+        list = list.map((s) => (s.definition.id === id ? { ...s, definition: { ...s.definition, enabled: on } } : s));
+        calls.push(`enabled ${id} ${on}`);
+        return { status: 200 };
+      },
+      [`POST ${SCH}/*/run`]: (r) => {
+        calls.push(`run ${byId(r.url)}`);
+        return { status: 202 };
+      },
+      [`GET ${SCH}/*/history*`]: {
+        body: [
+          {
+            id: "r1", scheduleId: "s1", status: "CompletedWithErrors", queuedAt: "2026-11-15T04:00:00Z", startedAt: "2026-11-15T04:00:00Z",
+            completedAt: "2026-11-15T04:01:05Z", attemptNumber: 1, errorMessage: null,
+            stepOutcomes: [
+              { stepId: "t1", lane: "main", status: "Succeeded", detail: "Sent" },
+              { stepId: "t2", lane: "main", status: "Failed", detail: "Interrupted" },
+              { stepId: "t3", lane: "main", status: "Succeeded", detail: null },
+            ],
+          },
+        ],
+      },
+      [`PUT ${SCH}/*`]: (r) => {
+        const id = byId(r.url);
+        const body = JSON.parse(r.body!);
+        bodies[`put ${id}`] = body;
+        calls.push(`put ${id}`);
+        list = list.map((s) => (s.definition.id === id ? { ...s, definition: { ...s.definition, ...body, id } } : s));
+        return { body: list.find((s) => s.definition.id === id) };
+      },
+      [`DELETE ${SCH}/*`]: (r) => {
+        const id = byId(r.url);
+        list = list.filter((s) => s.definition.id !== id);
+        calls.push(`delete ${id}`);
+        return { status: 204 };
+      },
+      [`GET ${SCH}/*`]: (r) => {
+        const s = list.find((x) => x.definition.id === byId(r.url));
+        return s ? { body: s } : { status: 404 };
+      },
+      [`POST ${SCH}`]: (r) => {
+        const body = JSON.parse(r.body!);
+        bodies.post = body;
+        calls.push("post");
+        const made = { definition: { ...body, id: "s3" }, status: null, nextFireTime: "2026-11-15T10:15:00Z", withheld: [] };
+        list = [...list, made];
+        return { status: 201, body: made };
+      },
+      [`GET ${SCH}`]: () => ({ body: list }),
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  const texts = () => app.texts().join("\n");
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await openRow(app, "open-schedules", "text:Nightly restart");
+  await app.waitFor("text:Daily at 04:00 (Australia/Brisbane)");
+  expect(texts()).toContain("When: A user connects");
+  expect(texts()).toContain("Failed 3 times in a row");
+  expect(texts()).toContain("Console not ready");
+  expect(texts()).toContain("• Send a console command: say restarting");
+  expect(texts()).toContain("• If {@PlayerName} does not equal Steve");
+
+  // On and off is one tap; Run now asks first.
+  await app.press("schedule-toggle-s1");
+  await app.waitUntil(() => calls.includes("enabled s1 false"));
+  await app.waitFor("text:Nightly restart is off.");
+  await app.press("schedule-more-s2");
+  await app.press("menu-run");
+  await app.waitFor("text:Run Greet players now?");
+  await app.press("confirm-run");
+  await app.waitUntil(() => calls.includes("run s2"));
+
+  // A straight list of tasks is edited in place: the trigger rebuilt, the steps kept with their ids.
+  await app.press("schedule-more-s1");
+  await app.press("menu-edit");
+  await app.waitFor("schedule-time");
+  expect(app.value("schedule-time")).toBe("04:00");
+  expect(app.value("schedule-tz")).toBe("Australia/Brisbane");
+  await clearField(app, "schedule-time");
+  await app.type("schedule-time", "05:30");
+  await app.waitUntil(() => calls.some((c) => c.includes("30 5 * * *")));
+  await app.waitFor("schedule-preview");
+  await clearField(app, "task-1-command");
+  await app.type("task-1-command", "say back in 5");
+  await app.press("task-add");
+  await app.press("task-type-4");
+  await app.press("menu-backup.create");
+  await app.waitFor("text:Creating a backup may shut down the application temporarily.");
+  await app.press("schedule-save");
+  await app.waitUntil(() => calls.includes("put s1"));
+  const put = bodies["put s1"];
+  expect(put.trigger).toEqual({ type: "cron", expression: "30 5 * * *", timeZoneId: "Australia/Brisbane" });
+  expect(put.timeout).toBe("00:30:00");
+  expect(put.enabled).toBe(false);
+  expect(put.steps.map((x: any) => x.id).slice(0, 3)).toEqual(["t1", "t2", "t3"]);
+  expect(put.steps[0].parameters).toEqual({ command: "say back in 5" });
+  expect(put.steps[1].failureOverride).toBe("Continue");
+  expect(put.steps[3].taskType).toBe("backup.create");
+  await app.waitFor("text:Daily at 05:30 (Australia/Brisbane)");
+
+  // A schedule with branches: shown, renamed, and its steps sent back untouched.
+  await app.press("schedule-more-s2");
+  await app.press("menu-edit");
+  await app.waitFor("text:↳ Send a console command: say hi {@PlayerName}");
+  await clearField(app, "schedule-name");
+  await app.type("schedule-name", "Greet everyone");
+  await app.press("schedule-save");
+  await app.waitUntil(() => calls.includes("put s2"));
+  expect(bodies["put s2"].steps).toEqual(greetSteps);
+  expect(bodies["put s2"].trigger).toEqual({ type: "event", eventType: "player.joined" });
+  await app.waitFor("text:Greet everyone");
+
+  // A new one: every 15 minutes; a required parameter is asked for.
+  await app.press("text:New schedule");
+  await app.waitFor("schedule-name");
+  await app.type("schedule-name", "Autosave");
+  await app.press("schedule-mode");
+  await app.press("menu-interval");
+  await clearField(app, "schedule-minutes");
+  await app.type("schedule-minutes", "15");
+  await app.press("schedule-save");
+  await app.waitFor("text:Send a console command: fill in command.");
+  await app.type("task-1-command", "save-all");
+  await app.press("schedule-save");
+  await app.waitUntil(() => calls.includes("post"));
+  expect(bodies.post.trigger).toEqual({ type: "interval", interval: "00:15:00" });
+  expect(bodies.post.steps[0]).toMatchObject({ type: "task", taskType: "app.consoleSend", parameters: { command: "save-all" }, await: true });
+  expect(bodies.post.timeout).toBe(null);
+  await app.waitFor("text:Every 15 minutes");
+
+  // Run history names each step.
+  await app.press("schedule-more-s1");
+  await app.press("menu-history");
+  await app.waitFor("text:Completed with errors");
+  expect(texts()).toContain("Send a console command: say back in 5");
+  expect(texts()).toContain("Interrupted");
+  expect(texts()).toContain("1 min 5 s");
+  await app.press("back");
+
+  // Delete asks first.
+  await app.waitFor("schedule-more-s1");
+  await app.press("schedule-more-s1");
+  await app.press("menu-delete");
+  await app.waitFor("text:Delete Nightly restart?");
+  await app.press("confirm-delete");
+  await app.waitUntil(() => calls.includes("delete s1"));
+  await app.waitUntil(() => !app.texts().includes("Nightly restart"));
 });

@@ -21,6 +21,10 @@ export type Route =
   | { name: "shardSettings"; serverId: string; id: string; title: string }
   | { name: "files"; serverId: string; id: string; title: string; path: string }
   | { name: "snapshots"; serverId: string; id: string; title: string }
+  /** An instance's schedules; one schedule's editor (no `scheduleId`: a new one); its run history. */
+  | { name: "schedules"; serverId: string; id: string; title: string }
+  | { name: "scheduleEdit"; serverId: string; id: string; title: string; scheduleId?: string }
+  | { name: "scheduleRuns"; serverId: string; id: string; scheduleId: string; scheduleName: string }
   /** Player analytics for a server, or for one instance when `shardId` is given. */
   | { name: "analytics"; serverId: string; shardId?: string; title?: string }
   | { name: "player"; serverId: string; userKey: string; playerName?: string | null; shardId?: string }

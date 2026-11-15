@@ -232,7 +232,7 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
           <If when={timeline()}>
             <Section title="Timeline" note={nodes().length ? `${nodes().length} · ${megabytes(totalMb())}` : undefined}>
               <If when={nodes().length === 0}>
-                <Text class="text-sm text-muted-foreground">No snapshots yet. Take one above, or add a schedule in the web panel.</Text>
+                <Text class="text-sm text-muted-foreground">No snapshots yet. Take one above, or add a schedule on the Schedules page.</Text>
               </If>
               <Each of={nodes()} key={(n: Snapshot) => n.id}>
                 {(node) => (

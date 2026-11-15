@@ -20,6 +20,7 @@ import { ServersScreen } from "./src/screens/ServersScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
 import { ShardSettingsScreen } from "./src/screens/ShardSettingsScreen";
+import { ScheduleEditScreen, ScheduleRunsScreen, SchedulesScreen } from "./src/screens/SchedulesScreen";
 import { SnapshotsScreen } from "./src/screens/SnapshotsScreen";
 import { ShardsScreen } from "./src/screens/ShardsScreen";
 import { SpireScreen } from "./src/screens/SpireScreen";
@@ -48,6 +49,12 @@ function screen(route: Route) {
       return <CreateShardScreen serverId={route.serverId} />;
     case "snapshots":
       return <SnapshotsScreen serverId={route.serverId} id={route.id} title={route.title} />;
+    case "schedules":
+      return <SchedulesScreen serverId={route.serverId} id={route.id} title={route.title} />;
+    case "scheduleEdit":
+      return <ScheduleEditScreen serverId={route.serverId} id={route.id} title={route.title} scheduleId={route.scheduleId} />;
+    case "scheduleRuns":
+      return <ScheduleRunsScreen serverId={route.serverId} id={route.id} scheduleId={route.scheduleId} scheduleName={route.scheduleName} />;
     case "shardSettings":
       return <ShardSettingsScreen serverId={route.serverId} id={route.id} title={route.title} />;
     case "files":
