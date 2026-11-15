@@ -5,7 +5,10 @@
 - Security: **Hide personal details**, a switch you can flip at any time. While it's on, addresses (your panel's,
   IPs, host names, instance connect addresses, and IPs inside console lines), account and player names, avatars,
   emails and invite links are blurred across the app, for screenshots, screen sharing and streams. The real text
-  isn't drawn underneath, so a capture can't be zoomed to read it. Copy buttons still copy the real value.
+  isn't drawn underneath, so a capture can't be zoomed to read it. It covers session IPs in Settings, tunnel
+  addresses, and the addresses, user names and details in the activity log too. Copy buttons still copy the real
+  value.
+- Activity: long event titles wrap instead of running under the time.
 - Security: the page scrolls, and the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5".
 
 ## 0.2.2
