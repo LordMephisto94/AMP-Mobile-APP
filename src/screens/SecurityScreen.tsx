@@ -1,4 +1,4 @@
-import { effect, lifecycle, signal, Text, View } from "nsh";
+import { effect, lifecycle, Scroll, signal, Text, View } from "nsh";
 import { confirm } from "../components/Confirm";
 import { FullScreen, PinPad, PinSetup } from "../components/Lock";
 import { AppPage, Pill, SecondaryButton } from "../components/ui";
@@ -97,8 +97,9 @@ export function SecurityScreen() {
 
   return (
     <AppPage title="Security" subtitle="This app on this device">
-      <View class="flex-1 bg-background">
-        <View class="w-full max-w-2xl gap-4 self-center p-4">
+      {/* Scrolls: with fingerprint unlock and Block screenshots it's taller than a phone. */}
+      <Scroll class="flex-1 bg-background">
+        <View class="w-full max-w-2xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+32px)]">
           <If when={notice()}>
             {(m) => (
               <View class="rounded-(--radius) border border-success/30 bg-success/10 px-3.5 py-3">
@@ -218,7 +219,7 @@ export function SecurityScreen() {
             </View>
           </If>
         </View>
-      </View>
+      </Scroll>
 
       <If when={flow() === "setup"}>
         <PinSetup
