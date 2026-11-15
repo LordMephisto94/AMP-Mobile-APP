@@ -191,6 +191,29 @@ Checked and found sound: the real text is never drawn under the blur (copy butto
 console lines are caught without catching times or version numbers, the old screenshot setting is cleared on
 launch so screenshots always work, and nothing else changed in the vault, the lock, sign-in or connections.
 
+## Seventh audit: mobile app assessment (November 2026, 0.2.4)
+
+Following OWASP MASTG (the mobile app pentest, insecure data storage and secret scanning checklists): the release
+APK's manifest, the app's files on a device, its logs on a real phone, crafted intents against its components, and
+every commit in the repository's history.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 60 | On Android 12+, `allowBackup="false"` doesn't cover phone-to-phone transfer, so the app's files (the server list; the vault can't be opened elsewhere) would move to a new phone | Low | Fixed: data extraction rules exclude everything from cloud backups and transfers |
+
+Checked and found sound:
+- **Build:** not debuggable, no cleartext traffic, two permissions (internet, fingerprint), no web view.
+- **Components:** only the launcher entry is exported. The activity and the file provider refuse outside callers, and
+  a crafted link with fake extras just opens the lock screen.
+- **Storage:** the app's only data is one owner-only JSON file holding the server list, settings and the vault
+  (encrypted `iv`/`ct` and sealed keys). No password, token or JWT is anywhere on disk, there's no database, nothing
+  on shared storage and no cached images.
+- **Logs:** on a phone in daily use, the app's own log lines hold no token, ticket, password, IP or panel address.
+- **Repository:** all 62 commits are free of keys, tokens, private keys, keystores and env files, and of the user's
+  panel address and email.
+- **Fingerprint unlock:** opens a Keystore key (CryptoObject) a real fingerprint unlocks, so hooking the prompt's
+  success callback can't open the vault.
+
 ## Release signing
 
 From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.
@@ -203,7 +226,10 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **PIN strength where there's no key store.** On Android the vault is bound to the phone's Keystore, so a copy of
   the file is useless elsewhere. Elsewhere (desktops) the vault is only as strong as the PIN.
 - **iOS.** The Keychain and Face ID need the same work in an Xcode project, which needs a Mac.
-- **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
+- **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning (panels
+  bring their own certificates, so there's nothing fixed to pin to).
+- **Rooted phones and tampering.** The app doesn't detect a rooted phone or a modified APK. On a rooted phone,
+  code running as the app could reach the vault as the app does (still behind the PIN or fingerprint).
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (outside
   Android's backups from 0.2.0). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting
   the servers.
