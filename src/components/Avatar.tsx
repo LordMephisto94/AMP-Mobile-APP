@@ -3,8 +3,23 @@ import { avatarUrl } from "../api/analytics";
 import type { AmpClient } from "../api/client";
 import { hideDetails, priv } from "../lib/privacy";
 
-/** Avatars already fetched this run, by hash, so a refresh doesn't fetch them again. */
+/**
+ * Avatars already fetched this run, by hash, so a refresh doesn't fetch them again. Each is
+ * a picture held in memory, so only the most recently shown are kept: the oldest is let go
+ * (its memory released) once there are more than enough for a long player list.
+ */
 const cache = new Map<string, Promise<string | null>>();
+const MAX_AVATARS = 100;
+
+function remember(hash: string, promise: Promise<string | null>): void {
+  cache.delete(hash);
+  cache.set(hash, promise); // last in the map: the most recently shown
+  while (cache.size > MAX_AVATARS) {
+    const [oldest, gone] = cache.entries().next().value!;
+    cache.delete(oldest);
+    gone.then((url) => url && URL.revokeObjectURL(url)).catch(() => {});
+  }
+}
 
 const TINTS = ["bg-violet-500/30", "bg-sky-500/30", "bg-emerald-500/30", "bg-pink-500/30", "bg-amber-500/30"];
 
@@ -19,11 +34,8 @@ export function Avatar(props: { client: AmpClient | null; hash?: string | null; 
     const client = props.client;
     src.set(null);
     if (!hash || !client) return;
-    let promise = cache.get(hash);
-    if (!promise) {
-      promise = avatarUrl(client, hash);
-      cache.set(hash, promise);
-    }
+    const promise = cache.get(hash) ?? avatarUrl(client, hash);
+    remember(hash, promise);
     promise.then((url) => {
       if (props.hash === hash) src.set(url);
     });

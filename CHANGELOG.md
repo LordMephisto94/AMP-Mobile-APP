@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+- Less memory: the AMP wordmark and logo are stored at the most they're ever drawn at (about 6 MB less once
+  decoded, no visible change), and player avatars are kept for the 100 most recently shown instead of every one
+  seen since the app opened.
+
 ## 0.2.4
 
 - Settings: the panel's setting groups have proper names ("Public address", "Shard defaults") instead of their raw
