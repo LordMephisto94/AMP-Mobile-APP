@@ -29,6 +29,7 @@ import {
   statusLabel,
   statusTone,
   type TaskStep,
+  type Trigger,
   taskCategory,
   taskName,
   taskNote,
@@ -47,7 +48,7 @@ import { AppPage, Checkbox, ErrorText, Field, Pill, PrimaryButton, SecondaryButt
 import { poll } from "../lib/poll";
 import { sessionRejected } from "../lib/session";
 import { nav } from "../state/nav";
-import { clientFor, serverById } from "../state/servers";
+import { clientFor, clientLater, serverById } from "../state/servers";
 
 /** The list is checked this often while a run is under way, and this often otherwise. */
 const BUSY_MS = 4_000;
@@ -97,7 +98,7 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
 
   const client = () => clientFor(props.serverId);
   const fail = failer(props.serverId, (m) => error.set(m));
-  panelText(client()).then((t) => text.set(t));
+  clientLater(props.serverId).then(panelText).then((t) => text.set(t)).catch(() => {});
 
   const load = async () => {
     const mine = ++loadId;
@@ -327,7 +328,7 @@ export function ScheduleEditScreen(props: { serverId: string; id: string; title:
   const preview = signal<string[] | null>(null);
 
   const fail = failer(props.serverId, (m) => error.set(m));
-  panelText(client()).then((t) => text.set(t));
+  clientLater(props.serverId).then(panelText).then((t) => text.set(t)).catch(() => {});
 
   (async () => {
     try {
@@ -358,19 +359,34 @@ export function ScheduleEditScreen(props: { serverId: string; id: string; title:
   const straight = () => !original() || isStraight(original()!.steps);
   const patch = (p: Partial<TriggerForm>) => form.set({ ...form(), ...p });
 
-  // When it would fire next, a moment after the trigger stops changing.
+  // When it would fire next, a moment after the trigger stops changing. Only the newest
+  // answer is shown: an older one arriving late mustn't replace it.
+  let previewSeq = 0;
   effect(() => {
     if (!loaded()) return;
     const built = triggerOf(form());
     if ("error" in built || built.trigger.type === "event") return preview.set(null);
-    const trigger = built.trigger;
+    const trigger = triggerToSave(built.trigger);
+    const mine = ++previewSeq;
     const t = setTimeout(() => {
-      previewFirings(client(), props.id, trigger)
-        .then((times) => preview.set(times))
-        .catch(() => preview.set(null));
+      clientLater(props.serverId)
+        .then((c) => previewFirings(c, props.id, trigger))
+        .then((times) => mine === previewSeq && preview.set(times))
+        .catch(() => mine === previewSeq && preview.set(null));
     }, 400);
     cleanup(() => clearTimeout(t));
   });
+
+  /**
+   * The trigger to send: the stored one, exactly as it came, while the form still says the
+   * same (an interval's anchor, seconds, or a cron spelling the form doesn't show survive).
+   */
+  const triggerToSave = (built: Trigger): Trigger => {
+    const was = original()?.trigger;
+    if (!was) return built;
+    const again = triggerOf(formOf(was, catalog()?.triggers[0]?.id ?? ""));
+    return "trigger" in again && JSON.stringify(again.trigger) === JSON.stringify(built) ? was : built;
+  };
 
   const setTask = (i: number, next: TaskStep) => tasks.set(tasks().map((t, j) => (j === i ? next : t)));
   const move = (i: number, by: number) => {
@@ -405,7 +421,7 @@ export function ScheduleEditScreen(props: { serverId: string; id: string; title:
       const body = {
         name: name(),
         description: description(),
-        trigger: built.trigger,
+        trigger: triggerToSave(built.trigger),
         steps: straight() ? tasks() : original()!.steps,
         timeout: original()?.timeout ?? null,
         enabled: enabled(),

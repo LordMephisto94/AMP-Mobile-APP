@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.9");
+  await app.waitFor("text:AMP Mobile 0.1.10");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.9"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.10"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -2155,6 +2155,11 @@ test("snapshots: the timeline, taking one, following it, restoring, pinning, del
   await app.waitUntil(() => calls.includes("restore n1"));
   await app.waitFor("restoring");
   expect(texts()).toContain("Processing · 10 of 40 files");
+  // Nothing can be deleted while a restore runs.
+  await app.press("snapshot-more-n2");
+  await app.waitFor("menu-pin");
+  expect(app.count("menu-delete")).toBe(0);
+  await app.press("menu-pin");
   restoring = null;
 
   // Limits: whole megabytes only.
@@ -2394,4 +2399,101 @@ test("schedules: the list, on and off, run now, editing a straight one, keeping 
   await app.press("confirm-delete");
   await app.waitUntil(() => calls.includes("delete s1"));
   await app.waitUntil(() => !app.texts().includes("Nightly restart"));
+});
+
+test("a sign-in that finishes after the app locked is dropped, and the server told", async () => {
+  const OTHER = "https://other.example.test";
+  const storage = { ...(await vaultStorage()), "amp.security": JSON.stringify({ autoLockSeconds: 0 }) };
+  let backgrounded: "yes" | "unsupported" | null = null;
+  // The app goes to the background (and so locks) while the panel is still answering.
+  let app: Awaited<ReturnType<typeof openSignedIn>>;
+  app = await openSignedIn({
+    storage,
+    network: {
+      ...unlockedHome,
+      [`POST ${OTHER}/api/Auth/login`]: async () => {
+        try {
+          await app.setLifecycle("background");
+          backgrounded = "yes";
+        } catch {
+          backgrounded = "unsupported";
+        }
+        return { body: { token: "tok-late", expiration: "2099-01-01T00:00:00Z" } };
+      },
+      [`POST ${OTHER}/api/Auth/logout`]: { status: 204 },
+    },
+  });
+  await app.waitFor("text:Signed in");
+  await app.press("text:Add Server");
+  await app.type("server", "other.example.test");
+  await app.type("username", "admin");
+  await app.type("password", "pw");
+  await app.press("text:Add Server");
+  await app.waitUntil(() => backgrounded !== null);
+  if (backgrounded === "unsupported") return; // a real window can't be sent to the background
+  await app.waitUntil(() => app.requests().some((r) => r.url === `${OTHER}/api/Auth/logout`));
+  expect(app.requests().find((r) => r.url === `${OTHER}/api/Auth/logout`)?.headers.authorization).toBe("Bearer tok-late");
+  await app.setLifecycle("active");
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app);
+  // Back on the form it was on, with nothing of that sign-in kept.
+  await app.waitFor("text:Connect a server");
+  expect(JSON.parse(app.storage()["amp.servers"]).map((s: { serverUrl: string }) => s.serverUrl)).toEqual([SERVER]);
+});
+
+test("a sign-in answer without a valid expiry is refused", async () => {
+  const app = await open("./App.tsx", {
+    network: { [`POST ${SERVER}/api/Auth/login`]: { body: { token: "tok-1" } } },
+  });
+  await app.press("Add Server");
+  await app.type("server", "amp.example.test");
+  await app.type("username", "admin");
+  await app.type("password", "pw");
+  await app.press("text:Add Server");
+  await app.waitFor("text:The server's sign-in answer had no valid expiry. Is this an AMP 3 server?");
+});
+
+test("a schedule's trigger is sent back exactly as stored when the form leaves it alone", async () => {
+  const SCH = `${SERVER}/api/shards/a1/schedules`;
+  let put: any = null;
+  const stored = {
+    definition: {
+      id: "s1", name: "Heartbeat", description: "", enabled: true, timeout: "00:02:00",
+      trigger: { type: "interval", interval: "00:00:30", anchor: "2026-01-01T00:00:10Z" },
+      steps: [{ type: "task", id: "t1", taskType: "app.consoleSend", parameters: { command: "list" }, await: true, onSuccess: [], onFailure: [], failureOverride: null }],
+    },
+    status: null, nextFireTime: "2026-11-16T00:00:10Z", withheld: [],
+  };
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`GET ${SERVER}/assets/i18n/en.json`]: { status: 404 },
+      [`GET ${SCH}/catalog`]: {
+        body: { triggers: [], tasks: [{ id: "app.consoleSend", category: "app", isAsync: false, defaultFailure: "Abort", parameters: [{ name: "command", inputType: "text", required: true }] }], commonEmits: [] },
+      },
+      [`POST ${SCH}/preview-firings`]: { body: [] },
+      [`PUT ${SCH}/s1`]: (r) => {
+        put = JSON.parse(r.body!);
+        return { body: stored };
+      },
+      [`GET ${SCH}/s1`]: { body: stored },
+      [`GET ${SCH}`]: { body: [stored] },
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await openRow(app, "open-schedules", "text:Heartbeat");
+  await app.waitFor("text:Every 30 seconds");
+  await app.press("schedule-more-s1");
+  await app.press("menu-edit");
+  await app.waitFor("schedule-name");
+  await clearField(app, "schedule-name");
+  await app.type("schedule-name", "Heartbeat 2");
+  await app.press("schedule-save");
+  await app.waitUntil(() => put !== null);
+  expect(put.trigger).toEqual({ type: "interval", interval: "00:00:30", anchor: "2026-01-01T00:00:10Z" });
+  expect(put.name).toBe("Heartbeat 2");
 });

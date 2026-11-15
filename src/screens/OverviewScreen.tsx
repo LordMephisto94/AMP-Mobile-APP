@@ -12,7 +12,7 @@ import { goTo, MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clientFor, serverById } from "../state/servers";
+import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 const REFRESH_MS = 30_000;
@@ -32,7 +32,7 @@ export function OverviewScreen(props: { serverId: string }) {
   const error = signal<string | null>(null);
   const refreshing = signal(false);
 
-  panelText(clientFor(props.serverId)).then((t) => text.set(t));
+  clientLater(props.serverId).then(panelText).then((t) => text.set(t)).catch(() => {});
 
   const load = async () => {
     try {

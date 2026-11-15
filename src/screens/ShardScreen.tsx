@@ -21,7 +21,7 @@ import { MetricChart, type MetricPoint } from "../components/MetricChart";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clientFor, serverById } from "../state/servers";
+import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 /** How often the page refreshes while it is on screen (the agent samples every ~5 s). */
@@ -49,7 +49,8 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
   const copied = signal(false);
 
   // Where players connect. It rarely changes, so it's read once; without it the page carries on.
-  getShardEndpoints(clientFor(props.serverId), props.id)
+  clientLater(props.serverId)
+    .then((c) => getShardEndpoints(c, props.id))
     .then((e) => address.set(connectAddress(e)))
     .catch(() => {});
 

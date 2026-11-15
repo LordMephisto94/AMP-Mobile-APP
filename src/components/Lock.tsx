@@ -241,7 +241,9 @@ export function LockHost() {
       leftAt = Date.now();
       if (autoLockSeconds() === 0) lockNow();
     } else if (state === "active" && leftAt) {
-      if (Date.now() - leftAt >= autoLockSeconds() * 1000) lockNow();
+      const away = Date.now() - leftAt;
+      // A clock set back while away (a negative time) locks too, rather than never.
+      if (away < 0 || away >= autoLockSeconds() * 1000) lockNow();
       leftAt = 0;
     }
   });

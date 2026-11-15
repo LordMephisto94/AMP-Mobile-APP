@@ -410,7 +410,8 @@ function SnapshotRow(props: {
       hint: s().sticky ? "Automatic clean-up may remove it" : "Automatic clean-up won't remove it",
       onSelect: props.onPin,
     },
-    ...(isBusy(s()) ? [] : [{ id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: props.onDelete }]),
+    // Nothing is deleted mid-capture or while a restore runs (it may be the one being restored).
+    ...(isBusy(s()) || props.restoring ? [] : [{ id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: props.onDelete }]),
   ];
 
   return (

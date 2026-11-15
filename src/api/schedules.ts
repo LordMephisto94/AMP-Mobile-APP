@@ -328,11 +328,17 @@ export function defaultForm(eventType = ""): TriggerForm {
   return { mode: "daily", minutes: "30", hours: "6", minute: "0", time: "04:00", weekday: 1, cron: "0 4 * * *", timeZoneId: localTimeZone(), eventType };
 }
 
-/** "1.02:30:00" → minutes. */
-export function minutesOf(span: string): number {
+/** "1.02:30:15" → seconds. */
+export function secondsOf(span: string): number {
   const m = /^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})/.exec(span);
   if (!m) return 0;
-  return Number(m[1] ?? 0) * 1440 + Number(m[2]) * 60 + Number(m[3]);
+  return ((Number(m[1] ?? 0) * 24 + Number(m[2])) * 60 + Number(m[3])) * 60 + Number(m[4]);
+}
+
+/** "1.02:30:00" → minutes, rounded (an interval under a minute counts as one). */
+export function minutesOf(span: string): number {
+  const secs = secondsOf(span);
+  return secs > 0 ? Math.max(1, Math.round(secs / 60)) : 0;
 }
 
 /** Minutes → "1.02:30:00". */
@@ -349,7 +355,10 @@ const pad = (s: string) => s.padStart(2, "0");
 export function formOf(t: Trigger, fallbackEvent = ""): TriggerForm {
   const f = defaultForm(fallbackEvent);
   if (t.type === "interval") {
-    const mins = minutesOf(t.interval);
+    const secs = secondsOf(t.interval);
+    // Seconds the form can't show: kept as a custom interval (the stored value is sent back unchanged).
+    if (secs % 60 !== 0) return { ...f, mode: "interval", minutes: String(minutesOf(t.interval) || 1) };
+    const mins = secs / 60;
     return mins >= 60 && mins % 60 === 0 ? { ...f, mode: "everyHours", hours: String(mins / 60) } : { ...f, mode: "interval", minutes: String(mins || 30) };
   }
   if (t.type === "event") return { ...f, mode: "event", eventType: t.eventType };
@@ -458,6 +467,10 @@ export function statusTone(s: string | null): "success" | "warning" | "danger" |
 /** "Every 30 minutes", "Daily at 04:00 (Australia/Brisbane)", "When: A user connects". */
 export function whenLabel(t: Trigger, text: Text): string {
   if (t.type === "event") return `When: ${eventName(t.eventType, text)}`;
+  if (t.type === "interval" && secondsOf(t.interval) % 60 !== 0) {
+    const secs = secondsOf(t.interval);
+    return secs < 60 ? `Every ${secs} second${secs === 1 ? "" : "s"}` : `Every ${Math.floor(secs / 60)} min ${secs % 60} s`;
+  }
   const f = formOf(t);
   const tz = f.timeZoneId;
   switch (f.mode) {

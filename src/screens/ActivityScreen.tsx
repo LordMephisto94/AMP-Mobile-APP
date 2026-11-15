@@ -23,7 +23,7 @@ import { MainMenu } from "../components/MainMenu";
 import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clientFor, serverById } from "../state/servers";
+import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 const PAGE = 30;
@@ -65,7 +65,7 @@ export function ActivityScreen(props: { serverId: string }) {
   const shardNames = signal<Record<string, string>>({});
   /** The panel's wording for actions. */
   const text = signal<Record<string, string>>({});
-  panelText(clientFor(props.serverId)).then((t) => text.set(t));
+  clientLater(props.serverId).then(panelText).then((t) => text.set(t)).catch(() => {});
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let loadId = 0;
 
@@ -128,7 +128,8 @@ export function ActivityScreen(props: { serverId: string }) {
     }
   };
 
-  listShards(clientFor(props.serverId), true)
+  clientLater(props.serverId)
+    .then((c) => listShards(c, true))
     .then((all) => shardNames.set(Object.fromEntries(all.map((s) => [s.id, s.displayName || s.name || s.id]))))
     .catch(() => {});
 

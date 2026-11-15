@@ -87,6 +87,29 @@ code in the app. Links and images the panel names are checked before use:
 | 29 | Users, roles or invites missing a field could break the Access pages | Low | Fixed: answers tidied where they arrive |
 | 30 | Avatars weren't size- or type-checked and had no timeout | Low | Fixed: images only, 2 MB at most, 15 s |
 
+## Third audit: security, races and edge cases (November 2026, 0.1.10)
+
+Covers everything since the second audit (the phone-bound vault and quick unlock, the in-app password change, release
+signing, Snapshots and Schedules) and a fresh pass over the vault, lock, connections and panel content.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 31 | A sign-in that finished after the app had locked put a session in memory behind the lock | Medium | Fixed: it's dropped, the panel is told, and the user signs in again after unlocking |
+| 32 | A failed quick unlock could write the old vault back to disk after "Forgot PIN" had erased it | Low | Fixed: only the current vault is ever rewritten |
+| 33 | "Forgot PIN" deleted the phone's keys without waiting, so a PIN set straight after could lose its fresh key to that late deletion | Low | Fixed: a new vault waits for the deletions |
+| 34 | Locking while a PIN-only vault moved to a phone-bound one left its key in memory while locked | Low | Fixed: the move is abandoned by a lock or an erase |
+| 35 | Setting the clock back while the app was in the background skipped the auto-lock | Low | Fixed: a backwards clock locks |
+| 36 | Six pages asked for the API client while being drawn, so opening one as a session ran out could break the page | Low | Fixed: those reads start once the page is up, and fail quietly |
+| 37 | A sign-in answer without a valid expiry was accepted, and the session counted as over at once | Low | Fixed: refused with an explanation |
+| 38 | A schedule's "next times" preview could show an older answer that arrived after a newer one | Low | Fixed: only the newest is shown |
+| 39 | Saving a schedule rebuilt its trigger from the form, dropping an interval's anchor and rounding seconds | Low | Fixed: an untouched trigger is sent back exactly as stored; sub-minute intervals are labelled in seconds |
+| 40 | A snapshot could be deleted while a restore was running (possibly the one being restored) | Low | Fixed: no deleting during a restore |
+
+Checked and found sound: HTTPS-only addresses and `wss` for the console, redirects refused, every API path segment
+encoded, error messages stripped of tickets, links and artwork checked, nothing logged, the Keystore errors told
+apart, PIN checks one at a time, vault writes in order, renewals shared and superseded correctly, the console's hub
+stopped with its page, and Schedules sending branched steps back untouched.
+
 ## Release signing
 
 From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.
@@ -107,5 +130,11 @@ replaces the app and reads its data. Earlier builds used a development key. The 
   capabilities deny notifications.
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (and go into
   backups). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting the servers.
+- **PIN guessing on the phone itself.** The vault's PIN-bound key works without a recent phone unlock, so code
+  running as the app on an unlocked or rooted phone could try PINs without the wrong-PIN count. Each try still costs
+  600,000 PBKDF2 rounds on the phone; a longer PIN makes this impractical.
+- **Edits while locked.** An unsaved schedule or snapshot form is lost when the app locks (file edits are kept).
+- **Concurrent edits.** Saving a schedule replaces what's stored, so an edit made meanwhile in the web panel is
+  overwritten (the web panel behaves the same way).
 - **Passkeys.** Accounts that sign in with a passkey are sent to the web panel. (Accounts held for a password
   change now set the new password in the app.)

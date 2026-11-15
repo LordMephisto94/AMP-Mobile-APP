@@ -121,6 +121,8 @@ let pinCheck: Promise<unknown> = Promise.resolve();
 /** Renewals in flight, one per server, shared by everyone who asks. */
 const renewing = new Map<string, Promise<RenewOutcome>>();
 let vaultKey: VaultKey | null = null;
+/** Key store deletions from the last erase: a new vault waits for them, or they'd delete its fresh keys. */
+let forgetting: Promise<unknown> = Promise.resolve();
 /** A device-bound vault's data key, while unlocked (to give it its quick way in). */
 let dataKeyRaw: Uint8Array | null = null;
 
@@ -152,6 +154,14 @@ export function clientFor(serverId: string): AmpClient {
     clients.set(serverId, client);
   }
   return client;
+}
+
+/**
+ * `clientFor` for a one-off read a page starts as it opens: a missing session becomes a
+ * rejected promise instead of an error thrown while the page is drawn.
+ */
+export function clientLater(serverId: string): Promise<AmpClient> {
+  return Promise.resolve().then(() => clientFor(serverId));
 }
 
 function newId(): string {
@@ -222,6 +232,20 @@ function applySession(id: string, auth: { token: string; expiration: string }): 
 
 // ---- Signing in and out ------------------------------------------------------------------
 
+/**
+ * A sign-in that finished after the app locked: no session may be in memory while locked,
+ * so it's dropped (and the server told) and the user signs in again after unlocking.
+ */
+function refuseWhileLocked(serverUrl: string, auth: AuthResponse): void {
+  if (!locked()) return;
+  try {
+    apiLogout(new AmpClient(serverUrl, auth.token)).catch(() => {});
+  } catch {
+    // An address that can't be used: nothing to tell.
+  }
+  throw new Error("The app locked while signing in. Sign in again.");
+}
+
 /** Saves a newly signed-in server and returns its id. */
 export async function addServer(input: {
   name: string;
@@ -230,6 +254,7 @@ export async function addServer(input: {
   auth: AuthResponse;
   rememberMe: boolean;
 }): Promise<string> {
+  refuseWhileLocked(input.serverUrl, input.auth);
   // The same account on the same panel again: refresh that entry rather than duplicate it.
   const same = servers().find(
     (s) => s.serverUrl.toLowerCase() === input.serverUrl.toLowerCase() && s.username.toLowerCase() === input.username.toLowerCase(),
@@ -258,6 +283,7 @@ export async function addServer(input: {
 
 /** Stores a fresh sign-in for a saved server. */
 export async function setServerSession(id: string, username: string, auth: AuthResponse, rememberMe: boolean): Promise<void> {
+  refuseWhileLocked(serverById(id)?.serverUrl ?? "", auth);
   update(id, (s) => ({ ...s, username, rememberMe }));
   applySession(id, auth);
   await persistServers();
@@ -475,7 +501,7 @@ export function unlock(pin: string): Promise<UnlockResult> {
     if (epoch !== lockEpoch || vaultBlob !== blob) return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES, waitSeconds: 0, erased: false };
     await finishUnlock(blob, opened.key, opened.raw);
     // A PIN-only vault moves to a device-bound one at the first chance.
-    if (blob.v === 1 && deviceAvailable()) await rebuildVault(pin);
+    if (blob.v === 1 && deviceAvailable() && !locked()) await rebuildVault(pin);
     return { ok: true } as UnlockResult;
   });
 }
@@ -497,7 +523,7 @@ export function quickUnlock(): Promise<boolean> {
       const why = String((e as Error)?.message ?? e);
       // Not unlocked recently: just ask for the PIN. A key that's gone or invalidated
       // (the phone's lock was changed): drop the quick way in; the PIN still works.
-      if (!why.startsWith("auth")) {
+      if (!why.startsWith("auth") && vaultBlob === blob && epoch === lockEpoch) {
         const { quickWrap: _gone, ...rest } = blob;
         vaultBlob = rest;
         await Storage.setItem(VAULT_KEY, JSON.stringify(rest));
@@ -582,6 +608,7 @@ async function newVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; 
     const { blob, key } = await createVault(pin, data);
     return { blob, key, raw: null };
   }
+  await forgetting;
   const raw = randomBytes(32);
   const key = await importDataKey(raw);
   const salt = randomBytes(16);
@@ -601,7 +628,11 @@ async function newVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; 
 
 /** Re-makes the vault (a new PIN, or moving to a device-bound one), keeping the sessions. */
 async function rebuildVault(pin: string): Promise<void> {
+  const epoch = lockEpoch;
+  const before = vaultBlob;
   const made = await newVault(pin, rememberedSessions());
+  // Locked or erased while the new vault was made: the old one stands (and no key stays in memory).
+  if (epoch !== lockEpoch || vaultBlob !== before) return;
   vaultBlob = made.blob;
   vaultKey = made.key;
   dataKeyRaw = made.raw;
@@ -680,8 +711,7 @@ export async function eraseVault(): Promise<void> {
   vaultKey = null;
   dataKeyRaw = null;
   if (deviceAvailable()) {
-    DeviceKey.forget(BOUND_ALIAS).catch(() => {});
-    DeviceKey.forget(QUICK_ALIAS).catch(() => {});
+    forgetting = Promise.all([DeviceKey.forget(BOUND_ALIAS).catch(() => {}), DeviceKey.forget(QUICK_ALIAS).catch(() => {})]);
   }
   sessions.clear();
   clients.clear();

@@ -4,7 +4,7 @@ import { AmpError } from "../api/client";
 import { Screen } from "../components/backdrop";
 import { Checkbox, AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
-import { clientFor, serverById } from "../state/servers";
+import { clientFor, clientLater, serverById } from "../state/servers";
 import { copySecret } from "../lib/links";
 
 const EXPIRY = [
@@ -26,7 +26,8 @@ export function InviteScreen(props: { serverId: string }) {
   const error = signal<string | null>(null);
   const created = signal<{ userName: string; link: string } | null>(null);
 
-  listRoles(clientFor(props.serverId))
+  clientLater(props.serverId)
+    .then(listRoles)
     .then((r) => roles.set(r))
     .catch(() => roles.set([]));
 

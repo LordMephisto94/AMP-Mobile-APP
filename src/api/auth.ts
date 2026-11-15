@@ -62,7 +62,11 @@ export async function passwordRules(client: AmpClient): Promise<string | null> {
 
 function readLoginAnswer(data: Record<string, unknown> | undefined): LoginOutcome {
   if (typeof data?.token === "string") {
-    return { kind: "signedIn", auth: data as unknown as AuthResponse };
+    // Without a readable expiry the session would count as over at once.
+    if (typeof data.expiration !== "string" || Number.isNaN(Date.parse(data.expiration))) {
+      throw new Error("The server's sign-in answer had no valid expiry. Is this an AMP 3 server?");
+    }
+    return { kind: "signedIn", auth: { token: data.token, expiration: data.expiration } };
   }
   if (data?.passwordChangeRequired || data?.PasswordChangeRequired) {
     const reason = (data.reason ?? data.Reason) as string | undefined;

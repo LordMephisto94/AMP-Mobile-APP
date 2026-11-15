@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.10
+
+A third security audit, covering races and edge cases (details in SECURITY.md, findings 31 to 40).
+
+- A sign-in that finishes after the app locked is dropped (and the panel told) instead of being kept behind the lock.
+- "Forgot PIN", quick unlock and the move to a phone-bound vault can no longer race each other into a stale vault or
+  a key left in memory.
+- Setting the clock back while the app is in the background no longer skips the auto-lock.
+- Pages no longer break when opened just as a session runs out.
+- A sign-in answer without a valid expiry is refused.
+- Schedules: an untouched trigger is saved exactly as stored (an interval's anchor and seconds survive), intervals
+  under a minute show in seconds, and the "next times" preview only shows the newest answer.
+- Snapshots: no deleting while a restore runs.
+
 ## 0.1.9
 
 - Schedules: a new page on each instance (Schedules, under Snapshots) for what AMP runs on its own.
