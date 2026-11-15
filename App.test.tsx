@@ -121,7 +121,7 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.3.0");
+  await app.waitFor("text:AMP Mobile 0.3.1");
   await app.press("confirm-ok");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
@@ -3075,4 +3075,30 @@ test("crash alerts: a pressed alert opens its instance once the app is unlocked"
   // An alert for a server that's gone does nothing.
   await app.host.send("crashWatch.open", { serverId: "nope", shardId: "x" });
   expect(app.texts()).toContain("Minecraft SMP");
+});
+
+test("crash alerts: signing out takes the token back even when the list couldn't be read at launch", async () => {
+  let statusWorks = false;
+  const state = { permission: "granted", watched: new Map([["s1", { token: "tok-1", url: SERVER }], ["gone", { token: "x", url: SERVER }]]) };
+  const host = fakeCrashWatch(state);
+  const status = host.handlers["crashWatch.status"];
+  (host.handlers as Record<string, unknown>)["crashWatch.status"] = () => {
+    if (!statusWorks) throw new Error("error: not now");
+    return status();
+  };
+  const app = await openSignedIn({ network: unlockedHome, host });
+  // The launch couldn't read the list, so nothing was cleaned up yet...
+  expect(state.watched.has("gone")).toBe(true);
+  statusWorks = true;
+  // ...but signing out still asks the phone to forget the server.
+  await app.press("more-Home Lab");
+  await app.waitFor("menu-signOut");
+  await app.press("menu-signOut");
+  await app.waitUntil(() => !state.watched.has("s1"));
+});
+
+test("crash alerts: a server no longer in the list loses its alerts at launch", async () => {
+  const state = { permission: "granted", watched: new Map([["gone", { token: "x", url: SERVER }]]) };
+  await openSignedIn({ network: unlockedHome, host: fakeCrashWatch(state) });
+  expect(state.watched.has("gone")).toBe(false);
 });

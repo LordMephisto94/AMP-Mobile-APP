@@ -93,9 +93,12 @@ export async function handOverToken(serverId: string, session: { token: string; 
 
 /** Turns crash alerts off for a server, and forgets its token. */
 export async function unwatchServer(serverId: string): Promise<void> {
-  if (!crashWatch().watched.includes(serverId)) return;
+  // Asked even when the list says it isn't watched: a launch that couldn't read the list must
+  // never leave a token behind after a sign-out.
+  if (!host.available()) return;
   try {
-    await call("remove", { serverId });
+    // Short: sign-out waits for this.
+    await call("remove", { serverId }, 5000);
   } catch {
     // Unavailable: there's nothing kept to forget.
   }
@@ -104,9 +107,9 @@ export async function unwatchServer(serverId: string): Promise<void> {
 
 /** Crash alerts off for every server, their tokens and key gone (the saved sign-ins were erased). */
 export async function unwatchAll(): Promise<void> {
-  if (!crashWatch().available) return;
+  if (!host.available()) return;
   try {
-    await call("clear");
+    await call("clear", null, 5000);
   } catch {
     // Unavailable: there's nothing kept to forget.
   }

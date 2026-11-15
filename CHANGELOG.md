@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- A tenth audit (SECURITY.md, findings 66 to 74), of crash alerts:
+  - Another app can no longer make AMP Mobile open an instance page by posing as a crash alert.
+  - Signing out, removing a server or erasing the PIN always takes back the alerts' copy of the session, even when
+    the app couldn't read its list at launch.
+  - One slow instance no longer stops the rest of a server being checked.
+  - A phone with a wrong clock no longer causes false alerts.
+  - After a pause, alerts start afresh instead of comparing against days-old states.
+  - Busy instances get their whole activity log read.
+
 ## 0.3.0
 
 - Crash alerts (Security, Android): a notification when an instance stops unexpectedly, fails to start or restarts

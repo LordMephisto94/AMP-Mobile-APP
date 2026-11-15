@@ -1,6 +1,6 @@
 # Security
 
-This file covers how AMP Mobile protects your panel access, what nine audits (November 2026) found and fixed,
+This file covers how AMP Mobile protects your panel access, what ten audits (November 2026) found and fixed,
 and what's still open. To report a problem, open an issue (or contact the owner privately if it's
 sensitive).
 
@@ -259,6 +259,27 @@ Checked and found sound: a pressed alert carries only ids and the instance's nam
 is pushed on top of the current page (nothing unsaved is dropped); the activity is not exported and there's no deep
 link; the lock screen shows "An instance stopped" without names; a renewal never overwrites a token the app handed over
 meanwhile; two checks never run at once.
+
+## Tenth audit: crash alerts, edge cases and races (November 2026, 0.3.1)
+
+A second look at crash alerts, with the Android intents checklist (exported components, PendingIntents, extras) and
+the insecure data storage checklist. The intent finding was confirmed on the emulator, then confirmed fixed.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 66 | The launcher entry is exported (it has to be), and the app read crash-alert extras from any intent: another app could start it with a made-up server and instance and have it open that page after unlock | Medium | Fixed: only intents naming the app's own (unexported) activity are read, which only the app's alerts can |
+| 67 | Signing out, removing a server and erasing the PIN asked the phone to forget the alerts' copy of the session only if the app's list said it was kept; a launch that couldn't read the list left it behind | Medium | Fixed: they always ask, and a server no longer in the list loses its alerts at launch |
+| 68 | One instance that didn't answer (a timeout) abandoned the whole server's check | Low | Fixed: that instance keeps its last state, the others are checked |
+| 69 | A state answer without a status was stored as an unknown state, so a crash right after went unreported | Low | Fixed: treated as no answer |
+| 70 | The activity log was read from the phone's clock: a phone several minutes fast could miss a person's stop and raise a false alert | Low | Fixed: the panel's own clock (its Date header) marks each check |
+| 71 | Alerts resumed after a pause compared against states from before it, possibly days old | Low | Fixed: a resume starts afresh |
+| 72 | Only the first 100 activity-log events were read; a busy instance could hide a person's stop behind the system's own events | Low | Fixed: up to five pages, and "can't tell" beyond |
+| 73 | A run had no time limit of its own (many slow instances) | Low | Fixed: it stops starting requests after six minutes, inside the system's ten |
+| 74 | Sign-out waited up to 30 s on the phone forgetting the alerts' session | Low | Fixed: 5 s |
+
+Checked and found sound: the alerts' PendingIntents are immutable and explicit; the job service is unexported and
+needs `BIND_JOB_SERVICE`; nothing of `amp.watch` is in backups or device transfers; the session in it is encrypted and
+never logged; a session AMP refused isn't tried again until a different one is handed over; two checks never overlap.
 
 ## Release signing
 

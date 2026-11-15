@@ -79,6 +79,8 @@ final class CrashWatch {
     private static final long SKEW_MS = 5 * 60_000L;
     private static final int TIMEOUT_MS = 20_000;
     private static final int MAX_BODY = 4 * 1024 * 1024;
+    /** A run stops starting new requests after this, well inside the system's 10 minutes for a job. */
+    private static final long RUN_LIMIT_MS = 6 * 60_000L;
 
     private static final String CHANNEL_CRASH = "crash";
     private static final String CHANNEL_ACCOUNT = "account";
@@ -244,6 +246,7 @@ final class CrashWatch {
                 e = new JSONObject();
                 e.put("url", url);
             }
+            if (e.optBoolean("paused")) e.remove("shards"); // Days-old states, as in handOver.
             e.put("name", name == null || name.isEmpty() ? url : name);
             e.put("token", sealed);
             e.put("exp", expiration);
@@ -269,6 +272,8 @@ final class CrashWatch {
             // The very token AMP refused (an unlock restoring a dead session): stay paused, no new notice.
             if (e.optBoolean("paused") && fingerprint(token).equals(e.optString("refused"))) return true;
             wasPaused = e.optBoolean("paused");
+            // What was seen before the pause may be days old: start afresh rather than alert on it.
+            if (wasPaused) e.remove("shards");
             e.put("token", sealed);
             e.put("exp", expiration);
             e.put("paused", false);
@@ -350,9 +355,11 @@ final class CrashWatch {
             synchronized (LOCK) {
                 for (Iterator<String> it = load(c).keys(); it.hasNext(); ) ids.add(it.next());
             }
+            long deadline = System.currentTimeMillis() + RUN_LIMIT_MS;
             for (String id : ids) {
+                if (System.currentTimeMillis() > deadline) break;
                 try {
-                    checkServer(c, id);
+                    checkServer(c, id, deadline);
                 } catch (Exception e) {
                     Log.w(TAG, "crash alerts: check failed: " + e.getClass().getSimpleName());
                 }
@@ -380,7 +387,7 @@ final class CrashWatch {
         }
     }
 
-    private static void checkServer(Context c, String id) throws Exception {
+    private static void checkServer(Context c, String id, long deadline) throws Exception {
         JSONObject entry;
         synchronized (LOCK) {
             entry = load(c).optJSONObject(id);
@@ -424,6 +431,8 @@ final class CrashWatch {
             return;
         }
         if (list.code != 200) return; // Offline or the panel is down: try again next time.
+        // The panel's own clock when it answered, so the activity log is read in its time, not the phone's.
+        if (list.date > 0) startedAt = list.date;
         JSONArray shards = list.array();
         if (shards == null) return;
 
@@ -437,9 +446,16 @@ final class CrashWatch {
             String shardName = firstText(shard, "displayName", "name");
             if (shardName == null) shardName = "An instance";
             JSONObject seen = before == null ? null : before.optJSONObject(shardId);
-            Response state = get(url, "/api/Shards/" + enc(shardId) + "/state", token);
-            JSONObject s = state.code == 200 ? state.object() : null;
-            if (s == null) {
+            JSONObject s = null;
+            if (System.currentTimeMillis() < deadline) {
+                try {
+                    Response state = get(url, "/api/Shards/" + enc(shardId) + "/state", token);
+                    s = state.code == 200 ? state.object() : null;
+                } catch (IOException e) {
+                    // One instance that doesn't answer mustn't hold up the others.
+                }
+            }
+            if (s == null || !s.has("status")) {
                 if (seen != null) after.put(shardId, seen); // Unknown this time: keep what was last seen.
                 continue;
             }
@@ -495,18 +511,24 @@ final class CrashWatch {
     /** Whether a person or a schedule acted on the instance since `fromMs`; null when the log can't be read. */
     private static Boolean someoneActed(String url, String token, String shardId, long fromMs) {
         try {
-            String query = "/api/Audit?targetId=" + enc(shardId) + "&from=" + enc(Instant.ofEpochMilli(fromMs).toString()) + "&pageSize=100";
-            Response r = get(url, query, token);
-            if (r.code != 200) return null;
-            JSONObject page = r.object();
-            JSONArray items = page == null ? null : page.optJSONArray("items");
-            if (items == null) return null;
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject e = items.optJSONObject(i);
-                // AuditOrigin: 0 is the system on its own; anything else has a person or a schedule behind it.
-                if (e != null && e.optInt("origin", 0) != 0) return true;
+            String query = "/api/Audit?targetId=" + enc(shardId) + "&from=" + enc(Instant.ofEpochMilli(fromMs).toString()) + "&pageSize=100&page=";
+            int seen = 0;
+            // A busy instance can log more than a page of the system's own events in one interval.
+            for (int pageNo = 1; pageNo <= 5; pageNo++) {
+                Response r = get(url, query + pageNo, token);
+                if (r.code != 200) return null;
+                JSONObject page = r.object();
+                JSONArray items = page == null ? null : page.optJSONArray("items");
+                if (items == null) return null;
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject e = items.optJSONObject(i);
+                    // AuditOrigin: 0 is the system on its own; anything else has a person or a schedule behind it.
+                    if (e != null && e.optInt("origin", 0) != 0) return true;
+                }
+                seen += items.length();
+                if (items.length() == 0 || seen >= page.optInt("total", 0)) return false;
             }
-            return false;
+            return null; // More than five pages: can't tell.
         } catch (Exception e) {
             return null;
         }
@@ -565,7 +587,7 @@ final class CrashWatch {
                 title = a.shardName + " stopped unexpectedly";
                 body = a.error != null && !a.error.isEmpty()
                         ? a.error
-                        : a.intended == null ? "AMP didn't say why, and this account can't read the activity log." : "No one stopped it.";
+                        : a.intended == null ? "AMP didn't say why, and its activity log couldn't be checked." : "No one stopped it.";
         }
         Notification.Builder b = builder(c, CHANNEL_CRASH, title, serverName + ": " + body)
                 .setContentIntent(opener(c, serverId, a.shardId, a.shardName))
@@ -625,6 +647,8 @@ final class CrashWatch {
     private static final class Response {
         final int code;
         final String body;
+        /** The answer's Date header, in ms; 0 without one. */
+        long date;
 
         Response(int code, String body) {
             this.code = code;
@@ -672,6 +696,7 @@ final class CrashWatch {
                 }
             }
             int code = conn.getResponseCode();
+            long date = conn.getHeaderFieldDate("Date", 0);
             if (code != 200) return new Response(code, "");
             try (InputStream in = conn.getInputStream()) {
                 ByteArrayOutputStream buf = new ByteArrayOutputStream();
@@ -681,7 +706,9 @@ final class CrashWatch {
                     if (buf.size() + n > MAX_BODY) throw new IOException("answer too large");
                     buf.write(chunk, 0, n);
                 }
-                return new Response(code, buf.toString(StandardCharsets.UTF_8.name()));
+                Response r = new Response(code, buf.toString(StandardCharsets.UTF_8.name()));
+                r.date = date;
+                return r;
             }
         } finally {
             conn.disconnect();

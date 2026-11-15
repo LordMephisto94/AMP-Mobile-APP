@@ -64,7 +64,10 @@ public final class MainActivity extends Activity {
 
     /** A pressed crash alert: the app opens that instance once it's unlocked. */
     private void openAlert(Intent intent) {
-        String server = intent == null ? null : intent.getStringExtra(CrashWatch.EXTRA_SERVER);
+        // Only the alerts' own intents, which name this activity: the launcher alias is exported, so
+        // any app could start it with these extras.
+        if (intent == null || intent.getComponent() == null || !getClass().getName().equals(intent.getComponent().getClassName())) return;
+        String server = intent.getStringExtra(CrashWatch.EXTRA_SERVER);
         if (server == null) return;
         Map<String, Object> target = new HashMap<>();
         target.put("serverId", server);

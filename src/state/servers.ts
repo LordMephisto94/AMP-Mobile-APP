@@ -21,7 +21,7 @@ import {
   type VaultKey,
 } from "./vaultCrypto";
 import { loadPrivacy } from "../lib/privacy";
-import { handOverToken, refreshCrashWatch, unwatchAll, unwatchServer } from "../lib/crashWatch";
+import { crashWatch, handOverToken, refreshCrashWatch, unwatchAll, unwatchServer } from "../lib/crashWatch";
 
 /** The device key store's keys for the vault: one used with the PIN, one for quick unlock, one for fingerprint unlock. */
 const BOUND_ALIAS = "amp.vault.bound";
@@ -935,6 +935,8 @@ export async function loadServers(): Promise<void> {
     // "Hide personal details" is known before anything is shown.
     await loadPrivacy();
     await refreshCrashWatch();
+    // Alerts kept for a server that's no longer in the list (removed while a switch was turning on).
+    for (const id of crashWatch().watched) if (!servers().some((s) => s.id === id)) await unwatchServer(id);
     serversReady.set(true);
   }
 
