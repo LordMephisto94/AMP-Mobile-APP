@@ -68,7 +68,7 @@ export function SecurityScreen() {
               }
             >
               <View class="flex-row gap-2">
-                <SecondaryButton testID="lock-now" title="Lock now" onPress={lockNow} />
+                <SecondaryButton testID="lock-now" title="Lock now" onPress={() => lockNow(true)} />
                 <SecondaryButton testID="change-pin" title="Change PIN" onPress={() => (oldPin.set(""), typed.set(""), error.set(null), flow.set("old"))} />
               </View>
               <View class="flex-row">

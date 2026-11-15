@@ -488,7 +488,7 @@ export function unlock(pin: string): Promise<UnlockResult> {
 export function quickUnlock(): Promise<boolean> {
   return onePinCheckAtATime(async () => {
     const blob = vaultBlob;
-    if (!blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
+    if (quickHeldBack || !blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
     const epoch = lockEpoch;
     let raw: Uint8Array;
     try {
@@ -512,7 +512,7 @@ export function quickUnlock(): Promise<boolean> {
 
 /** Whether the lock screen may try `quickUnlock`. */
 export function canQuickUnlock(): boolean {
-  return !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
+  return !quickHeldBack && !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
 }
 
 /** The vault's key from the PIN, or null for a wrong PIN; throws "device: …" when the device's key is gone. */
@@ -610,9 +610,24 @@ async function rebuildVault(pin: string): Promise<void> {
   await addQuickWrap();
 }
 
-/** Closes the vault: every session leaves memory until the PIN is entered again. */
-export function lockNow(): void {
+/**
+ * Set by "Lock now": the phone was just unlocked, so quick unlock would open the app again
+ * at once. It waits until the user has left the app and come back.
+ */
+let quickHeldBack = false;
+
+/** The app went to the background: quick unlock may be tried again when it returns. */
+export function leftApp(): void {
+  quickHeldBack = false;
+}
+
+/**
+ * Closes the vault: every session leaves memory until the PIN is entered again.
+ * `byUser`: "Lock now", which quick unlock mustn't undo straight away.
+ */
+export function lockNow(byUser = false): void {
   if (!hasPin()) return;
+  if (byUser) quickHeldBack = true;
   lockEpoch++;
   generation++;
   vaultKey = null;

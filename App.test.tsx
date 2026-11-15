@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.4");
+  await app.waitFor("text:AMP Mobile 0.1.5");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.4"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.5"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -1932,8 +1932,18 @@ test("on a phone with a key store, the vault is bound to it and opens on a recen
   await enterPin(app, "135790");
   await app.waitUntil(() => !!JSON.parse(app.storage()["amp.vault"]!).quickWrap);
 
-  // Locked again, then straight back in: no PIN needed.
+  // "Lock now" stays locked even though the phone was unlocked moments ago...
   await app.press("lock-now");
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.wait(300);
+  expect(app.texts()).toContain("AMP Mobile is locked");
+  // ...until the user leaves the app and comes back after unlocking the phone: no PIN then.
+  try {
+    await app.setLifecycle("background");
+  } catch {
+    return; // a real window can't be sent to the background from a test
+  }
+  await app.setLifecycle("active");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
   expect(app.texts()).toContain("App PIN");
 });

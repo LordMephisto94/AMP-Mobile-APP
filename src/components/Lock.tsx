@@ -6,6 +6,7 @@ import {
   declinePin,
   eraseVault,
   hasPin,
+  leftApp,
   lockNow,
   lockoutRemaining,
   locked,
@@ -236,6 +237,7 @@ export function LockHost() {
     const state = lifecycle();
     if (state === "background") {
       leftAt = Date.now();
+      leftApp();
       if (autoLockSeconds() === 0) lockNow();
     } else if (state === "active" && leftAt) {
       if (Date.now() - leftAt >= autoLockSeconds() * 1000) lockNow();

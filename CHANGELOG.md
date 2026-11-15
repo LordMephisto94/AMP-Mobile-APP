@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- Fixed: "Lock now" seemed to do nothing. Within a minute of unlocking the phone, quick unlock opened the app again
+  straight away. Now, after "Lock now", quick unlock waits until you've left the app and come back.
+
 ## 0.1.4
 
 - An account AMP holds for a password change (expired, or forced by an admin) now sets its new password in the app
