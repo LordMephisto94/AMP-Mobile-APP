@@ -6,7 +6,10 @@ import { signal, Storage, Text, View } from "nsh";
  * and email addresses are drawn as a blurred stand-in of the same shape. The real text isn't
  * drawn at all, so nothing can be read by zooming into a capture, and it holds on phones that
  * can't blur (below Android 12), where the stand-in shows as dots. Copy buttons still copy
- * the real value. Fields being edited show what's typed.
+ * the real value. Form fields marked `personal` blur as a whole (they still take typing).
+ *
+ * New code: draw any address, name or email through `PrivText` (or `Private`) with `priv()`,
+ * `privIps()` or `privJson()`, never a plain `Text`, or it shows while hidden.
  */
 export const hideDetails = signal(false);
 

@@ -2,16 +2,16 @@
 
 ## 0.2.3
 
-- Security: **Hide personal details**, a switch you can flip at any time. While it's on, addresses (your panel's,
-  IPs, host names, instance connect addresses, and IPs inside console lines), account and player names, avatars,
-  emails and invite links are blurred across the app, for screenshots, screen sharing and streams. The real text
-  isn't drawn underneath, so a capture can't be zoomed to read it. It covers session IPs in Settings, tunnel
-  addresses, and the addresses, user names and details in the activity log too. Copy buttons still copy the real
-  value.
+- Security: **Hide personal details**, a switch you can flip at any time, for screenshots, screen sharing and
+  streams. While it's on, addresses (your panel's, IPs, host names, connect and tunnel addresses, trusted proxies,
+  session IPs, and IPs inside console lines and activity details), account and player names, avatars, emails and
+  invite links are blurred across the app, like the web panel's. Only the hidden parts of a line blur, and the real
+  text isn't drawn underneath, so a capture can't be zoomed to read it. Form fields holding a name or an address
+  blur too. Copy buttons still copy the real value. Screenshots are always allowed.
+- Security: the page scrolls, and the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5".
 - Activity: long event titles wrap instead of running under the time.
 - A sixth audit (SECURITY.md, findings 55 to 59): the setting is known before anything is shown at launch, quick
   switches always end on your last choice, and dialogs, menus and form fields blur hidden details too.
-- Security: the page scrolls, and the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5".
 
 ## 0.2.2
 

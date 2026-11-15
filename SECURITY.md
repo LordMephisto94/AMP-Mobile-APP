@@ -27,14 +27,22 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
   itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
 - While the app is in the background its screen is covered, so the app switcher shows nothing.
-- **Hide personal details** (Security, off by default, switched on and off at any time): addresses (the panel's,
-  IPs, host names, connect addresses, IPs inside console lines), account and player names, avatars, emails and
-  invite links are drawn as a blurred stand-in of the same shape, for screenshots, screen sharing and streams. The
-  real text isn't drawn at all, so nothing can be read by zooming a capture, and it holds where the phone can't blur
-  (the stand-in is dots). Copy buttons still copy the real value; fields you're typing in show what you type.
-  Screenshots themselves are always allowed.
 - After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
   servers stay, signed out. "Forgot PIN?" does the same.
+
+## Hide personal details
+
+A switch in Security (off by default) for screenshots, screen sharing and streams; screenshots are always allowed.
+While it's on:
+
+- Addresses (the panel's, IPs, host names, connect and tunnel addresses, trusted proxies, session IPs, and IPs inside
+  console lines and event details), account and player names, avatars, emails and invite links are drawn as a
+  blurred stand-in of the same shape. Only the hidden parts of a line blur; the words around them stay sharp.
+- The real text isn't drawn under the blur, so a capture can't be zoomed to read it. Where the phone can't blur
+  (before Android 12) the stand-in shows as dots.
+- Form fields holding a name or an address (sign-in, users, invites) are blurred too, and still take typing.
+- Copy buttons still copy the real value.
+- The choice is read before anything is shown at launch, so nothing flashes unhidden.
 
 ## Connections
 
@@ -202,6 +210,8 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **PIN guessing on the phone itself.** The vault's PIN-bound key works without a recent phone unlock, so code
   running as the app on an unlocked or rooted phone could try PINs without the wrong-PIN count. Each try still costs
   600,000 PBKDF2 rounds on the phone; a longer PIN makes this impractical.
+- **Hidden fields on older phones.** Before Android 12 views can't be blurred: hidden text still shows as dots, but
+  the text in a form field (sign-in user name, a new user's details) shows as typed.
 - **Edits while locked.** An unsaved schedule or snapshot form is lost when the app locks (file edits are kept).
 - **Concurrent edits.** Saving a schedule replaces what's stored, so an edit made meanwhile in the web panel is
   overwritten (the web panel behaves the same way).
