@@ -309,7 +309,7 @@ export function SettingsScreen(props: { serverId: string }) {
                         <Pill label="This app" tone="success" />
                       </If>
                     </View>
-                    <Text class="text-xs text-muted-foreground">{`${s().remoteIp} · active ${ago(s().lastSeenAt)}`}</Text>
+                    <Text class="text-xs text-muted-foreground">{`${priv(s().remoteIp)} · active ${ago(s().lastSeenAt)}`}</Text>
                   </View>
                   <If when={!s().isCurrent}>
                     <Text

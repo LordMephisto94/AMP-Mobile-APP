@@ -25,7 +25,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { priv } from "../lib/privacy";
+import { priv, privIps, privJson } from "../lib/privacy";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -164,7 +164,10 @@ export function ActivityScreen(props: { serverId: string }) {
     if (name) return name;
     if (!e.targetId) return e.targetType;
     // Long ids say nothing to a person; show the type alone.
-    return /^[0-9a-f-]{20,}$/i.test(e.targetId) ? e.targetType : `${e.targetType}: ${e.targetId}`;
+    if (/^[0-9a-f-]{20,}$/i.test(e.targetId)) return e.targetType;
+    // An address, a user or an account is personal; any other id still has its IPs hidden.
+    const personal = /address|user|account|player|email|login|ip|session|client/i.test(e.targetType ?? "");
+    return `${e.targetType}: ${personal ? priv(e.targetId) : privIps(e.targetId)}`;
   };
 
   return (
@@ -301,16 +304,17 @@ function FlowRow(props: {
         <View class="h-9 w-9 items-center justify-center rounded-full bg-black/40">
           <Text class="text-base">{ORIGIN_ICON[root().origin] ?? "•"}</Text>
         </View>
-        <View class="flex-1 gap-0.5">
+        {/* min-w-0 and shrink: a long title wraps instead of running under the time. */}
+        <View class="min-w-0 flex-1 gap-0.5">
           <View class="flex-row flex-wrap items-center gap-2">
-            <Text class={`text-[15px] font-semibold ${KIND_TEXT[actionKind(root().action)]}`}>{props.label(root().action)}</Text>
+            <Text class={`shrink text-[15px] font-semibold ${KIND_TEXT[actionKind(root().action)]}`}>{props.label(root().action)}</Text>
             <SeverityPill severity={props.flow.maxSeverity} />
           </View>
           <Text class="line-clamp-1 text-xs text-muted-foreground">
             {[actorOf(root(), priv), props.target(root())].filter(Boolean).join(" · ")}
           </Text>
         </View>
-        <View class="items-end gap-0.5">
+        <View class="shrink-0 items-end gap-0.5">
           <Text class="text-xs text-muted-foreground">{ago(props.flow.startedAt || root().timestamp)}</Text>
           <If when={props.flow.eventCount > 1}>
             <Text class="text-[11px] text-muted-foreground">{`${props.flow.eventCount} events ${props.open ? "▴" : "▾"}`}</Text>
@@ -343,7 +347,10 @@ function EventRow(props: {
   label: (action: string) => string;
 }) {
   const showDetails = signal(false);
-  const details = () => prettyDetails(props.event.details);
+  const details = () => {
+    const d = prettyDetails(props.event.details);
+    return d ? privJson(d) : d;
+  };
   const t = () => new Date(props.event.timestamp);
   return (
     <View class="gap-1" style={{ marginLeft: Math.min(props.depth, 5) * 14 }}>
@@ -351,7 +358,7 @@ function EventRow(props: {
         <Text class="text-xs text-muted-foreground">{props.depth > 0 ? "└" : "●"}</Text>
         <View class="flex-1">
           <View class="flex-row flex-wrap items-center gap-1.5">
-            <Text class={`text-sm font-semibold ${KIND_TEXT[actionKind(props.event.action)]}`}>{props.label(props.event.action)}</Text>
+            <Text class={`shrink text-sm font-semibold ${KIND_TEXT[actionKind(props.event.action)]}`}>{props.label(props.event.action)}</Text>
             <SeverityPill severity={props.event.severity} />
           </View>
           <Text class="text-[11px] text-muted-foreground">

@@ -1,5 +1,5 @@
 import { uploadFile } from "./src/api/files";
-import { hideDetails, priv, privIps } from "./src/lib/privacy";
+import { hideDetails, priv, privIps, privJson } from "./src/lib/privacy";
 import { expect, open, test } from "nsh/test";
 import { createVault } from "./src/state/vaultCrypto";
 
@@ -2748,7 +2748,9 @@ test("a renewal answer without a readable expiry keeps the session it had", asyn
 // ---- Hide personal details --------------------------------------------------------------------
 
 test("Hide personal details dots out addresses and names on the fly, and is remembered", async () => {
-  const app = await openSignedIn({ network: { [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } } } });
+  const app = await openSignedIn({
+    network: { [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } }, [`GET ${SERVER}/api/Shards*`]: shardsRoute },
+  });
   expect(app.texts()).toContain("admin · amp.example.test");
   await app.press("security");
   await app.waitFor("text:Hide personal details");
@@ -2759,6 +2761,12 @@ test("Hide personal details dots out addresses and names on the fly, and is reme
   expect(app.texts()).not.toContain("admin · amp.example.test");
   expect(app.texts()).toContain("••••• · •••.•••••••.••••");
   expect(JSON.parse(app.storage()["amp.privacy"]!)).toEqual({ hideDetails: true });
+
+  // The instances page: neither its header nor its banner names the panel.
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Running");
+  expect(app.texts().some((t) => t.includes("amp.example.test"))).toBe(false);
+  await app.press("back");
 
   // Remembered at the next launch, before anything is shown.
   const again = await open("./App.tsx", { storage: app.storage(), network: unlockedHome });
@@ -2774,6 +2782,13 @@ test("hidden details: IPs inside console lines are dotted out, times and version
     expect(privIps("[12:34:56] Steve[/203.0.113.7:51234] logged in on 1.20.4")).toBe("[12:34:56] Steve[/•••.•.•••.•:51234] logged in on 1.20.4");
     expect(privIps("from 2001:db8::1 and [::1]:8080")).toBe("from ••••:•••::• and [::•]:8080");
     expect(priv("admin@example.test")).toBe("•••••@•••••••.••••");
+    // An event's details: personal keys dotted out, IPs anywhere, the rest readable.
+    expect(JSON.parse(privJson('{"user":"root","remoteAddress":"35.214.243.124","reason":"from 10.0.0.2","attempts":5}'))).toEqual({
+      user: "••••",
+      remoteAddress: "••.•••.•••.•••",
+      reason: "from ••.•.•.•",
+      attempts: 5,
+    });
   } finally {
     hideDetails.set(false);
   }

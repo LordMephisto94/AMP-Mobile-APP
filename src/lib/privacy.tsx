@@ -49,6 +49,31 @@ export function privIps(text: string): string {
   return hideDetails() ? text.replace(IP_IN_TEXT, (ip) => masked(ip)) : text;
 }
 
+/** Keys whose values are personal in a server's JSON (an audit event's details, say). */
+const PERSONAL_KEY = /user|name|email|mail|address|addr|ip|host|login|account|player|steam|client|remote|origin/i;
+
+/**
+ * Pretty JSON with personal values dotted out while details are hidden: values under keys that
+ * name a person or an address, and IPs anywhere. Text that isn't JSON gets its IPs hidden.
+ */
+export function privJson(text: string): string {
+  if (!hideDetails()) return text;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return privIps(text);
+  }
+  const walk = (v: unknown, personal: boolean): unknown => {
+    if (typeof v === "string") return personal ? masked(v) : privIps(v);
+    if (typeof v === "number" && personal) return masked(String(v));
+    if (Array.isArray(v)) return v.map((x) => walk(x, personal));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, personal || PERSONAL_KEY.test(k))]));
+    return v;
+  };
+  return JSON.stringify(walk(value, false), null, 2);
+}
+
 /** A personal detail on its own line or chip: its stand-in is also blurred while hidden. */
 export function Private(props: { text: string | null | undefined; class?: string; testID?: string }) {
   return (

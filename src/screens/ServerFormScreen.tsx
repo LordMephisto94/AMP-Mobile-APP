@@ -5,6 +5,7 @@ import { AmpClient, normalizeServerUrl } from "../api/client";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { addServer, serverById, setServerSession } from "../state/servers";
+import { priv } from "../lib/privacy";
 
 /**
  * Adds a server (no `serverId`), or signs in again to a saved one. Either way the
@@ -107,7 +108,7 @@ export function ServerFormScreen(props: { serverId?: string }) {
             <Text class="text-sm text-muted-foreground">
               {adding
                 ? "Your AMP 3 panel must be reachable from this device. Your password is only sent to the server, never stored."
-                : `Your session on ${existing!.serverUrl.replace(/^https?:\/\//, "")} has ended. Sign in again.`}
+                : `Your session on ${priv(existing!.serverUrl.replace(/^https?:\/\//, ""))} has ended. Sign in again.`}
             </Text>
           </View>
 

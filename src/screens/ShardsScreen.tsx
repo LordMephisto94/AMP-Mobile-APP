@@ -148,11 +148,11 @@ export function ShardsScreen(props: { serverId: string }) {
   const running = () => Object.values(states()).filter((s) => stateTone(s) === "running").length;
 
   return (
-    <AppPage title={name} subtitle={host} right={<MainMenu serverId={props.serverId} current="shards" />}>
+    <AppPage title={name} subtitle={priv(host)} right={<MainMenu serverId={props.serverId} current="shards" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <AmpBanner
           title={name}
-          subtitle={shards() ? `${running()} of ${shards()!.length} running · ${host}` : host}
+          subtitle={shards() ? `${running()} of ${shards()!.length} running · ${priv(host)}` : priv(host)}
           status={error() ? "danger" : shards() ? "online" : "offline"}
           statusLabel={error() ? "Unreachable" : shards() ? "Online" : "Connecting"}
         />

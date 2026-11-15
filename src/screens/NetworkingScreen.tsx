@@ -35,7 +35,7 @@ import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
-import { priv, Private } from "../lib/privacy";
+import { priv, privIps, Private } from "../lib/privacy";
 
 const REFRESH_MS = 30_000;
 
@@ -360,7 +360,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                       <Text class="flex-1 text-sm font-semibold text-card-foreground">{`${g().shardName} → ${g().frontSpireName}`}</Text>
                       <Pill label={g().enabled ? words(g().status?.state) || "Pending" : "Disabled"} tone={g().enabled ? stateTone(g().status?.state) : "muted"} />
                     </View>
-                    <If when={g().status?.address}>{(a) => <Text class="font-mono text-xs text-muted-foreground">{`Tunnel address ${a()}`}</Text>}</If>
+                    <If when={g().status?.address}>{(a) => <Text class="font-mono text-xs text-muted-foreground">{`Tunnel address ${priv(a())}`}</Text>}</If>
                     <If when={g().runningWithoutRoute}>
                       <Text class="text-xs text-warning">Running without this route: restart the instance to use it.</Text>
                     </If>
@@ -520,10 +520,10 @@ function FirewallView(props: { firewall: FirewallStatus }) {
           <Text class="text-xs text-muted-foreground">{`${applied().length} rule${applied().length === 1 ? "" : "s"} open`}</Text>
         </View>
       </If>
-      <If when={st()?.error}>{(e) => <Text class="text-xs text-destructive">{e()}</Text>}</If>
-      <Each of={st()?.advisories ?? []}>{(a) => <Text class="text-xs text-warning">{a()}</Text>}</Each>
+      <If when={st()?.error}>{(e) => <Text class="text-xs text-destructive">{privIps(e())}</Text>}</If>
+      <Each of={st()?.advisories ?? []}>{(a) => <Text class="text-xs text-warning">{privIps(a())}</Text>}</Each>
       <Each of={st()?.rejected ?? []}>
-        {(r) => <Text class="text-xs text-destructive">{`Port ${r().rule.port} refused: ${r().reason}`}</Text>}
+        {(r) => <Text class="text-xs text-destructive">{`Port ${r().rule.port} refused: ${privIps(r().reason)}`}</Text>}
       </Each>
       <Each of={props.firewall.withheld ?? []}>
         {(w) => (
