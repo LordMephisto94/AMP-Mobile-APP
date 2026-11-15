@@ -1,5 +1,6 @@
 import { cleanup, effect, Overlay, signal, Text, View, windowSize } from "nsh";
 import { BackHandler } from "nsh/mobile";
+import { PrivText } from "../lib/privacy";
 
 export interface ConfirmAction {
   id: string;
@@ -113,8 +114,8 @@ export function ConfirmHost() {
                 )}
               </If>
               <View class="gap-1.5">
-                <Text class="text-center text-lg font-semibold text-popover-foreground">{p().title}</Text>
-                <If when={p().message}>{(m) => <Text class="text-center text-sm leading-5 text-muted-foreground">{m()}</Text>}</If>
+                <PrivText box="justify-center" class="text-center text-lg font-semibold text-popover-foreground" text={p().title} />
+                <If when={p().message}>{(m) => <PrivText box="justify-center" class="text-center text-sm leading-5 text-muted-foreground" text={m()} />}</If>
               </View>
               <View class={`gap-2.5 ${buttons(p()).length <= 2 ? "flex-row" : ""}`}>
                 <Each of={buttons(p())} key={(a: ConfirmAction) => a.id}>

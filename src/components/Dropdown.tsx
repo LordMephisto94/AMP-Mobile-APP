@@ -1,5 +1,6 @@
 import { type JSX, Scroll, signal, Text, View } from "nsh";
 import { Popover } from "nsh/base";
+import { PrivText } from "../lib/privacy";
 
 export interface DropdownItem {
   id: string;
@@ -66,9 +67,7 @@ export function Dropdown(props: {
       <View testID={props.testID} class={scrolls() ? "max-h-80" : ""}>
         <If when={props.title}>
           {(t) => (
-            <Text class="line-clamp-1 px-4 pt-1.5 pb-2 text-xs font-semibold tracking-wider text-muted-foreground">
-              {t().toUpperCase()}
-            </Text>
+            <PrivText box="px-4 pt-1.5 pb-2" class="line-clamp-1 text-xs font-semibold tracking-wider text-muted-foreground" text={t().toUpperCase()} />
           )}
         </If>
         <If

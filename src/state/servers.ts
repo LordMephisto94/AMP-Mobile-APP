@@ -20,6 +20,7 @@ import {
   type VaultBlobV2,
   type VaultKey,
 } from "./vaultCrypto";
+import { loadPrivacy } from "../lib/privacy";
 
 /** The device key store's keys for the vault: one used with the PIN, one for quick unlock, one for fingerprint unlock. */
 const BOUND_ALIAS = "amp.vault.bound";
@@ -922,6 +923,8 @@ export async function loadServers(): Promise<void> {
     // An unreadable list: shown empty, and left on disk until something is saved.
     servers.set([]);
   } finally {
+    // "Hide personal details" is known before anything is shown.
+    await loadPrivacy();
     serversReady.set(true);
   }
 

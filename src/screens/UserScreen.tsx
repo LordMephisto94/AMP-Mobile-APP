@@ -243,11 +243,11 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
 
             <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
               <If when={adding}>
-                <Field testID="new-username" label="Username" value={userName()} onChange={(v) => userName.set(v)} hint="What they sign in with. Can't be changed later." />
+                <Field testID="new-username" personal label="Username" value={userName()} onChange={(v) => userName.set(v)} hint="What they sign in with. Can't be changed later." />
                 <Field testID="new-password" label="Password" value={password()} onChange={(v) => password.set(v)} masked />
               </If>
-              <Field testID="display-name" label="Display name" value={displayName()} onChange={(v) => displayName.set(v)} placeholder="Optional" />
-              <Field testID="email" label="Email" value={email()} onChange={(v) => email.set(v)} placeholder="Optional" keyboardType="email-address" />
+              <Field testID="display-name" personal label="Display name" value={displayName()} onChange={(v) => displayName.set(v)} placeholder="Optional" />
+              <Field testID="email" personal label="Email" value={email()} onChange={(v) => email.set(v)} placeholder="Optional" keyboardType="email-address" />
             </View>
 
             <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">

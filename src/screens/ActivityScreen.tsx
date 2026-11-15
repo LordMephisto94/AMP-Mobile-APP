@@ -25,7 +25,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
-import { PrivText, priv, privIps, privJson } from "../lib/privacy";
+import { personalKey, PrivText, priv, privIps, privJson } from "../lib/privacy";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -166,7 +166,7 @@ export function ActivityScreen(props: { serverId: string }) {
     // Long ids say nothing to a person; show the type alone.
     if (/^[0-9a-f-]{20,}$/i.test(e.targetId)) return e.targetType;
     // An address, a user or an account is personal; any other id still has its IPs hidden.
-    const personal = /address|user|account|player|email|login|ip|session|client/i.test(e.targetType ?? "");
+    const personal = personalKey(e.targetType ?? "") || /session/i.test(e.targetType ?? "");
     return `${e.targetType}: ${personal ? priv(e.targetId) : privIps(e.targetId)}`;
   };
 

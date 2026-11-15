@@ -9,6 +9,8 @@
   addresses, and the addresses, user names and details in the activity log too. Copy buttons still copy the real
   value.
 - Activity: long event titles wrap instead of running under the time.
+- A sixth audit (SECURITY.md, findings 55 to 59): the setting is known before anything is shown at launch, quick
+  switches always end on your last choice, and dialogs, menus and form fields blur hidden details too.
 - Security: the page scrolls, and the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5".
 
 ## 0.2.2

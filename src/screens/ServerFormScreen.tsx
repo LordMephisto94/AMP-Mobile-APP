@@ -121,7 +121,7 @@ export function ServerFormScreen(props: { serverId?: string }) {
                 hint="Optional. Defaults to the server's address."
               />
               <Field
-                testID="server"
+                testID="server" personal
                 label="Server address"
                 value={server()}
                 onChange={(v) => server.set(v)}
@@ -130,7 +130,7 @@ export function ServerFormScreen(props: { serverId?: string }) {
                 hint="https:// is added if you leave it out."
               />
             </If>
-            <Field testID="username" label="Username" value={username()} onChange={(v) => username.set(v)} />
+            <Field testID="username" personal label="Username" value={username()} onChange={(v) => username.set(v)} />
             <Field testID="password" label="Password" value={password()} onChange={(v) => password.set(v)} masked />
             <Checkbox label="Stay signed in" checked={rememberMe()} onChange={(v) => rememberMe.set(v)} />
           </View>

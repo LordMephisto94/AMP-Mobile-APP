@@ -2,7 +2,7 @@ import { Image, type JSX, Text, View } from "nsh";
 import mark from "../../assets/amp-mark.png";
 import { Button, Input, NavPage } from "nsh/base";
 import { nav } from "../state/nav";
-import { PrivText } from "../lib/privacy";
+import { hideDetails, PrivText } from "../lib/privacy";
 
 /** The app's main call to action: a violet-to-pink gradient button. */
 export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean; icon?: string }) {
@@ -63,12 +63,14 @@ export function Field(props: {
   masked?: boolean;
   keyboardType?: "default" | "url" | "email-address";
   testID?: string;
+  /** A personal detail (an address, a name, an email): blurred while "Hide personal details" is on. */
+  personal?: boolean;
 }) {
   return (
     <View class="gap-1.5">
       <Text class="text-sm font-semibold text-foreground">{props.label}</Text>
       {/* Border and padding on a wrapper: Android's text field doesn't inset its text by its own padding. */}
-      <View class="rounded-(--radius) border border-input bg-card px-3.5 py-3">
+      <View class={`rounded-(--radius) border border-input bg-card px-3.5 py-3 ${props.personal && hideDetails() ? "blur-[3px]" : ""}`}>
         <Input
           testID={props.testID}
           value={props.value}

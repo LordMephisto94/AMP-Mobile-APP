@@ -67,8 +67,8 @@ export function InviteScreen(props: { serverId: string }) {
                 </Text>
                 <If when={error()}>{(m) => <ErrorText message={m()} />}</If>
                 <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
-                  <Field testID="invite-username" label="Username" value={userName()} onChange={(v) => userName.set(v)} hint="The account they'll get." />
-                  <Field testID="invite-display-name" label="Display name" value={displayName()} onChange={(v) => displayName.set(v)} placeholder="Optional" />
+                  <Field testID="invite-username" personal label="Username" value={userName()} onChange={(v) => userName.set(v)} hint="The account they'll get." />
+                  <Field testID="invite-display-name" personal label="Display name" value={displayName()} onChange={(v) => displayName.set(v)} placeholder="Optional" />
                 </View>
                 <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
                   <Text class="text-xs font-semibold tracking-widest text-muted-foreground">ROLES</Text>

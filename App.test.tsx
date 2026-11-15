@@ -2790,6 +2790,13 @@ test("hidden details: IPs inside console lines are dotted out, times and version
       reason: "from ••.•.•.•",
       attempts: 5,
     });
+    // Keys are read by their words: "description" or "zipFile" aren't an "ip"; "remoteIpAddress" is.
+    expect(JSON.parse(privJson('{"description":"Daily backup","zipFile":"world.zip","remoteIpAddress":"host-9","shard":{"ownerName":"Ada"}}'))).toEqual({
+      description: "Daily backup",
+      zipFile: "world.zip",
+      remoteIpAddress: "••••-•",
+      shard: { ownerName: "•••" },
+    });
   } finally {
     hideDetails.set(false);
   }

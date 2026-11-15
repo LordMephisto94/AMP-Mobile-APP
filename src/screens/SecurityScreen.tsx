@@ -189,7 +189,7 @@ export function SecurityScreen() {
                 role="switch"
                 testID="hide-details-toggle"
                 accessibilityLabel="Hide personal details"
-                onPress={() => setHideDetails(!hideDetails())}
+                onPress={() => setHideDetails(!hideDetails()).catch(() => {})}
                 class={`h-7 w-12 justify-center rounded-full px-0.5 ${hideDetails() ? "items-end bg-primary" : "items-start bg-white/15"}`}
               >
                 <View class="h-6 w-6 rounded-full bg-white" />

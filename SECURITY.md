@@ -166,6 +166,23 @@ with stale attempts abandoned, renewals shared per server and superseded correct
 locked meanwhile, every other save button guarded against double taps, timers that load later checking the page
 still shows, and the Java key store answering every call once.
 
+## Sixth audit: Hide personal details (November 2026, 0.2.3)
+
+Covers everything since 0.2.2: Hide personal details, the Security page, and the removal of the test builds'
+screenshot blocking.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 55 | The setting loaded separately from the server list, so the home page could show real details for a moment at launch | Low | Fixed: it's read before anything is shown |
+| 56 | Two quick switches could save out of order, and a slow load could undo a switch made meanwhile | Low | Fixed: saves in order, and a load never overrides a newer choice |
+| 57 | Dialog and menu titles showed hidden details as plain dots, and the sign-in, user and invite forms showed names and addresses in their fields | Low | Fixed: blurred like the rest |
+| 58 | An event's details hid any key containing "ip", such as "description" | Info | Fixed: keys are read by their words |
+| 59 | A failed save of the switch was an unhandled error | Info | Fixed |
+
+Checked and found sound: the real text is never drawn under the blur (copy buttons use the real value), IPs in
+console lines are caught without catching times or version numbers, the old screenshot setting is cleared on
+launch so screenshots always work, and nothing else changed in the vault, the lock, sign-in or connections.
+
 ## Release signing
 
 From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.

@@ -11,19 +11,30 @@ import { signal, Storage, Text, View } from "nsh";
 export const hideDetails = signal(false);
 
 const KEY = "amp.privacy";
+/** Bumped by every switch, so a load that finishes later never undoes it. */
+let choices = 0;
+/** The last write; the next one waits for it, so the disk ends with the last choice. */
+let writing: Promise<void> = Promise.resolve();
 
+/** Reads the choice. Launch awaits it before showing anything, so nothing flashes unhidden. */
 export async function loadPrivacy(): Promise<void> {
+  const before = choices;
+  let on = false;
   try {
     const raw = await Storage.getItem(KEY);
-    hideDetails.set(raw ? JSON.parse(raw)?.hideDetails === true : false);
+    on = raw ? JSON.parse(raw)?.hideDetails === true : false;
   } catch {
-    hideDetails.set(false);
+    // Unreadable: shown as off, as it was never set.
   }
+  if (choices === before) hideDetails.set(on);
 }
 
-export async function setHideDetails(on: boolean): Promise<void> {
+export function setHideDetails(on: boolean): Promise<void> {
+  choices++;
   hideDetails.set(on);
-  await Storage.setItem(KEY, JSON.stringify({ hideDetails: on }));
+  const run = writing.then(() => Storage.setItem(KEY, JSON.stringify({ hideDetails: on })));
+  writing = run.catch(() => {});
+  return run;
 }
 
 /** Letters and digits as dots, keeping separators (. : / @ - and spaces), so the shape stays. */
@@ -49,8 +60,17 @@ export function privIps(text: string): string {
   return hideDetails() ? text.replace(IP_IN_TEXT, (ip) => masked(ip)) : text;
 }
 
-/** Keys whose values are personal in a server's JSON (an audit event's details, say). */
-const PERSONAL_KEY = /user|name|email|mail|address|addr|ip|host|login|account|player|steam|client|remote|origin/i;
+/** Words in a key that make its value personal in a server's JSON (an audit event's details, say). */
+const PERSONAL_WORDS = new Set([
+  "user", "username", "users", "name", "email", "mail", "address", "addr", "ip", "ips", "ipv4", "ipv6", "host", "hostname",
+  "login", "account", "player", "players", "steam", "steamid", "client", "remote", "origin", "endpoint", "person", "principal",
+]);
+
+/** A key's words: camelCase, snake_case, kebab-case and dots split ("remoteIpAddress" → remote, ip, address). */
+export function personalKey(key: string): boolean {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[\s_.\-]+/);
+  return words.some((w) => PERSONAL_WORDS.has(w.toLowerCase()));
+}
 
 /**
  * Pretty JSON with personal values dotted out while details are hidden: values under keys that
@@ -68,7 +88,7 @@ export function privJson(text: string): string {
     if (typeof v === "string") return personal ? masked(v) : privIps(v);
     if (typeof v === "number" && personal) return masked(String(v));
     if (Array.isArray(v)) return v.map((x) => walk(x, personal));
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, personal || PERSONAL_KEY.test(k))]));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, personal || personalKey(k))]));
     return v;
   };
   return JSON.stringify(walk(value, false), null, 2);
