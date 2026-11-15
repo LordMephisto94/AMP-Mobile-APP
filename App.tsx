@@ -20,6 +20,7 @@ import { ServersScreen } from "./src/screens/ServersScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
 import { ShardSettingsScreen } from "./src/screens/ShardSettingsScreen";
+import { SnapshotsScreen } from "./src/screens/SnapshotsScreen";
 import { ShardsScreen } from "./src/screens/ShardsScreen";
 import { SpireScreen } from "./src/screens/SpireScreen";
 import { SpiresScreen } from "./src/screens/SpiresScreen";
@@ -45,6 +46,8 @@ function screen(route: Route) {
       return <ConsoleScreen serverId={route.serverId} id={route.id} title={route.title} tenantId={route.tenantId} />;
     case "createShard":
       return <CreateShardScreen serverId={route.serverId} />;
+    case "snapshots":
+      return <SnapshotsScreen serverId={route.serverId} id={route.id} title={route.title} />;
     case "shardSettings":
       return <ShardSettingsScreen serverId={route.serverId} id={route.id} title={route.title} />;
     case "files":

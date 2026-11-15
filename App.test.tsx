@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.7");
+  await app.waitFor("text:AMP Mobile 0.1.8");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.7"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.8"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -2038,4 +2038,134 @@ test("an account held for a password change sets a new one and signs in", async 
   await app.press("text:Change password and sign in");
   await app.waitFor("text:Set a PIN to stay signed in");
   expect(changes).toEqual([{ username: "admin", currentPassword: "old-pass", newPassword: "N3w-pass!" }]);
+});
+
+test("snapshots: the timeline, taking one, following it, restoring, pinning, deleting and the limits", async () => {
+  const SNAPS = `${SERVER}/api/shards/a1/snapshots`;
+  const calls: string[] = [];
+  const full = {
+    id: "n1", parentId: null, kind: 0, content: 1, trigger: 1, status: 2, name: null, description: null, sticky: false,
+    skippedFiles: [], skippedCount: 0, archiveMissing: false, createdAt: "2026-11-10T02:00:00Z",
+    sizeMb: 1536, uncompressedMb: 4000, fileCount: 1200, stage: 0, processedFiles: 0, totalFiles: 0,
+  };
+  let nodes: Record<string, unknown>[] = [
+    full,
+    { ...full, id: "n2", parentId: "n1", kind: 1, content: 5, trigger: 0, name: "Before 1.21", sticky: true, createdAt: "2026-11-12T09:00:00Z", sizeMb: 40, fileCount: 30, skippedCount: 2, skippedFiles: [{ relPath: "logs/latest.log", reason: "locked" }] },
+    { ...full, id: "n3", parentId: "n2", kind: 1, status: 3, trigger: 0, name: "Broken one", failureReason: "Disk full", createdAt: "2026-11-13T09:00:00Z" },
+  ];
+  let settings = { maxBackupSizeMb: 0, maxTotalStorageMb: 0, stopWhenNoQuiesce: false };
+  let restoring: string | null = null;
+  let polls = 0;
+  const graph = () => {
+    polls++;
+    // A capture that's running moves on each time the timeline is read, then finishes.
+    nodes = nodes.map((n) =>
+      n.status === 1 ? (polls > 3 ? { ...n, status: 2, stage: 0, sizeMb: 12, fileCount: 8 } : { ...n, stage: 2, processedFiles: 4, totalFiles: 8 }) : n,
+    );
+    return { shardId: "a1", tenantId: "t", nodes, headId: "n2", settings, restoringId: restoring, restoreStage: restoring ? 2 : 0, restoreProcessed: 10, restoreTotal: 40 };
+  };
+
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`PUT ${SNAPS}/settings`]: (r) => {
+        settings = JSON.parse(r.body!);
+        calls.push(`limits ${settings.maxBackupSizeMb} ${settings.maxTotalStorageMb}`);
+        return { body: settings };
+      },
+      [`POST ${SNAPS}/*/restore`]: (r) => {
+        restoring = r.url.split("/").at(-2)!;
+        calls.push(`restore ${restoring}`);
+        return { body: nodes.find((n) => n.id === restoring) };
+      },
+      [`PUT ${SNAPS}/*/meta`]: (r) => {
+        const id = r.url.split("/").at(-2)!;
+        const meta = JSON.parse(r.body!);
+        nodes = nodes.map((n) => (n.id === id ? { ...n, ...meta } : n));
+        calls.push(`meta ${id} ${meta.name} ${meta.sticky}`);
+        return { status: 204 };
+      },
+      [`DELETE ${SNAPS}/*`]: (r) => {
+        const id = r.url.split("/").at(-1)!;
+        nodes = nodes.filter((n) => n.id !== id);
+        calls.push(`delete ${id}`);
+        return { status: 204 };
+      },
+      [`POST ${SNAPS}`]: (r) => {
+        const body = JSON.parse(r.body!);
+        calls.push(`take ${body.kind} ${body.content} ${body.name} ${body.sticky}`);
+        const made = { ...full, id: "n4", parentId: "n2", kind: body.kind, content: body.content, trigger: 0, status: 1, name: body.name, sticky: body.sticky, createdAt: "2026-11-15T09:00:00Z", stage: 1 };
+        nodes = [...nodes, made];
+        polls = 0;
+        return { body: made };
+      },
+      [`GET ${SNAPS}`]: (r) => (r.headers.authorization === "Bearer tok-1" ? { body: graph() } : { status: 401 }),
+      [`GET ${SERVER}/api/Shards/a1/metrics*`]: { body: [] },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  await openRow(app, "open-snapshots", "text:Change limits");
+  await app.waitFor("text:Before 1.21");
+  const texts = () => app.texts().join("\n");
+  expect(texts()).toContain("On disk now");
+  expect(texts()).toContain("📌 Pinned");
+  expect(texts()).toContain("Game data, AMP settings");
+  expect(texts()).toContain("Disk full");
+  expect(texts()).toContain("2 files couldn't be read and aren't in it (e.g. logs/latest.log).");
+  expect(texts()).toContain("1.5 GB");
+
+  // Take a partial snapshot with a name, game data only, pinned.
+  await app.press("text:Take a snapshot");
+  await app.type("snapshot-name", "Quick save");
+  await app.press("snapshot-pin");
+  await app.press("snapshot-take");
+  await app.waitUntil(() => calls.some((c) => c.startsWith("take")));
+  expect(calls).toContain("take 1 1 Quick save true");
+  // It's followed while it runs, then shows as done.
+  await app.waitFor("text:Quick save");
+  await app.waitUntil(() => texts().includes("12 MB"), { timeout: 15_000 });
+
+  // Rename and unpin through the row's menu.
+  await app.press("snapshot-more-n2");
+  await app.press("menu-pin");
+  await app.waitUntil(() => calls.includes("meta n2 Before 1.21 false"));
+  await app.press("snapshot-more-n1");
+  await app.press("menu-rename");
+  await app.type("prompt-input", "First full");
+  await app.press("prompt-confirm");
+  await app.waitUntil(() => calls.includes("meta n1 First full false"));
+  await app.waitUntil(() => !app.texts().includes("Name this snapshot"));
+
+  // Delete the failed one, confirmed.
+  await app.press("snapshot-more-n3");
+  await app.press("menu-delete");
+  await app.waitFor("text:Delete Broken one?");
+  await app.press("confirm-delete");
+  await app.waitUntil(() => calls.includes("delete n3"));
+
+  // Restore asks first, then shows its progress.
+  await app.press("snapshot-more-n1");
+  await app.press("menu-restore");
+  await app.waitFor("text:Restore First full?");
+  await app.press("confirm-restore");
+  await app.waitUntil(() => calls.includes("restore n1"));
+  await app.waitFor("restoring");
+  expect(texts()).toContain("Processing · 10 of 40 files");
+  restoring = null;
+
+  // Limits: whole megabytes only.
+  await app.press("limits-edit");
+  await app.type("limit-each", "5000");
+  await app.type("limit-total", "lots");
+  await app.press("limits-save");
+  await app.waitFor("text:Use whole megabytes, or leave it empty for no limit.");
+  await clearField(app, "limit-total");
+  await app.type("limit-total", "20000");
+  await app.press("limits-save");
+  await app.waitUntil(() => calls.includes("limits 5000 20000"));
+  await app.waitFor("text:Limits saved.");
 });

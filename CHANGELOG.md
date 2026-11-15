@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.8
+
+- Snapshots: a new page on each instance (Snapshots, under Files) for AMP 3's backups.
+  - See every snapshot: full or partial, what it holds, its size and file count, what started it, which one is on
+    disk now, pinned ones, failures and their reasons, and files that couldn't be read.
+  - Take a snapshot (partial or full; game data, base install and/or AMP settings; named and optionally pinned) and
+    watch its progress.
+  - Restore one, after a confirmation; AMP saves the current state first, so a restore can be undone. Its progress
+    shows at the top.
+  - Rename, describe, pin or unpin, and delete snapshots.
+  - Set the size limits (per snapshot and in total) and whether to stop a game that can't pause its saving.
+
 ## 0.1.7
 
 - Release APKs are now signed with the app's own release key instead of a development key. **Uninstall the old app
