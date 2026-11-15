@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- Fixed: after "Lock now", quick unlock didn't come back when you turned the screen off, unlocked the phone and
+  returned. Turning the screen off may only count as the app losing focus, not leaving it; any step away now counts.
+
 ## 0.1.5
 
 - Fixed: "Lock now" seemed to do nothing. Within a minute of unlocking the phone, quick unlock opened the app again

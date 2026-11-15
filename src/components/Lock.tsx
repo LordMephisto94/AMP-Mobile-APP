@@ -235,9 +235,10 @@ export function LockHost() {
   });
   effect(() => {
     const state = lifecycle();
+    // Turning the screen off may only make the app inactive, so any step away counts.
+    if (state !== "active") leftApp();
     if (state === "background") {
       leftAt = Date.now();
-      leftApp();
       if (autoLockSeconds() === 0) lockNow();
     } else if (state === "active" && leftAt) {
       if (Date.now() - leftAt >= autoLockSeconds() * 1000) lockNow();
