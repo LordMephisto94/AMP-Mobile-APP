@@ -540,7 +540,7 @@ function FirewallView(props: { firewall: FirewallStatus }) {
       </Each>
       <Each of={props.firewall.withheld ?? []}>
         {(w) => (
-          <Text class="text-xs text-warning">{`${w().shardName}: port ${w().port} is held by AMP's ${LISTENER[w().kind] ?? words(w().kind).toLowerCase()}, so it's unreachable until moved.`}</Text>
+          <Text class="text-xs text-warning">{`${w().shardName}: port ${w().port} is held by AMP's ${Object.prototype.hasOwnProperty.call(LISTENER, w().kind) ? LISTENER[w().kind] : words(w().kind).toLowerCase()}, so it's unreachable until moved.`}</Text>
         )}
       </Each>
       <If when={applied().length > 0}>

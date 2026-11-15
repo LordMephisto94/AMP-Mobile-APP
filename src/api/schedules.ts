@@ -455,7 +455,7 @@ const STATUS: Record<string, string> = {
   NotReached: "Not reached",
 };
 
-export const statusLabel = (s: string | null) => (s ? (STATUS[s] ?? s) : "Never ran");
+export const statusLabel = (s: string | null) => (s ? (Object.prototype.hasOwnProperty.call(STATUS, s) ? STATUS[s] : s) : "Never ran");
 
 export function statusTone(s: string | null): "success" | "warning" | "danger" | "muted" {
   if (s === "Succeeded") return "success";

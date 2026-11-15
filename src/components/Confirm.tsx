@@ -12,7 +12,7 @@ export interface ConfirmAction {
 export interface ConfirmOptions {
   title: string;
   message?: string;
-  /** An emoji shown in a tinted circle above the title. */
+  /** An icon shown in a tinted circle above the title. */
   icon?: IconName;
   /** Buttons, left to right / top to bottom. A "Cancel" is added first unless `cancelLabel` is null. */
   actions: ConfirmAction[];

@@ -11,7 +11,7 @@ export interface PromptRequest {
   confirm: string;
   /** Hide what's typed (a password). */
   masked?: boolean;
-  /** An emoji shown in a tinted circle above the title. */
+  /** An icon shown in a tinted circle above the title. */
   icon?: IconName;
   /** Returns an error to show, or nothing to close. */
   onSubmit: (value: string) => Promise<string | void> | string | void;

@@ -477,5 +477,6 @@ export function splitCategory(raw: string | undefined): { name: string; icon: Ic
   const i = raw.indexOf(":");
   if (i < 0) return { name: raw.trim(), icon: null };
   const icon = raw.slice(i + 1).trim();
-  return { name: raw.slice(0, i).trim(), icon: icon ? (CATEGORY_ICONS[icon] ?? null) : null };
+  // Own keys only: a category such as "Foo:constructor" must not find Object's built-ins.
+  return { name: raw.slice(0, i).trim(), icon: Object.prototype.hasOwnProperty.call(CATEGORY_ICONS, icon) ? CATEGORY_ICONS[icon] : null };
 }

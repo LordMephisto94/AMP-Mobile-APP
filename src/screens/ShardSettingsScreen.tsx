@@ -32,7 +32,7 @@ import { Icon, type IconName } from "../components/Icon";
 
 interface Group {
   name: string;
-  /** An emoji for the category's icon, when AMP gave one. */
+  /** The category's icon, when AMP gave one the app knows. */
   icon: IconName | null;
   settings: EffectiveSetting[];
 }

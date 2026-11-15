@@ -235,5 +235,5 @@ export function Icon(props: { name: IconName; size?: number; tone?: IconTone; co
 
 /** Whether a string names an icon (for values that come from data, such as a settings group's icon). */
 export function isIconName(name: string | null | undefined): name is IconName {
-  return !!name && name in ICONS;
+  return !!name && Object.prototype.hasOwnProperty.call(ICONS, name);
 }

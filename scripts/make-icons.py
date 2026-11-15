@@ -171,7 +171,7 @@ lines.append("}")
 lines.append("")
 lines.append("/** Whether a string names an icon (for values that come from data, such as a settings group's icon). */")
 lines.append("export function isIconName(name: string | null | undefined): name is IconName {")
-lines.append("  return !!name && name in ICONS;")
+lines.append("  return !!name && Object.prototype.hasOwnProperty.call(ICONS, name);")
 lines.append("}")
 with open(f"{ROOT}/src/components/Icon.tsx", "w") as f:
     f.write("\n".join(lines) + "\n")

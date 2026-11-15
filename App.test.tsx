@@ -1,4 +1,6 @@
 import { connectionProblem, isTailscaleHost, normalizeServerUrl, plainHttpRisk } from "./src/api/client";
+import { splitCategory } from "./src/api/manage";
+import { statusLabel } from "./src/api/schedules";
 import { safeHttpsUrl } from "./src/lib/links";
 import { uploadFile } from "./src/api/files";
 import { hideDetails, priv, privIps, privJson } from "./src/lib/privacy";
@@ -2960,4 +2962,11 @@ test("a page that let its artwork go while buried draws it again when it's back 
   await app.press("back");
   await app.waitFor("text:Your servers");
   await app.waitUntil(() => app.count("backdrop-art") === 1);
+});
+
+test("names from the panel never pick up JavaScript's built-in keys", () => {
+  expect(splitCategory("Arma Reforger:stadia_controller")).toEqual({ name: "Arma Reforger", icon: "gamepad" });
+  expect(splitCategory("Odd:constructor")).toEqual({ name: "Odd", icon: null });
+  expect(splitCategory("Odd:toString")).toEqual({ name: "Odd", icon: null });
+  expect(statusLabel("constructor")).toBe("constructor");
 });
