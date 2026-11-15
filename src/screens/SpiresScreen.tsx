@@ -21,7 +21,9 @@ export function SpiresScreen(props: { serverId: string }) {
   const error = signal<string | null>(null);
   const refreshing = signal(false);
 
+  let loadSeq = 0;
   const load = async () => {
+    const mine = ++loadSeq;
     try {
       const client = clientFor(props.serverId);
       // The roster carries online and version; an older panel without it still lists machines.
@@ -30,9 +32,11 @@ export function SpiresScreen(props: { serverId: string }) {
         const plain = await listSpires(client);
         return plain.map((spire) => ({ spire, online: true, lastSeen: null, version: null, behind: false, installationVersion: null }));
       });
+        if (mine !== loadSeq) return; // a newer load started: its answer wins
       roster.set(items);
       error.set(null);
       const results = await Promise.allSettled(items.map((i) => getSpireState(client, i.spire.id)));
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       const next = { ...states() };
       results.forEach((r, i) => r.status === "fulfilled" && (next[items[i].spire.id] = r.value));
       states.set(next);

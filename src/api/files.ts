@@ -144,6 +144,8 @@ export async function uploadFile(
   dir: string,
   file: Blob & { name: string },
   onProgress?: (loaded: number, total: number) => void,
+  /** Asked before each chunk: true stops the upload (the app locked), uncommitted. */
+  stop?: () => boolean,
 ): Promise<void> {
   // A picked file's name comes from the phone's file provider: checked like a typed one.
   const problem = nameProblem(file.name);
@@ -154,9 +156,19 @@ export async function uploadFile(
     method: "POST",
     body: { path, size: file.size },
   });
-  let received = Number(start.received ?? 0);
+  if (typeof start?.sessionId !== "string" || !start.sessionId) throw new Error("The server didn't start the upload");
+  // A count the server gives is only believed when it's a whole number within the file:
+  // anything else would end the loop early and commit a partial file as if it were whole.
+  const count = (v: unknown): number | null => {
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 && n <= file.size ? n : null;
+  };
+  const resumed = start.received === undefined || start.received === null ? 0 : count(start.received);
+  if (resumed === null) throw new Error("The server's upload answer didn't make sense");
+  let received: number = resumed;
   onProgress?.(received, file.size);
   while (received < file.size) {
+    if (stop?.()) throw new Error("Upload stopped: the app locked. Upload it again after unlocking.");
     const chunk = file.slice(received, received + CHUNK);
     const result = await client.request<{ received: number }>(`${base(id)}/upload-chunk`, {
       method: "POST",
@@ -164,11 +176,13 @@ export async function uploadFile(
       raw: chunk,
       timeoutMs: 300_000,
     });
-    const next = Number(result?.received ?? received + chunk.size);
+    const next: number | null = result?.received === undefined || result?.received === null ? Math.min(file.size, received + chunk.size) : count(result.received);
+    if (next === null) throw new Error("The server's upload answer didn't make sense");
     if (next <= received) throw new Error("The upload stopped making progress");
     received = next;
     onProgress?.(received, file.size);
   }
+  if (stop?.()) throw new Error("Upload stopped: the app locked. Upload it again after unlocking.");
   await client.request<void>(`${base(id)}/upload-commit`, { method: "POST", query: { session: start.sessionId }, timeoutMs: 120_000 });
 }
 

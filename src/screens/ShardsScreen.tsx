@@ -39,16 +39,20 @@ export function ShardsScreen(props: { serverId: string }) {
   const error = signal<string | null>(null);
   const refreshing = signal(false);
 
+  let loadSeq = 0;
   const load = async () => {
+    const mine = ++loadSeq;
     try {
       const client = clientFor(props.serverId);
       const everything = await listShards(client, true);
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       const all = everything.filter((s) => !s.deleted);
       deleted.set(everything.filter((s) => s.deleted));
       shards.set(all);
       error.set(null);
       // One state read per shard; a shard whose state fails keeps its last one.
       const results = await Promise.allSettled(all.map((s) => getShardState(client, s.id)));
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       const next = { ...states() };
       results.forEach((r, i) => {
         if (r.status === "fulfilled") next[all[i].id] = r.value;

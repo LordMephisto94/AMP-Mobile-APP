@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.2
+
+A fifth audit (SECURITY.md, findings 45 to 54):
+
+- Uploads: a server answer that makes no sense stops the upload instead of saving a partial file as if whole, an
+  upload stops when the app locks, and "Uploaded N files" no longer counts skipped files.
+- A session renewal with an unreadable expiry no longer shows the server as signed out.
+- A double tap on "Change it" no longer shows an error after a password change that worked.
+- Unsaved file edits kept over a lock come back only for the same account.
+- A fingerprint prompt that never answers can't block the PIN pad: it gives up after two minutes.
+- Pages no longer flash back an older state (such as "Running" just after a stop) when answers arrive out of order.
+- A machine's page handles a lock or sign-out while loading like every other page.
+
 ## 0.2.1
 
 - Home page: each server's card now says whether its panel answers (Online, Offline, or Checking… at first), signed

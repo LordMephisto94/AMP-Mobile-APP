@@ -363,7 +363,8 @@ async function renewOnce(id: string): Promise<RenewOutcome> {
   try {
     const fresh = await renew(new AmpClient(server.serverUrl, session.token));
     if (!stillCurrent()) return "superseded";
-    if (typeof fresh?.token !== "string" || typeof fresh?.expiration !== "string") return "failed";
+    // An unreadable expiry would count the session as over at once (as at sign-in).
+    if (typeof fresh?.token !== "string" || typeof fresh?.expiration !== "string" || Number.isNaN(Date.parse(fresh.expiration))) return "failed";
     applySession(id, fresh);
     await persistSessions();
     return "renewed";

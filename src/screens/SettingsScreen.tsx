@@ -205,10 +205,14 @@ export function SettingsScreen(props: { serverId: string }) {
   const repeatPw = signal("");
   const pwError = signal<string | null>(null);
 
+  const changingPw = signal(false);
   const submitPassword = async () => {
+    // One change at a time: a second tap would send the old password again, which no longer works.
+    if (changingPw()) return;
     pwError.set(null);
     if (!currentPw() || !newPw()) return pwError.set("Fill in both passwords.");
     if (newPw() !== repeatPw()) return pwError.set("The new passwords don't match.");
+    changingPw.set(true);
     try {
       await changePassword(client(), currentPw(), newPw());
       currentPw.set("");
@@ -220,6 +224,8 @@ export function SettingsScreen(props: { serverId: string }) {
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) await fail(e);
       else pwError.set((e as Error).message);
+    } finally {
+      changingPw.set(false);
     }
   };
 
@@ -286,7 +292,7 @@ export function SettingsScreen(props: { serverId: string }) {
                 <If when={pwError()}>{(msg) => <Text class="text-sm text-destructive">{msg()}</Text>}</If>
                 <View class="flex-row gap-2">
                   <SecondaryButton title="Cancel" onPress={() => (showPassword.set(false), pwError.set(null))} />
-                  <SecondaryButton testID="save-password" title="Change it" tone="success" onPress={submitPassword} />
+                  <SecondaryButton testID="save-password" title={changingPw() ? "Changing…" : "Change it"} tone="success" onPress={submitPassword} />
                 </View>
               </View>
             </If>

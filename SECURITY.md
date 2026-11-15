@@ -129,6 +129,30 @@ app falls back to the PIN; the vault isn't opened before the server list is read
 nothing while the app is locked, and drops answers older than the newest; the release password file is read as
 data, never run, and refused when others can read it.
 
+## Fifth audit: bugs, races and edge cases (November 2026, 0.2.2)
+
+A full pass: the API layer and the live console connection, sign-in and renewal, files and uploads, every page's
+loading and saving, the vault, the Android key store and the build scripts.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 45 | An upload whose server answered a chunk with a missing-number or out-of-range count ended early and committed a partial file as if whole | Medium | Fixed: counts are checked (whole, within the file); anything else stops the upload uncommitted |
+| 46 | An upload carried on behind the lock with the session it started with | Low | Fixed: it stops at the next chunk when the app locks, uncommitted |
+| 47 | A renewal answer with an unreadable expiry was accepted, so the session counted as over at once and the server showed signed out | Low | Fixed: refused, keeping the session it had (as sign-in already did) |
+| 48 | A double tap on "Change it" sent the password change twice; the second failed and showed an error after a change that worked | Low | Fixed: one change at a time |
+| 49 | Unsaved file edits kept over a lock were keyed by server, not account: another account signing in to that server got them back | Low | Fixed: kept per account |
+| 50 | A fingerprint prompt that never answered would block the PIN pad until the app restarted | Low | Fixed: the call gives up after two minutes and the PIN works |
+| 51 | Seven pages (instances, overview, machines, a machine, networking, access, files) could show an older answer that arrived after a newer one, such as "Running" just after a stop | Low | Fixed: only the newest load's answer is shown |
+| 52 | A machine's page asked for the API client outside its error handling, so a lock or sign-out at that moment was an unhandled error instead of the usual recovery | Low | Fixed |
+| 53 | Live console messages already received kept being handled after the page stopped the connection | Low | Fixed: dropped |
+| 54 | "Uploaded N files" counted files the user chose to skip | Low | Fixed: counts what was uploaded |
+
+Checked and found sound: HTTPS-only addresses, no credentials or query in them, redirects refused for anything
+carrying a token, tickets redacted from messages, response and frame size limits, one live connection at a time
+with stale attempts abandoned, renewals shared per server and superseded correctly, sign-ins dropped when the app
+locked meanwhile, every other save button guarded against double taps, timers that load later checking the page
+still shows, and the Java key store answering every call once.
+
 ## Release signing
 
 From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.

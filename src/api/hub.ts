@@ -143,6 +143,7 @@ export class HubConnection {
   }
 
   private receive(data: string): void {
+    const socket = this.socket;
     this.buffer += data;
     // A frame never ends (a broken or hostile server): drop the connection, not the app.
     if (this.buffer.length > MAX_BUFFER) {
@@ -152,6 +153,8 @@ export class HubConnection {
     }
     let end: number;
     while ((end = this.buffer.indexOf(RS)) >= 0) {
+      // A handler stopped or replaced the connection: the frames left belong to the old one.
+      if (this.socket !== socket) return;
       const frame = this.buffer.slice(0, end);
       this.buffer = this.buffer.slice(end + 1);
       if (!frame) continue;

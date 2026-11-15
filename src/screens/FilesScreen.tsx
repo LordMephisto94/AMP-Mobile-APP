@@ -28,7 +28,7 @@ import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown"
 import { Prompt, type PromptRequest } from "../components/Prompt";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
-import { clientFor } from "../state/servers";
+import { clientFor, locked } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
 
@@ -67,12 +67,15 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     }
   };
 
+  let loadSeq = 0;
   const load = async () => {
+    const mine = ++loadSeq;
     try {
       const [list, man] = await Promise.all([
         listFiles(client(), props.id, props.path),
         managedFiles(client(), props.id, props.path).catch(() => [] as ManagedFile[]),
       ]);
+      if (mine !== loadSeq) return; // a newer listing started (after an action): its answer wins
       entries.set(
         [...list].sort((a, b) => (a.isDirectory === b.isDirectory ? a.name.localeCompare(b.name) : a.isDirectory ? -1 : 1)),
       );
@@ -263,8 +266,10 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
       return;
     }
     if (!picked.length) return;
+    let done = 0;
     try {
       for (const { file } of picked) {
+        if (locked()) break;
         if (entries()?.some((e) => e.name === file.name)) {
           const action = await confirm({
             title: `Replace ${file.name}?`,
@@ -276,9 +281,18 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
           if (action !== "replace") continue;
         }
         upload.set({ name: file.name, loaded: 0, total: file.size });
-        await uploadFile(client(), props.id, props.path, file, (loaded, total) => upload.set({ name: file.name, loaded, total }));
+        await uploadFile(
+          client(),
+          props.id,
+          props.path,
+          file,
+          (loaded, total) => upload.set({ name: file.name, loaded, total }),
+          // The lock takes every session out of memory: an upload doesn't carry on behind it.
+          () => locked(),
+        );
+        done++;
       }
-      notice.set(picked.length === 1 ? "Uploaded." : `Uploaded ${picked.length} files.`);
+      if (done) notice.set(done === 1 ? "Uploaded." : `Uploaded ${done} files.`);
     } catch (e) {
       await fail(e);
     } finally {

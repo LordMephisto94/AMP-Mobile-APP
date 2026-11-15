@@ -34,10 +34,13 @@ export function OverviewScreen(props: { serverId: string }) {
 
   clientLater(props.serverId).then(panelText).then((t) => text.set(t)).catch(() => {});
 
+  let loadSeq = 0;
   const load = async () => {
+    const mine = ++loadSeq;
     try {
       const client = clientFor(props.serverId);
       const [listed, machines] = await Promise.all([listShards(client), listSpires(client).catch(() => spires())]);
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       const all = listed.filter((s) => !s.deleted);
       shards.set(all);
       spires.set(machines);
@@ -47,6 +50,7 @@ export function OverviewScreen(props: { serverId: string }) {
         Promise.allSettled(all.map((s) => getShardState(client, s.id))),
         Promise.allSettled(machines.map((m) => getSpireState(client, m.id))),
       ]);
+        if (mine !== loadSeq) return; // a newer load started: its answer wins
       const nextShards = { ...states() };
       shardResults.forEach((r, i) => r.status === "fulfilled" && (nextShards[all[i].id] = r.value));
       states.set(nextShards);

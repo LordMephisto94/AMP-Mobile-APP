@@ -40,10 +40,13 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
   const refreshing = signal(false);
   const link = signal<{ userName: string; link: string } | null>(null);
 
+  let loadSeq = 0;
   const load = async () => {
+    const mine = ++loadSeq;
     try {
       const c = clientFor(props.serverId);
       const [u, r, i] = await Promise.all([part(listUsers(c)), part(listRoles(c)), part(listInvites(c))]);
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       users.set(u);
       roles.set(r);
       invites.set(i);

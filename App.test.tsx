@@ -1,3 +1,4 @@
+import { uploadFile } from "./src/api/files";
 import { expect, open, test } from "nsh/test";
 import { createVault } from "./src/state/vaultCrypto";
 
@@ -115,9 +116,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.2.1");
+  await app.waitFor("text:AMP Mobile 0.2.2");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.1"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.2"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -2688,4 +2689,57 @@ test("a schedule's trigger is sent back exactly as stored when the form leaves i
   await app.waitUntil(() => put !== null);
   expect(put.trigger).toEqual({ type: "interval", interval: "00:00:30", anchor: "2026-01-01T00:00:10Z" });
   expect(put.name).toBe("Heartbeat 2");
+});
+
+// ---- Fifth audit --------------------------------------------------------------------------------
+
+/** A stand-in AmpClient that answers the upload's calls from `answers`, by path. */
+function fakeUploadClient(answers: Record<string, unknown>, calls: string[]) {
+  return {
+    baseUrl: SERVER,
+    token: "tok-1",
+    request: async (path: string) => {
+      const step = path.split("/").pop()!;
+      calls.push(step);
+      return answers[step];
+    },
+  } as unknown as Parameters<typeof uploadFile>[0];
+}
+
+const fiveBytes = () => Object.assign(new Blob([new Uint8Array([1, 2, 3, 4, 5])]), { name: "mod.jar" });
+
+test("an upload whose server answers a count that makes no sense is never committed", async () => {
+  for (const bad of ["abc", -1, 99, 2.5]) {
+    const calls: string[] = [];
+    const client = fakeUploadClient({ "upload-start": { sessionId: "s1", received: 0 }, "upload-chunk": { received: bad } }, calls);
+    await expect(uploadFile(client, "a1", "", fiveBytes())).rejects.toThrow("didn't make sense");
+    expect(calls).not.toContain("upload-commit");
+  }
+  // A resumed session claiming more than the file holds is refused before any chunk.
+  const calls: string[] = [];
+  await expect(uploadFile(fakeUploadClient({ "upload-start": { sessionId: "s1", received: 6 } }, calls), "a1", "", fiveBytes())).rejects.toThrow();
+  expect(calls).toEqual(["upload-start"]);
+  // And one told to stop (the app locked) commits nothing.
+  const stopped: string[] = [];
+  const ok = fakeUploadClient({ "upload-start": { sessionId: "s1", received: 0 }, "upload-chunk": { received: 5 } }, stopped);
+  await expect(uploadFile(ok, "a1", "", fiveBytes(), undefined, () => true)).rejects.toThrow("the app locked");
+  expect(stopped).toEqual(["upload-start"]);
+  // A good one still goes through.
+  const good: string[] = [];
+  await uploadFile(fakeUploadClient({ "upload-start": { sessionId: "s1", received: 0 }, "upload-chunk": { received: 5 } }, good), "a1", "", fiveBytes());
+  expect(good).toEqual(["upload-start", "upload-chunk", "upload-commit"]);
+});
+
+test("a renewal answer without a readable expiry keeps the session it had", async () => {
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-bad", expiration: "soon" } },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.waitFor("text:Signed in");
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Running");
+  const shardCalls = app.requests().filter((r) => r.url.includes("/api/Shards"));
+  expect(shardCalls.every((r) => (r.headers.authorization ?? r.headers.Authorization) !== "Bearer tok-bad")).toBe(true);
 });

@@ -24,6 +24,11 @@ export interface PromptText {
 }
 
 const NONE = { keys: false, biometric: "unavailable" as Biometric };
+/**
+ * How long a fingerprint prompt may stay open. The phone always answers a prompt, but if it
+ * ever didn't, the PIN pad (which waits for it) would stay blocked until the app restarted.
+ */
+const PROMPT_MS = 120_000;
 
 /** What the phone can do: device keys, and whether strong biometrics are set up now. Never throws. */
 export async function deviceStatus(): Promise<{ keys: boolean; biometric: Biometric }> {
@@ -44,6 +49,7 @@ export async function deviceKeysAvailable(): Promise<boolean> {
 
 /** The host's message without NSH's wrapping, so callers can read its kind. */
 function reason(e: unknown): Error {
+  if ((e as { code?: string })?.code === "ETIMEDOUT") return new Error("cancel: the prompt timed out");
   const m = String((e as Error)?.message ?? e);
   const at = m.search(/(auth|invalid|missing|cancel|lockout|unavailable|busy|error):/);
   return new Error(at > 0 ? m.slice(at) : m);
@@ -52,8 +58,8 @@ function reason(e: unknown): Error {
 /** Encrypts `data` (base64) with the key `alias`, made on first use. A biometric key shows the prompt. */
 export async function sealWith(alias: string, data: string, kind: KeyKind, prompt?: PromptText): Promise<string> {
   try {
-    // A prompt waits on the user, with no time limit.
-    const sealed = await host.call("deviceKey.seal", { alias, data, kind, prompt: prompt ?? null }, { timeout: kind === "biometric" ? 0 : 30000 });
+    // A prompt waits on the user, up to PROMPT_MS.
+    const sealed = await host.call("deviceKey.seal", { alias, data, kind, prompt: prompt ?? null }, { timeout: kind === "biometric" ? PROMPT_MS : 30000 });
     if (typeof sealed !== "string") throw new Error("error: no sealed value");
     return sealed;
   } catch (e) {
@@ -64,7 +70,7 @@ export async function sealWith(alias: string, data: string, kind: KeyKind, promp
 /** Decrypts what `sealWith` returned, back to base64; `prompt` for a biometric key. */
 export async function openWith(alias: string, sealed: string, prompt?: PromptText): Promise<string> {
   try {
-    const plain = await host.call("deviceKey.open", { alias, sealed, prompt: prompt ?? null }, { timeout: prompt ? 0 : 30000 });
+    const plain = await host.call("deviceKey.open", { alias, sealed, prompt: prompt ?? null }, { timeout: prompt ? PROMPT_MS : 30000 });
     if (typeof plain !== "string") throw new Error("error: nothing opened");
     return plain;
   } catch (e) {

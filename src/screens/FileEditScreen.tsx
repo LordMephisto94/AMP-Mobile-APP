@@ -6,7 +6,7 @@ import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
-import { clientFor } from "../state/servers";
+import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 /** Files larger than this open read-only: a phone's text field isn't a place for them. */
@@ -23,7 +23,8 @@ const MAX_EDIT_CHARS = 1_000_000;
 const drafts = new Map<string, string>();
 
 export function FileEditScreen(props: { serverId: string; id: string; path: string; managed?: string | null }) {
-  const draftKey = `${props.serverId}\n${props.id}\n${props.path}`;
+  // By account too: someone else signing in to the same server mustn't get this edit back.
+  const draftKey = `${props.serverId}\n${serverById(props.serverId)?.username ?? ""}\n${props.id}\n${props.path}`;
   const restored = signal(false);
   const original = signal<string | null>(null);
   const text = signal("");

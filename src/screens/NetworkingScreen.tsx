@@ -85,7 +85,9 @@ export function NetworkingScreen(props: { serverId: string }) {
   const refreshing = signal(false);
   const copied = signal<string | null>(null);
 
+  let loadSeq = 0;
   const load = async () => {
+    const mine = ++loadSeq;
     try {
       const c = clientFor(props.serverId);
       const [h, p, g, t, f] = await Promise.all([
@@ -95,6 +97,7 @@ export function NetworkingScreen(props: { serverId: string }) {
         part(getTunnels(c)),
         part(getFirewall(c)),
       ]);
+        if (mine !== loadSeq) return; // a newer load started: its answer wins
       https.set(h);
       publications.set(p);
       gateways.set(g);
@@ -115,8 +118,10 @@ export function NetworkingScreen(props: { serverId: string }) {
         .catch(() => {});
 
       const list = (await listShards(c)).filter((s) => !s.deleted);
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       shards.set(list);
       const results = await Promise.all(list.map((s) => part(getShardPorts(c, s.id))));
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
       const next: Record<string, ShardPort[] | "denied"> = {};
       results.forEach((r, i) => {
         const v = valueOf(r);

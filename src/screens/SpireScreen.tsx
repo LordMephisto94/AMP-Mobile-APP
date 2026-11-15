@@ -39,10 +39,15 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
   const refreshing = signal(false);
   const copied = signal<string | null>(null);
 
+  let loadSeq = 0;
   const load = async () => {
-    const client = clientFor(props.serverId);
+    const mine = ++loadSeq;
+    let client: ReturnType<typeof clientFor>;
     try {
-      state.set(await getSpireState(client, props.id));
+      client = clientFor(props.serverId);
+      const fresh = await getSpireState(client, props.id);
+      if (mine !== loadSeq) return; // a newer load started: its answer wins
+      state.set(fresh);
       error.set(null);
     } catch (e) {
       if (e instanceof AmpError && e.isUnauthorized) {
