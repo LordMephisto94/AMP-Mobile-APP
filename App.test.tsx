@@ -1,3 +1,4 @@
+import { connectionProblem } from "./src/api/client";
 import { uploadFile } from "./src/api/files";
 import { hideDetails, priv, privIps, privJson } from "./src/lib/privacy";
 import { expect, open, test } from "nsh/test";
@@ -2816,4 +2817,25 @@ test("hidden details: IPs inside console lines are dotted out, times and version
     hideDetails.set(false);
   }
   expect(privIps("Steve[/203.0.113.7:51234]")).toBe("Steve[/203.0.113.7:51234]");
+});
+
+test("connection failures explain a panel without HTTPS, and an untrusted certificate", () => {
+  // What a tester saw adding a panel that only speaks plain HTTP (over Tailscale).
+  const plain = connectionProblem("Network request failed: io: received corrupt message of type InvalidContentType");
+  expect(plain.startsWith("This address answered without HTTPS.")).toBe(true);
+  expect(plain).toContain("InvalidContentType");
+  expect(connectionProblem("invalid peer certificate: UnknownIssuer").startsWith("This server's HTTPS certificate isn't trusted")).toBe(true);
+  expect(connectionProblem("dns error: no such host")).toBe("Couldn't reach the server: dns error: no such host");
+});
+
+test("adding a panel that answers in plain HTTP says so", async () => {
+  const app = await open("./App.tsx", {
+    network: { [`POST https://100.69.36.88:8443/api/Auth/login`]: { error: "io: received corrupt message of type InvalidContentType" } },
+  });
+  await app.press("text:Add Server");
+  await app.type("server", "100.69.36.88:8443");
+  await app.type("username", "admin");
+  await app.type("password", "pw");
+  await app.press("text:Add Server");
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("This address answered without HTTPS.")));
 });

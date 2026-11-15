@@ -7,6 +7,9 @@
 - Overview: recent activity says what each event acted on, as the Activity page does ("Address: …", "User: …"),
   with Hide personal details blurring addresses and names there too (account names weren't hidden on it before).
   Long titles wrap instead of running under the time.
+- Adding a server: a panel that answers in plain HTTP, or with a certificate the device doesn't trust, now gets an
+  explanation of what's wrong and how to fix it, instead of a low-level error ("received corrupt message of type
+  InvalidContentType").
 - A seventh audit, following OWASP's mobile testing guide (SECURITY.md, finding 60): the app's data is now also
   left out of phone-to-phone transfers on Android 12+, not only cloud backups.
 

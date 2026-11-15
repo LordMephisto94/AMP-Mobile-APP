@@ -124,7 +124,7 @@ export class AmpClient {
       if (error instanceof AmpError) throw error;
       const aborted = controller.signal.aborted;
       throw new AmpError(
-        aborted ? "The server took too long to respond" : `Couldn't reach the server: ${describe(error)}`,
+        aborted ? "The server took too long to respond" : connectionProblem(describe(error)),
         0,
       );
     } finally {
@@ -146,6 +146,28 @@ function safeJson(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+/**
+ * A failed connection in words a person can act on. The two HTTPS failures people meet most
+ * (a panel that only speaks plain HTTP, and a certificate the device doesn't trust) get their
+ * own explanation; the low-level reason follows for whoever has to fix it.
+ */
+export function connectionProblem(reason: string): string {
+  if (/InvalidContentType|wrong version number|http request|packet length too long|not an ssl|plaintext|record overflow/i.test(reason)) {
+    return (
+      "This address answered without HTTPS. AMP Mobile only connects over https://, so your password and session " +
+      "never travel unencrypted. Turn on HTTPS for the panel (a certificate, a reverse proxy or Tailscale HTTPS), or " +
+      `use the address it serves HTTPS on. (${reason})`
+    );
+  }
+  if (/certificate|UnknownIssuer|NotValidForName|InvalidCertificate|CERT_|self.signed|expired|BadSignature|hostname mismatch/i.test(reason)) {
+    return (
+      "This server's HTTPS certificate isn't trusted on this device: it's self-signed, expired, or issued for another " +
+      `name. Give the panel a certificate from a trusted authority (Let's Encrypt, say) for the address you entered. (${reason})`
+    );
+  }
+  return `Couldn't reach the server: ${reason}`;
 }
 
 function describe(error: unknown): string {
