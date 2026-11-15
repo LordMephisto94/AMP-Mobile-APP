@@ -1,6 +1,7 @@
 import { type JSX, Text, View } from "nsh";
 import type { SpireDefinition, SpireState } from "../api/manage";
 import { ago } from "./analyticsUi";
+import { Icon } from "./Icon";
 
 export const num = (v: number | string | null | undefined) => {
   const x = typeof v === "number" ? v : Number(v ?? 0);
@@ -44,12 +45,12 @@ export function HostCard(props: {
     >
       <View class="flex-row items-center gap-2.5 bg-linear-to-r from-hero-from/60 to-hero-to/40 px-4 py-3">
         <View class={`h-6 w-6 items-center justify-center rounded-full border-2 ${online() ? "border-success" : "border-destructive"}`}>
-          <Text class={`text-xs font-bold ${online() ? "text-success" : "text-destructive"}`}>{online() ? "✓" : "!"}</Text>
+          <Icon name={online() ? "check" : "exclaim"} size={14} tone={online() ? "success" : "destructive"} />
         </View>
         <Text class="line-clamp-1 flex-1 text-base font-semibold text-white">{props.spire.displayName || props.spire.id}</Text>
         <Text class="text-xs text-white/75">{s() ? `${s()!.shardCount} shard${s()!.shardCount === 1 ? "" : "s"}` : ""}</Text>
         <If when={props.onPress}>
-          <Text class="text-lg text-white/70">›</Text>
+          <Icon name="chevron-right" size={18} color="#ffffffb3" />
         </If>
       </View>
       <View class="gap-2.5 p-4">
@@ -62,8 +63,8 @@ export function HostCard(props: {
             barClass="bg-violet-400"
           />
           <View class="flex-row flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-            <Text class="text-sm text-card-foreground tabular-nums">{`↓ ${rate(s()!.networkInKBps)}`}</Text>
-            <Text class="text-sm text-card-foreground tabular-nums">{`↑ ${rate(s()!.networkOutKBps)}`}</Text>
+            <Rate direction="down" value={rate(s()!.networkInKBps)} />
+            <Rate direction="up" value={rate(s()!.networkOutKBps)} />
             <If when={free() > 0}>
               <Text class="text-sm text-card-foreground tabular-nums">
                 <Text class="text-xs text-muted-foreground">Free </Text>
@@ -90,6 +91,16 @@ export function Bar(props: { label: string; percent: number; value: string; barC
         <View class={`h-full rounded-full ${props.barClass}`} style={{ width: width() }} />
       </View>
       <Text class="text-right text-xs text-card-foreground tabular-nums">{props.value}</Text>
+    </View>
+  );
+}
+
+/** A network rate with its direction: received (down) or sent (up). */
+export function Rate(props: { direction: "down" | "up"; value: string; small?: boolean }) {
+  return (
+    <View accessibilityLabel={`${props.direction === "down" ? "In" : "Out"} ${props.value}`} class="flex-row items-center gap-1">
+      <Icon name={props.direction === "down" ? "arrow-down" : "arrow-up"} size={props.small ? 12 : 14} tone="muted" />
+      <Text class={`tabular-nums ${props.small ? "text-xs text-muted-foreground" : "text-sm text-card-foreground"}`}>{props.value}</Text>
     </View>
   );
 }

@@ -49,6 +49,7 @@ import { poll } from "../lib/poll";
 import { sessionRejected } from "../lib/session";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
+import { Icon, type IconName } from "../components/Icon";
 
 /** The list is checked this often while a run is under way, and this often otherwise. */
 const BUSY_MS = 4_000;
@@ -149,7 +150,7 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
     const action = await confirm({
       title: `Delete ${s.name}?`,
       message: "It won't run again. Its run history goes with it. This can't be undone.",
-      icon: "🗑️",
+      icon: "trash" as const,
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -160,7 +161,7 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
     const action = await confirm({
       title: `Run ${s.name} now?`,
       message: "Its steps run straight away, as if it had fired. Its usual times stay as they are.",
-      icon: "▶️",
+      icon: "play" as const,
       actions: [{ id: "run", label: "Run now" }],
     });
     if (action === "run") await act(() => runSchedule(client(), props.id, s.id), "Started. Its result shows here and in its run history.");
@@ -196,7 +197,7 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
           <If when={notice()}>{(n) => <Notice text={n()} />}</If>
 
           <If when={schedules()}>
-            <PrimaryButton title="New schedule" icon="➕" onPress={() => edit()} />
+            <PrimaryButton title="New schedule" icon="plus" onPress={() => edit()} />
           </If>
 
           <If when={!error() && schedules() === null}>
@@ -244,10 +245,10 @@ function ScheduleCard(props: {
   const steps = () => outline(s().steps, props.text).filter((l) => l.depth === 0);
 
   const items = () => [
-    { id: "run", label: "Run now", icon: "▶️", onSelect: props.onRun },
-    { id: "edit", label: "Edit", icon: "✏️", onSelect: props.onEdit },
-    { id: "history", label: "Run history", icon: "🧾", onSelect: props.onHistory },
-    { id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: props.onDelete },
+    { id: "run", label: "Run now", icon: "play" as const, onSelect: props.onRun },
+    { id: "edit", label: "Edit", icon: "pencil" as const, onSelect: props.onEdit },
+    { id: "history", label: "Run history", icon: "receipt" as const, onSelect: props.onHistory },
+    { id: "delete", label: "Delete", icon: "trash" as const, tone: "danger" as const, onSelect: props.onDelete },
   ];
 
   return (
@@ -539,9 +540,10 @@ export function ScheduleEditScreen(props: { serverId: string; id: string; title:
                     </Text>
                     <Each of={outline(original()?.steps ?? [], text())} key={(_l, i) => i}>
                       {(l) => (
-                        <Text class="text-sm text-card-foreground" style={{ paddingLeft: l().depth * 14 }}>
-                          {`${l().depth ? "↳ " : "• "}${l().label}`}
-                        </Text>
+                        <View class="flex-row items-start gap-1.5" style={{ paddingLeft: l().depth * 14 }}>
+                          <View class="pt-0.5"><Icon name={l().depth ? "corner-down-right" : "dot"} size={l().depth ? 14 : 10} tone="muted" /></View>
+                          <Text class="shrink text-sm text-card-foreground">{l().label}</Text>
+                        </View>
                       )}
                     </Each>
                   </View>
@@ -637,26 +639,27 @@ function TaskEditor(props: {
         />
       </If>
       <View class="flex-row flex-wrap gap-2">
-        <SmallButton label="↑ Up" disabled={props.index === 0} onPress={() => props.onMove(-1)} />
-        <SmallButton label="↓ Down" disabled={props.index === props.count - 1} onPress={() => props.onMove(1)} />
+        <SmallButton icon="arrow-up" label="Up" disabled={props.index === 0} onPress={() => props.onMove(-1)} />
+        <SmallButton icon="arrow-down" label="Down" disabled={props.index === props.count - 1} onPress={() => props.onMove(1)} />
         <SmallButton label="Remove" danger testID={`task-remove-${n()}`} onPress={props.onRemove} />
       </View>
     </View>
   );
 }
 
-function SmallButton(props: { label: string; onPress: () => void; disabled?: boolean; danger?: boolean; testID?: string }) {
+function SmallButton(props: { label: string; icon?: IconName; onPress: () => void; disabled?: boolean; danger?: boolean; testID?: string }) {
   return (
-    <Text
+    <View
       role="button"
       testID={props.testID}
       onPress={() => !props.disabled && props.onPress()}
-      class={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
-        props.danger ? "border-destructive/30 text-destructive" : "border-white/10 text-muted-foreground"
-      } ${props.disabled ? "opacity-40" : ""}`}
+      class={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${props.danger ? "border-destructive/30" : "border-white/10"} ${
+        props.disabled ? "opacity-40" : ""
+      }`}
     >
-      {props.label}
-    </Text>
+      <If when={props.icon}>{(i) => <Icon name={i()} size={14} tone={props.danger ? "destructive" : "muted"} />}</If>
+      <Text class={`text-sm font-semibold ${props.danger ? "text-destructive" : "text-muted-foreground"}`}>{props.label}</Text>
+    </View>
   );
 }
 
@@ -734,7 +737,7 @@ function RunCard(props: { run: Run; names: Record<string, string>; text: Record<
           </Text>
         </View>
         <Pill label={statusLabel(r().status)} tone={statusTone(r().status)} />
-        <Text class="text-sm text-muted-foreground">{open() ? "▴" : "▾"}</Text>
+        <Icon name={open() ? "chevron-up" : "chevron-down"} size={16} tone="muted" />
       </View>
       <If when={r().errorMessage}>{(e) => <Text class="text-xs text-destructive">{e()}</Text>}</If>
       <If when={open()}>
@@ -744,13 +747,11 @@ function RunCard(props: { run: Run; names: Record<string, string>; text: Record<
               {(o) => (
                 <View class="gap-0.5">
                   <View class="flex-row items-baseline gap-2">
-                    <Text
-                      class={`text-xs font-semibold ${
-                        o().status === "Succeeded" ? "text-success" : o().status === "Failed" ? "text-destructive" : "text-muted-foreground"
-                      }`}
-                    >
-                      {o().status === "Succeeded" ? "✓" : o().status === "Failed" ? "✕" : "–"}
-                    </Text>
+                    <Icon
+                      name={o().status === "Succeeded" ? "check" : o().status === "Failed" ? "x" : "dot"}
+                      size={o().status === "Succeeded" || o().status === "Failed" ? 14 : 8}
+                      tone={o().status === "Succeeded" ? "success" : o().status === "Failed" ? "destructive" : "muted"}
+                    />
                     <Text class="flex-1 text-sm text-card-foreground">
                       {`${props.names[o().stepId] ?? o().stepId}${o().lane.startsWith("bg:") ? " (background)" : ""}`}
                     </Text>

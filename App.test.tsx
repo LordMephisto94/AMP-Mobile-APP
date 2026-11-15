@@ -119,9 +119,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.2.5");
+  await app.waitFor("text:AMP Mobile 0.2.6");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.5"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -343,7 +343,8 @@ test("edits an instance's details and settings", async () => {
 
   // A select opens in place and takes the choice.
   expect(app.texts()).not.toContain("Gameplay:stadia_controller");
-  expect(app.texts()).toContain("🎮");
+  expect(app.texts()).toContain("Gameplay"); // its icon is drawn, not an emoji
+  expect(app.texts().some((t) => /\p{Extended_Pictographic}/u.test(t))).toBe(false);
   await app.press("group-Gameplay");
   await app.press("text:Easy");
   await app.press("text:Hard");
@@ -740,8 +741,8 @@ test("shows player analytics, finds a player and opens their history", async () 
   // Headline figures (minutes as a string), changes, countries and the busiest time.
   expect(app.texts()).toContain("21h 31m");
   expect(app.texts()).toContain("no earlier data"); // newUsers: null
-  expect(app.texts()).toContain("▲ 100%");
-  expect(app.texts()).toContain("▼ 20%");
+  expect(app.texts()).toContain("100%"); // with a rise icon
+  expect(app.texts()).toContain("20%"); // with a fall icon
   expect(app.texts()).toContain("AU");
   expect(app.texts()).toContain("Steve");
   expect(app.texts()).not.toContain("Demo numbers");
@@ -959,7 +960,7 @@ test("the overview shows totals, hosts and recent activity in the panel's wordin
   await app.waitFor("text:4 shards");
   expect(app.texts()).toContain("8%");
   expect(app.texts()).toContain("2.5 GB / 31 GB");
-  expect(app.texts()).toContain("↓ 82 KiB/s");
+  expect(app.texts()).toContain("82 KiB/s"); // with its "received" arrow icon
   expect(app.texts()).toContain("2.6 GB"); // RAM of the running instance
   await app.waitFor("text:Stopped a server");
   expect(app.texts()).toContain("Removed a server's old message bus credential after its renewal");
@@ -1158,8 +1159,7 @@ test("networking shows the panel's address, ports, publications, tunnels and fir
 
   await app.waitFor("text:Published on vps.example.test:30000");
   expect(app.texts()).toContain("vps.example.test:30000");
-  expect(app.texts()).toContain("3 connections · ↓ 1.5 MB · ↑ 200 KB");
-  expect(app.texts()).toContain("amp3 ⇄ melb-vps");
+  for (const t of ["3 connections", "1.5 MB", "200 KB", "amp3", "melb-vps"]) expect(app.texts()).toContain(t);
   expect(app.texts()).toContain("vps.example.test:51820 · 14 ms");
   expect(app.texts()).toContain("nftables");
   expect(app.texts()).toContain("Minecraft SMP: port 2222 is held by AMP's SFTP server, so it's unreachable until moved.");
@@ -1777,7 +1777,7 @@ test("plain HTTP on the internet needs the tick, and addresses with credentials 
   // An internet address over plain HTTP: the warning, and nothing sent until the box is ticked.
   await clearField(app, "server");
   await app.type("server", PUB);
-  await app.waitFor("text:⚠️ Not secure: plain HTTP");
+  await app.waitFor("text:Not secure: plain HTTP");
   await app.press("text:Add Server");
   await app.waitFor("text:Tick the box to confirm you understand your login will travel unencrypted, or use https://.");
   expect(app.requests().some((r) => r.url.includes("/api/Auth/login"))).toBe(false);
@@ -1803,7 +1803,7 @@ test("plain HTTP on the local network asks first, every sign-in", async () => {
   await app.type("server", LAN);
   await app.type("username", "admin");
   await app.type("password", "pw");
-  await app.waitFor("text:⚠️ Not secure: plain HTTP");
+  await app.waitFor("text:Not secure: plain HTTP");
   expect(app.shows("plain-http-understood")).toBe(false); // a confirm, not a tick, on the local network
   await app.press("text:Add Server");
   await app.waitFor("text:Send your login unencrypted?");
@@ -2370,7 +2370,7 @@ test("snapshots: the timeline, taking one, following it, restoring, pinning, del
   await app.waitFor("text:Before 1.21");
   const texts = () => app.texts().join("\n");
   expect(texts()).toContain("On disk now");
-  expect(texts()).toContain("📌 Pinned");
+  expect(texts()).toContain("Pinned");
   expect(texts()).toContain("Game data, AMP settings");
   expect(texts()).toContain("Disk full");
   expect(texts()).toContain("2 files couldn't be read and aren't in it (e.g. logs/latest.log).");
@@ -2613,7 +2613,7 @@ test("schedules: the list, on and off, run now, editing a straight one, keeping 
   // A schedule with branches: shown, renamed, and its steps sent back untouched.
   await app.press("schedule-more-s2");
   await app.press("menu-edit");
-  await app.waitFor("text:↳ Send a console command: say hi {@PlayerName}");
+  await app.waitFor("text:Send a console command: say hi {@PlayerName}");
   await clearField(app, "schedule-name");
   await app.type("schedule-name", "Greet everyone");
   await app.press("schedule-save");

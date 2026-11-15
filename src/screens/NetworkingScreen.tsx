@@ -36,6 +36,8 @@ import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
 import { PrivText, Private, priv, privIps } from "../lib/privacy";
+import { Icon } from "../components/Icon";
+import { Rate } from "../components/HostCard";
 
 const REFRESH_MS = 30_000;
 
@@ -193,7 +195,7 @@ export function NetworkingScreen(props: { serverId: string }) {
       message: makePublic
         ? `Port ${port.port} on ${shardName(shard.id)} opens in AMP's firewall and can be published.`
         : `Port ${port.port} on ${shardName(shard.id)} closes in AMP's firewall and stops being published. Players using it lose access.`,
-      icon: makePublic ? "🌐" : "🔒",
+      icon: makePublic ? "globe" : "lock",
       tone: makePublic ? "default" : "danger",
       actions: [{ id: "go", label: makePublic ? "Make public" : "Make private", tone: makePublic ? "primary" : "danger" }],
     });
@@ -208,7 +210,7 @@ export function NetworkingScreen(props: { serverId: string }) {
     const choice = await confirm({
       title: `Stop publishing port ${p.publicPort}?`,
       message: `${shardName(p.shardId)} stops being reachable through ${spireName(p.frontSpireId)} on port ${p.publicPort}.`,
-      icon: "🔌",
+      icon: "plug",
       tone: "danger",
       actions: [{ id: "remove", label: "Unpublish", tone: "danger" }],
     });
@@ -293,7 +295,7 @@ export function NetworkingScreen(props: { serverId: string }) {
 
           {/* Each instance's ports */}
           <If when={shards()}>
-            <Section title="Instance ports" note="⋯ to change access">
+            <Section title="Instance ports" note="… to change access">
               <If when={shards()!.length === 0}>
                 <Text class="text-sm text-muted-foreground">No instances.</Text>
               </If>
@@ -357,7 +359,11 @@ export function NetworkingScreen(props: { serverId: string }) {
                 {(g) => (
                   <View class="gap-1 border-b border-white/5 pb-2">
                     <View class="flex-row flex-wrap items-center gap-2">
-                      <Text class="flex-1 text-sm font-semibold text-card-foreground">{`${g().shardName} → ${g().frontSpireName}`}</Text>
+                      <View class="flex-1 flex-row flex-wrap items-center gap-x-1.5">
+                          <Text class="text-sm font-semibold text-card-foreground">{g().shardName}</Text>
+                          <Icon name="arrow-right" size={14} tone="muted" />
+                          <Text class="text-sm font-semibold text-card-foreground">{g().frontSpireName}</Text>
+                        </View>
                       <Pill label={g().enabled ? words(g().status?.state) || "Pending" : "Disabled"} tone={g().enabled ? stateTone(g().status?.state) : "muted"} />
                     </View>
                     <If when={g().status?.address}>{(a) => <PrivText class="font-mono text-xs text-muted-foreground" text={`Tunnel address ${priv(a())}`} />}</If>
@@ -380,7 +386,11 @@ export function NetworkingScreen(props: { serverId: string }) {
                   return (
                     <View class="gap-1 border-b border-white/5 pb-2">
                       <View class="flex-row flex-wrap items-center gap-2">
-                        <Text class="flex-1 text-sm font-semibold text-card-foreground">{`${t().back.spireName} ⇄ ${t().front.spireName}`}</Text>
+                        <View class="flex-1 flex-row flex-wrap items-center gap-x-1.5">
+                          <Text class="text-sm font-semibold text-card-foreground">{t().back.spireName}</Text>
+                          <Icon name="swap" size={14} tone="muted" />
+                          <Text class="text-sm font-semibold text-card-foreground">{t().front.spireName}</Text>
+                        </View>
                         <Pill label={words(phase())} tone={stateTone(phase())} />
                       </View>
                       <PrivText class="text-xs text-muted-foreground" text={[
@@ -427,7 +437,7 @@ function CopyRow(props: { value: string; label: string; copied: boolean; onCopy:
         <Private class="font-mono text-sm text-sky-300" text={props.value} />
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
       </View>
-      <Text class="text-xs text-muted-foreground">{props.copied ? "Copied" : "⧉"}</Text>
+      <If when={props.copied} else={<Icon name="copy" size={14} tone="muted" />}><Text class="text-xs text-muted-foreground">Copied</Text></If>
     </View>
   );
 }
@@ -457,8 +467,8 @@ function PortRow(props: { port: ShardPort; published: string[]; onToggle: () => 
           title={`${props.port.name} · ${props.port.port}`}
           items={[
             props.port.isPublic
-              ? { id: "private", label: "Make private", icon: "🔒", hint: "Closes it in AMP's firewall", tone: "danger", onSelect: props.onToggle }
-              : { id: "public", label: "Make public", icon: "🌐", hint: "Opens it in AMP's firewall", onSelect: props.onToggle },
+              ? { id: "private", label: "Make private", icon: "lock", hint: "Closes it in AMP's firewall", tone: "danger", onSelect: props.onToggle }
+              : { id: "public", label: "Make public", icon: "globe", hint: "Opens it in AMP's firewall", onSelect: props.onToggle },
           ]}
           trigger={<MoreButton testID={`port-more-${props.port.ref}`} class="bg-transparent" />}
         />
@@ -476,7 +486,10 @@ function PublicationRow(props: { publication: Publication; title: string; target
       <View class="flex-row items-center gap-2">
         <View class="flex-1">
           <Text class="font-mono text-sm font-semibold text-sky-300">{props.title}</Text>
-          <Text class="line-clamp-1 text-xs text-muted-foreground">{`→ ${props.target} · ${String(p().protocol ?? "").toUpperCase()}`}</Text>
+          <View class="flex-row items-center gap-1">
+            <Icon name="arrow-right" size={12} tone="muted" />
+            <Text class="line-clamp-1 shrink text-xs text-muted-foreground">{`${props.target} · ${String(p().protocol ?? "").toUpperCase()}`}</Text>
+          </View>
         </View>
         <Pill label={words(state()) === "Disabled" ? "Paused" : words(state())} tone={stateTone(state())} />
         <Dropdown
@@ -485,17 +498,19 @@ function PublicationRow(props: { publication: Publication; title: string; target
           title={props.title}
           items={[
             p().enabled
-              ? { id: "pause", label: "Pause", icon: "⏸️", hint: "Stops relaying, keeps the setup", onSelect: props.onPause }
-              : { id: "resume", label: "Resume", icon: "▶️", onSelect: props.onPause },
-            { id: "unpublish", label: "Unpublish", icon: "🔌", tone: "danger", onSelect: props.onRemove },
+              ? { id: "pause", label: "Pause", icon: "pause", hint: "Stops relaying, keeps the setup", onSelect: props.onPause }
+              : { id: "resume", label: "Resume", icon: "play", onSelect: props.onPause },
+            { id: "unpublish", label: "Unpublish", icon: "plug", tone: "danger", onSelect: props.onRemove },
           ]}
           trigger={<MoreButton testID={`pub-more-${p().publicPort}`} class="bg-transparent" />}
         />
       </View>
       <If when={p().status && p().enabled}>
-        <Text class="text-xs text-muted-foreground tabular-nums">
-          {`${p().status!.activeFlows ?? 0} connection${p().status!.activeFlows === 1 ? "" : "s"} · ↓ ${bytes(p().status!.bytesIn)} · ↑ ${bytes(p().status!.bytesOut)}`}
-        </Text>
+        <View class="flex-row flex-wrap items-center gap-x-3 gap-y-1">
+          <Text class="text-xs text-muted-foreground tabular-nums">{`${p().status!.activeFlows ?? 0} connection${p().status!.activeFlows === 1 ? "" : "s"}`}</Text>
+          <Rate direction="down" value={bytes(p().status!.bytesIn)} small />
+          <Rate direction="up" value={bytes(p().status!.bytesOut)} small />
+        </View>
       </If>
       <If when={p().status?.error}>{(e) => <Text class="text-xs text-destructive">{e()}</Text>}</If>
     </View>

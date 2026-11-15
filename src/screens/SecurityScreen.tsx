@@ -1,7 +1,7 @@
 import { effect, lifecycle, Scroll, signal, Text, View } from "nsh";
 import { confirm } from "../components/Confirm";
 import { FullScreen, PinPad, PinSetup } from "../components/Lock";
-import { AppPage, Pill, SecondaryButton } from "../components/ui";
+import { AppPage, ChoiceChip, Pill, SecondaryButton } from "../components/ui";
 import { hideDetails, setHideDetails } from "../lib/privacy";
 import {
   autoLockSeconds,
@@ -17,6 +17,7 @@ import {
   setBiometricUnlock,
   setupPin,
 } from "../state/servers";
+import { Icon } from "../components/Icon";
 
 // Non-breaking spaces: a chip mustn't wrap its label onto a line it then cuts off.
 const AUTO_LOCK = [
@@ -66,7 +67,7 @@ export function SecurityScreen() {
     const choice = await confirm({
       title: "Remove the PIN?",
       message: "Every saved sign-in is erased with it. Your servers stay in the list, signed out.",
-      icon: "🔓",
+      icon: "unlock",
       tone: "danger",
       actions: [{ id: "erase", label: "Remove PIN", tone: "danger" }],
     });
@@ -158,16 +159,7 @@ export function SecurityScreen() {
               <View class="flex-row flex-wrap gap-2">
                 <Each of={AUTO_LOCK}>
                   {(o) => (
-                    <Text
-                      role="button"
-                      testID={`autolock-${o().seconds}`}
-                      onPress={() => setAutoLock(o().seconds)}
-                      class={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
-                        autoLockSeconds() === o().seconds ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-background/60 text-muted-foreground"
-                      }`}
-                    >
-                      {o().label}
-                    </Text>
+                    <ChoiceChip testID={`autolock-${o().seconds}`} label={o().label} on={autoLockSeconds() === o().seconds} onPress={() => setAutoLock(o().seconds)} />
                   )}
                 </Each>
               </View>
@@ -215,7 +207,7 @@ export function SecurityScreen() {
         <FullScreen>
           <View class="w-full max-w-sm gap-7">
             <View class="items-center gap-3">
-              <Text class="text-4xl">🔐</Text>
+              <View class="self-center"><Icon name="lock" size={40} tone="primary" /></View>
               <Text class="text-center text-2xl font-bold text-foreground">Enter your current PIN</Text>
             </View>
             <If when={error()}>{(m) => <Text class="text-center text-sm text-destructive">{m()}</Text>}</If>

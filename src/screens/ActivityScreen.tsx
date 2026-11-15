@@ -7,12 +7,13 @@ import { listShards } from "../api/shards";
 import { ago, clockOf, dayOf } from "../components/analyticsUi";
 import { Screen } from "../components/backdrop";
 import { MainMenu } from "../components/MainMenu";
-import { AppPage, ErrorText, Pill, SecondaryButton } from "../components/ui";
+import { AppPage, ChoiceChip, ErrorText, Pill, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { PrivText, priv, privJson } from "../lib/privacy";
+import { Icon, type IconName } from "../components/Icon";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -30,12 +31,12 @@ const FILTERS: { id: Filter; label: string; query: Partial<AuditQuery> }[] = [
 /** Action colours, as the panel's chips: blue, red, amber, green. */
 const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
 
-const ORIGIN_ICON: Record<number, string> = {
-  [AuditOrigin.System]: "⚙️",
-  [AuditOrigin.User]: "👤",
-  [AuditOrigin.UserFlow]: "👤",
-  [AuditOrigin.Scheduled]: "⏰",
-  [AuditOrigin.Impersonation]: "🎭",
+const ORIGIN_ICON: Record<number, IconName> = {
+  [AuditOrigin.System]: "gear",
+  [AuditOrigin.User]: "user",
+  [AuditOrigin.UserFlow]: "user",
+  [AuditOrigin.Scheduled]: "clock",
+  [AuditOrigin.Impersonation]: "mask",
 };
 
 /** The panel's Activity page: who did what and when, newest first, each flow expandable. */
@@ -152,7 +153,7 @@ export function ActivityScreen(props: { serverId: string }) {
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <View class="w-full max-w-4xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <View class="flex-row items-center gap-2 rounded-(--radius) border border-input bg-card/85 px-3.5 py-3">
-            <Text class="text-sm text-muted-foreground">🔍</Text>
+            <Icon name="search" size={16} tone="muted" />
             <Input
               testID="activity-search"
               value={search()}
@@ -167,16 +168,7 @@ export function ActivityScreen(props: { serverId: string }) {
           <View class="flex-row flex-wrap gap-2">
             <Each of={FILTERS}>
               {(f) => (
-                <Text
-                  role="button"
-                  testID={`filter-${f().id}`}
-                  onPress={() => choose(f().id)}
-                  class={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
-                    filter() === f().id ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-card/85 text-muted-foreground"
-                  }`}
-                >
-                  {f().label}
-                </Text>
+                <ChoiceChip testID={`filter-${f().id}`} label={f().label} on={filter() === f().id} bg="bg-card/85" onPress={() => choose(f().id)} />
               )}
             </Each>
           </View>
@@ -279,7 +271,7 @@ function FlowRow(props: {
         class={`flex-row gap-3 px-4 py-3 ${props.open ? "bg-white/5" : "active:bg-accent"}`}
       >
         <View class="h-9 w-9 items-center justify-center rounded-full bg-black/40">
-          <Text class="text-base">{ORIGIN_ICON[root().origin] ?? "•"}</Text>
+          <Icon name={ORIGIN_ICON[root().origin] ?? "dot"} size={18} tone="muted" />
         </View>
         {/* min-w-0 and shrink: a long title wraps instead of running under the time. */}
         <View class="min-w-0 flex-1 gap-0.5">
@@ -292,7 +284,10 @@ function FlowRow(props: {
         <View class="shrink-0 items-end gap-0.5">
           <Text class="text-xs text-muted-foreground">{ago(props.flow.startedAt || root().timestamp)}</Text>
           <If when={props.flow.eventCount > 1}>
-            <Text class="text-[11px] text-muted-foreground">{`${props.flow.eventCount} events ${props.open ? "▴" : "▾"}`}</Text>
+            <View class="flex-row items-center gap-0.5">
+              <Text class="text-[11px] text-muted-foreground">{`${props.flow.eventCount} events`}</Text>
+              <Icon name={props.open ? "chevron-up" : "chevron-down"} size={12} tone="muted" />
+            </View>
           </If>
         </View>
       </View>
@@ -328,7 +323,7 @@ function EventRow(props: {
   return (
     <View class="gap-1" style={{ marginLeft: Math.min(props.depth, 5) * 14 }}>
       <View class="flex-row items-start gap-2">
-        <Text class="text-xs text-muted-foreground">{props.depth > 0 ? "└" : "●"}</Text>
+        <Icon name={props.depth > 0 ? "corner-down-right" : "dot"} size={props.depth > 0 ? 14 : 10} tone="muted" />
         <View class="flex-1">
           <View class="flex-row flex-wrap items-center gap-1.5">
             <Text class={`shrink text-sm font-semibold ${KIND_TEXT[actionKind(props.event.action)]}`}>{props.label(props.event.action)}</Text>

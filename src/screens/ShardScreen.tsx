@@ -24,6 +24,7 @@ import { nav } from "../state/nav";
 import { clientFor, clientLater, locked, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { priv, Private } from "../lib/privacy";
+import { Icon } from "../components/Icon";
 
 /** How often the page refreshes while it is on screen (the agent samples every ~5 s). */
 const DETAIL_REFRESH_MS = 30_000;
@@ -131,7 +132,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
       title: `Delete ${props.title}?`,
       message:
         "It disappears from your instances and stops running. You can restore it from the instance list until you delete it permanently.",
-      icon: "🗑️",
+      icon: "trash",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -199,9 +200,9 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
                       onPress={copyAddress}
                       class="flex-row items-center gap-1.5 self-start rounded-full border border-white/20 bg-black/55 px-3 py-1 active:bg-black/75"
                     >
-                      <Text class="text-xs">🌐</Text>
+                      <Icon name="globe" size={13} color="#7dd3fc" />
                       <Private class="font-mono text-sm font-semibold text-white" text={a().display} />
-                      <Text class="text-xs text-white/60">{copied() ? "Copied" : "⧉"}</Text>
+                      <If when={copied()} else={<Icon name="copy" size={13} color="#ffffff99" />}><Text class="text-xs text-white/60">Copied</Text></If>
                     </View>
                   )}
                 </If>
@@ -237,13 +238,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
                   class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-lg active:bg-accent"
                 >
                   <View class="h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-hero-from to-hero-to">
-                    <Text class="text-base font-bold text-white">⏻</Text>
+                    <Icon name="power" size={18} tone="white" />
                   </View>
                   <View class="flex-1">
                     <Text class="text-base font-semibold text-card-foreground">Controls</Text>
                     <Text class="text-xs text-muted-foreground">Start, restart, stop, sleep and update</Text>
                   </View>
-                  <Text class="text-base text-muted-foreground">{controlsOpen() ? "▴" : "▾"}</Text>
+                  <Icon name={controlsOpen() ? "chevron-up" : "chevron-down"} size={18} tone="muted" />
                 </View>
               }
             />
@@ -255,13 +256,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
             >
               <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">📁</Text>
+                <Icon name="folder" size={20} tone="primary" />
               </View>
               <View class="flex-1">
                 <Text class="text-base font-semibold text-card-foreground">Files</Text>
                 <Text class="text-xs text-muted-foreground">Browse, edit, upload and download</Text>
               </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+              <Icon name="chevron-right" size={20} tone="muted" />
             </View>
 
             <View
@@ -271,13 +272,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
             >
               <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">🗂️</Text>
+                <Icon name="layers" size={20} tone="primary" />
               </View>
               <View class="flex-1">
                 <Text class="text-base font-semibold text-card-foreground">Snapshots</Text>
                 <Text class="text-xs text-muted-foreground">Back up, restore and pin backups</Text>
               </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+              <Icon name="chevron-right" size={20} tone="muted" />
             </View>
 
             <View
@@ -287,13 +288,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
             >
               <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">⏰</Text>
+                <Icon name="clock" size={20} tone="primary" />
               </View>
               <View class="flex-1">
                 <Text class="text-base font-semibold text-card-foreground">Schedules</Text>
                 <Text class="text-xs text-muted-foreground">Restarts, backups and commands on a timer or event</Text>
               </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+              <Icon name="chevron-right" size={20} tone="muted" />
             </View>
 
             <View
@@ -303,13 +304,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
             >
               <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg text-violet-300">⚙</Text>
+                <Icon name="gear" size={20} tone="primary" />
               </View>
               <View class="flex-1">
                 <Text class="text-base font-semibold text-card-foreground">Settings</Text>
                 <Text class="text-xs text-muted-foreground">Name, description and game settings</Text>
               </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+              <Icon name="chevron-right" size={20} tone="muted" />
             </View>
 
             <View
@@ -319,13 +320,13 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
             >
               <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">📊</Text>
+                <Icon name="chart" size={20} tone="primary" />
               </View>
               <View class="flex-1">
                 <Text class="text-base font-semibold text-card-foreground">Player analytics</Text>
                 <Text class="text-xs text-muted-foreground">Who plays, when, and for how long</Text>
               </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+              <Icon name="chevron-right" size={20} tone="muted" />
             </View>
 
             <View
@@ -343,7 +344,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
                 <Text class="text-base font-semibold text-card-foreground">Console</Text>
                 <Text class="text-xs text-muted-foreground">Live output and commands</Text>
               </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+              <Icon name="chevron-right" size={20} tone="muted" />
             </View>
 
           </View>

@@ -1,5 +1,6 @@
 import { type JSX, Text, View } from "nsh";
-import { type Decimal, num } from "../api/analytics";
+import { countryCode, type Decimal, num } from "../api/analytics";
+import { Icon, type IconName } from "./Icon";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -73,9 +74,12 @@ export function StatTile(props: { label: string; value: string; change?: Decimal
         when={change() != null}
         else={<Text class="text-xs text-muted-foreground">{props.change === null ? "no earlier data" : " "}</Text>}
       >
-        <Text class={`text-xs font-semibold tabular-nums ${good() ? "text-success" : "text-destructive"}`}>
-          {`${change()! > 0 ? "▲" : change()! < 0 ? "▼" : "•"} ${Math.abs(change()!).toFixed(Math.abs(change()!) < 10 ? 1 : 0)}%`}
-        </Text>
+        <View class="flex-row items-center gap-1">
+          <Icon name={change()! > 0 ? "caret-up" : change()! < 0 ? "caret-down" : "dot"} size={11} tone={good() ? "success" : "destructive"} />
+          <Text class={`text-xs font-semibold tabular-nums ${good() ? "text-success" : "text-destructive"}`}>
+            {`${Math.abs(change()!).toFixed(Math.abs(change()!) < 10 ? 1 : 0)}%`}
+          </Text>
+        </View>
       </If>
     </View>
   );
@@ -94,9 +98,23 @@ export function Section(props: { title: string; note?: string; children?: JSX.El
   );
 }
 
-/** A row of a breakdown: an icon, a label, a share bar and a figure. */
+/** A country as its two-letter code in a small badge (in place of a flag); a globe when unknown. */
+export function CountryBadge(props: { country: string | null | undefined }) {
+  return (
+    <If when={countryCode(props.country)} else={<Icon name="globe" size={20} tone="muted" />}>
+      {(code) => (
+        <View accessibilityLabel={`Country ${code()}`} class="h-5 w-8 items-center justify-center rounded-md border border-white/20 bg-white/10">
+          <Text class="text-[10px] font-bold tracking-wider text-card-foreground">{code()}</Text>
+        </View>
+      )}
+    </If>
+  );
+}
+
+/** A row of a breakdown: an icon (or a country), a label, a share bar and a figure. */
 export function ShareRow(props: {
-  icon: string;
+  icon?: IconName;
+  country?: string | null;
   label: string;
   detail?: string;
   value: string;
@@ -114,14 +132,14 @@ export function ShareRow(props: {
       class={`gap-1.5 rounded-lg py-1 ${props.onPress ? "active:bg-accent" : ""}`}
     >
       <View class="flex-row items-center gap-2.5">
-        <Text class="text-lg">{props.icon}</Text>
+        <If when={props.icon} else={<CountryBadge country={props.country} />}>{(i) => <Icon name={i()} size={20} tone="muted" />}</If>
         <View class="flex-1">
           <Text class="line-clamp-1 text-sm font-semibold text-card-foreground">{props.label}</Text>
           <If when={props.detail}>{(d) => <Text class="line-clamp-1 text-xs text-muted-foreground">{d()}</Text>}</If>
         </View>
         <Text class="text-sm text-card-foreground tabular-nums">{props.value}</Text>
         <If when={props.onPress}>
-          <Text class="text-lg text-muted-foreground">›</Text>
+          <Icon name="chevron-right" size={18} tone="muted" />
         </If>
       </View>
       <View class="h-1.5 overflow-hidden rounded-full bg-white/10">
@@ -135,7 +153,7 @@ export function ShareRow(props: {
 export function DemoNotice() {
   return (
     <View class="flex-row gap-3 rounded-(--radius) border border-warning/40 bg-warning/10 p-3.5">
-      <Text class="text-lg">🧪</Text>
+      <Icon name="flask" size={20} tone="warning" />
       <View class="flex-1 gap-0.5">
         <Text class="text-sm font-semibold text-warning">Demo numbers</Text>
         <Text class="text-xs text-muted-foreground">

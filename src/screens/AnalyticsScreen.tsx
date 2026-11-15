@@ -6,7 +6,6 @@ import {
   type GameUsage,
   type ServerUsage,
   type TopUser,
-  flag,
   getProfiles,
   getSessionSummary,
   num,
@@ -38,6 +37,7 @@ import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { PrivText, priv } from "../lib/privacy";
+import { Icon } from "../components/Icon";
 
 /** Who plays on a server (or one instance): headline figures, activity, countries, top players. */
 export function AnalyticsScreen(props: { serverId: string; shardId?: string; title?: string }) {
@@ -245,7 +245,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
               <View class="gap-4 lg:flex-1">
                 <Section title="Top players" note="by play time">
                   <View class="flex-row items-center gap-2 rounded-lg border border-input bg-background px-3 py-2.5">
-                    <Text class="text-sm text-muted-foreground">🔍</Text>
+                    <Icon name="search" size={16} tone="muted" />
                     <Input
                       testID="player-search"
                       value={query()}
@@ -287,7 +287,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                                 <Text class="text-sm font-semibold text-card-foreground tabular-nums">{duration(u().minutes)}</Text>
                                 <Text class="text-xs text-muted-foreground tabular-nums">{`${num(u().percent).toFixed(0)}%`}</Text>
                               </View>
-                              <Text class="text-lg text-muted-foreground">›</Text>
+                              <Icon name="chevron-right" size={18} tone="muted" />
                             </View>
                           )}
                         </Each>
@@ -312,7 +312,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                                 <PrivText class="line-clamp-1 text-sm font-semibold text-card-foreground" text={priv(u().displayName ?? u().userId ?? "Unnamed player")} />
                                 <Text class="text-xs text-muted-foreground">{`Last seen ${ago(u().lastSeen)}`}</Text>
                               </View>
-                              <Text class="text-lg text-muted-foreground">›</Text>
+                              <Icon name="chevron-right" size={18} tone="muted" />
                             </View>
                           )}
                         </Each>
@@ -330,7 +330,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                   <Each of={s()!.countries.slice(0, 8)} key={(c: CountryUsage) => c.country}>
                     {(c) => (
                       <ShareRow
-                        icon={flag(c().country)}
+                        country={c().country}
                         label={c().country ? c().country.toUpperCase() : "Unknown"}
                         detail={`${c().sessions} session${c().sessions === 1 ? "" : "s"}${c().users != null ? ` · ${c().users} players` : ""}`}
                         value={duration(c().minutes)}
@@ -346,7 +346,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                     <Each of={s()!.servers} key={(v: ServerUsage) => v.shardId}>
                       {(v) => (
                         <ShareRow
-                          icon="🎮"
+                          icon="gamepad"
                           label={serverName(v().shardId)}
                           detail={`${v().users} players · ${v().sessions} sessions`}
                           value={duration(v().minutes)}
@@ -367,7 +367,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                     <Each of={s()!.games} key={(g: GameUsage) => g.game}>
                       {(g) => (
                         <ShareRow
-                          icon="🕹️"
+                          icon="joystick"
                           label={Object.values(s()!.serverInfo ?? {}).find((i) => i.game === g().game)?.gameName ?? g().game}
                           detail={`${g().users} players on ${g().servers} instance${g().servers === 1 ? "" : "s"}`}
                           value={duration(g().minutes)}

@@ -34,11 +34,12 @@ import { sessionRejected } from "../lib/session";
 import { SettingRow } from "./ShardSettingsScreen";
 import { openSafe } from "../lib/links";
 import { PrivText, priv } from "../lib/privacy";
+import { Icon, type IconName } from "../components/Icon";
 
 interface Group {
   key: string;
   name: string;
-  icon: string | null;
+  icon: IconName | null;
   specs: PlatformSettingSpec[];
   actions: string[];
 }
@@ -196,7 +197,7 @@ export function SettingsScreen(props: { serverId: string }) {
       title: `Update AMP to ${u.latestVersion}?`,
       message:
         "AMP downloads it, moves every machine to it and restarts the panel. Game servers keep running, but the panel and this app lose touch for a minute or two.",
-      icon: "⬆️",
+      icon: "update",
       tone: "danger",
       actions: [{ id: "go", label: "Update now", tone: "danger" }],
     });
@@ -252,7 +253,7 @@ export function SettingsScreen(props: { serverId: string }) {
     const choice = await confirm({
       title: "Sign out your other sessions?",
       message: "Every browser and device signed in as you, except this app, is signed out.",
-      icon: "🚪",
+      icon: "sign-out",
       actions: [{ id: "go", label: "Sign them out", tone: "primary" }],
     });
     if (choice !== "go") return;
@@ -436,10 +437,10 @@ export function SettingsScreen(props: { serverId: string }) {
             {(g) => (
               <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
                 <View role="button" testID={`group-${g().name}`} onPress={() => toggleGroup(g().key)} class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent">
-                  <If when={g().icon}>{(i) => <Text class="text-lg">{i()}</Text>}</If>
+                  <If when={g().icon}>{(i) => <Icon name={i()} size={20} tone="primary" />}</If>
                   <Text class="flex-1 text-[15px] font-semibold text-card-foreground">{g().name}</Text>
                   <If when={editsIn(g())}>{(n) => <Pill label={`${n()} edited`} tone="warning" />}</If>
-                  <Text class="text-muted-foreground">{openGroups().includes(g().key) ? "▾" : "▸"}</Text>
+                  <Icon name={openGroups().includes(g().key) ? "chevron-down" : "chevron-right"} size={16} tone="muted" />
                 </View>
                 <If when={openGroups().includes(g().key)}>
                   <View class="gap-4 border-t border-white/10 p-4">

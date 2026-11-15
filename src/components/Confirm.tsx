@@ -1,6 +1,7 @@
 import { cleanup, effect, Overlay, signal, Text, View, windowSize } from "nsh";
 import { BackHandler } from "nsh/mobile";
 import { PrivText } from "../lib/privacy";
+import { Icon, type IconName } from "./Icon";
 
 export interface ConfirmAction {
   id: string;
@@ -12,7 +13,7 @@ export interface ConfirmOptions {
   title: string;
   message?: string;
   /** An emoji shown in a tinted circle above the title. */
-  icon?: string;
+  icon?: IconName;
   /** Buttons, left to right / top to bottom. A "Cancel" is added first unless `cancelLabel` is null. */
   actions: ConfirmAction[];
   cancelLabel?: string | null;
@@ -109,7 +110,7 @@ export function ConfirmHost() {
                       p().tone === "danger" ? "bg-destructive/15" : "bg-primary/15"
                     }`}
                   >
-                    <Text class="text-2xl">{icon()}</Text>
+                    <Icon name={icon()} size={26} tone={p().tone === "danger" ? "destructive" : "primary"} />
                   </View>
                 )}
               </If>

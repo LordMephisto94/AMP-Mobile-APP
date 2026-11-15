@@ -23,6 +23,7 @@ import { nav } from "../state/nav";
 import { clientFor, locked, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { priv, Private } from "../lib/privacy";
+import { Icon } from "../components/Icon";
 
 /** How often the list refreshes while it is on screen. */
 const LIST_REFRESH_MS = 60_000;
@@ -103,7 +104,7 @@ export function ShardsScreen(props: { serverId: string }) {
     const action = await confirm({
       title: `Permanently delete ${label}?`,
       message: "This removes its files, snapshots and history from the machine. It can't be undone.",
-      icon: "⚠️",
+      icon: "warning",
       tone: "danger",
       actions: [{ id: "purge", label: "Delete forever", tone: "danger" }],
     });
@@ -176,7 +177,7 @@ export function ShardsScreen(props: { serverId: string }) {
           </If>
           <If when={shards() !== null}>
             <View class={`md:w-72 ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
-              <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
+              <PrimaryButton title="New instance" icon="plus" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
             </View>
           </If>
           <View class={`gap-4 md:flex-row md:flex-wrap ${shards()?.length === 1 ? "md:justify-center" : ""}`}>
@@ -207,7 +208,7 @@ export function ShardsScreen(props: { serverId: string }) {
               >
                 <Text class="flex-1 text-sm font-semibold text-muted-foreground">Recently deleted</Text>
                 <Text class="text-xs text-muted-foreground">{String(deleted().length)}</Text>
-                <Text class="text-muted-foreground">{showDeleted() ? "▾" : "▸"}</Text>
+                <Icon name={showDeleted() ? "chevron-down" : "chevron-right"} size={16} tone="muted" />
               </View>
               <If when={showDeleted()}>
                 <View class="gap-3 border-t border-white/10 p-4">
@@ -258,6 +259,8 @@ function ShardCard(props: {
   };
   const title = () => props.shard.displayName || props.shard.name || props.shard.id;
   const art = () => artworkUrl(props.shard.displayImageSource, props.serverUrl, "banner");
+  /** The art didn't load (missing on the panel): the placeholder shows instead of a blank. */
+  const artFailed = signal(false);
   const tone = () => stateTone(props.state);
   const metrics = () => (tone() === "running" ? props.state?.metrics : null);
   const cpu = () => Number(metrics()?.cpuUsagePercent ?? 0);
@@ -282,14 +285,21 @@ function ShardCard(props: {
     >
       <View class="aspect-[460/215] w-full bg-secondary">
         <If
-          when={art()}
+          when={artFailed() ? null : art()}
           else={
             <View class="flex-1 items-center justify-center">
-              <Text class="text-4xl">🎮</Text>
+              <Icon name="gamepad" size={44} tone="muted" />
             </View>
           }
         >
-          {(src) => <Image src={src()} accessibilityLabel={props.shard.templateSlug ?? ""} class="absolute inset-0 h-full w-full object-cover" />}
+          {(src) => (
+            <Image
+              src={src()}
+              onError={() => artFailed.set(true)}
+              accessibilityLabel={props.shard.templateSlug ?? ""}
+              class="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
         </If>
         <View class="absolute bottom-3 left-3">
           <If when={props.state} else={<StatusBadge label="Loading" status="offline" />}>
@@ -306,9 +316,9 @@ function ShardCard(props: {
             title={title()}
             items={[
               ...powerItems({ title: title(), state: props.state ?? null, busy: props.busy, run: props.onAction }),
-              { id: "console", label: "Console", icon: "⌨️", onSelect: () => go("console") },
-              { id: "files", label: "Files", icon: "📁", onSelect: () => go("files") },
-              { id: "settings", label: "Settings", icon: "⚙️", onSelect: () => go("shardSettings") },
+              { id: "console", label: "Console", icon: "terminal", onSelect: () => go("console") },
+              { id: "files", label: "Files", icon: "folder", onSelect: () => go("files") },
+              { id: "settings", label: "Settings", icon: "gear", onSelect: () => go("shardSettings") },
             ]}
             trigger={<MoreButton testID={`more-${title()}`} />}
           />
@@ -326,9 +336,9 @@ function ShardCard(props: {
                 onPress={copy}
                 class="flex-row items-center gap-1.5 self-start rounded-full bg-white/5 px-2.5 py-0.5 active:bg-white/15"
               >
-                <Text class="text-[11px]">🌐</Text>
+                <Icon name="globe" size={12} color="#7dd3fc" />
                 <Private class="font-mono text-xs font-semibold text-sky-300" text={a()} />
-                <Text class="text-[11px] text-muted-foreground">{copied() ? "Copied" : "⧉"}</Text>
+                <If when={copied()} else={<Icon name="copy" size={12} tone="muted" />}><Text class="text-[11px] text-muted-foreground">Copied</Text></If>
               </View>
             )}
           </If>
@@ -369,7 +379,7 @@ function DeletedRow(props: { shard: DeployedShard; busy: boolean; onRestore: () 
   const name = () => props.shard.displayName || props.shard.name || props.shard.id;
   return (
     <View class="flex-row items-center gap-3 py-1.5" onLongPress={() => open.set(true)}>
-      <Text class="text-lg">🗑️</Text>
+      <Icon name="trash" size={20} tone="muted" />
       <View class="flex-1">
         <Text class="text-base font-semibold text-card-foreground">{name()}</Text>
         <Text class="text-xs text-muted-foreground">
@@ -381,8 +391,8 @@ function DeletedRow(props: { shard: DeployedShard; busy: boolean; onRestore: () 
         onOpenChange={(o) => open.set(o && !props.busy)}
         title={name()}
         items={[
-          { id: "restore", label: "Restore", icon: "♻️", hint: "Back into your instances", onSelect: props.onRestore },
-          { id: "purge", label: "Delete forever", icon: "🔥", tone: "danger", hint: "Removes its files too", onSelect: props.onPurge },
+          { id: "restore", label: "Restore", icon: "undo", hint: "Back into your instances", onSelect: props.onRestore },
+          { id: "purge", label: "Delete forever", icon: "flame", tone: "danger", hint: "Removes its files too", onSelect: props.onPurge },
         ]}
         trigger={<MoreButton testID={`more-deleted-${name()}`} class="bg-transparent" />}
       />

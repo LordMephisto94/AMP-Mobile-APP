@@ -87,7 +87,7 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
     const action = await confirm({
       title: "Discard your changes?",
       message: `${name} has unsaved changes.`,
-      icon: "📝",
+      icon: "note",
       tone: "danger",
       cancelLabel: "Keep editing",
       actions: [{ id: "discard", label: "Discard", tone: "danger" }],

@@ -13,6 +13,7 @@ import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { InviteLink } from "./InviteScreen";
 import { PrivText, priv } from "../lib/privacy";
+import { Icon } from "../components/Icon";
 
 const REFRESH_MS = 60_000;
 type Tab = "users" | "roles" | "invites";
@@ -94,7 +95,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
     const choice = await confirm({
       title: `Revoke the invite for ${priv(inv.userName)}?`,
       message: "Its link stops working. You can send a new invite later.",
-      icon: "✉️",
+      icon: "mail",
       tone: "danger",
       actions: [{ id: "revoke", label: "Revoke", tone: "danger" }],
     });
@@ -156,7 +157,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
               {(list) => (
                 <View class="gap-3">
                   <View class="md:w-72">
-                    <PrimaryButton title="Add user" icon="＋" onPress={() => nav.push({ name: "user", serverId: props.serverId })} />
+                    <PrimaryButton title="Add user" icon="plus" onPress={() => nav.push({ name: "user", serverId: props.serverId })} />
                   </View>
                   <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
                     <Each of={list} key={(u: User) => u.id}>
@@ -190,7 +191,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
                                 .filter(Boolean)
                                 .join(" · ")} />
                           </View>
-                          <Text class="text-lg text-muted-foreground">›</Text>
+                          <Icon name="chevron-right" size={18} tone="muted" />
                         </View>
                       )}
                     </Each>
@@ -206,7 +207,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
               {(list) => (
                 <View class="gap-3">
                   <View class="md:w-72">
-                    <PrimaryButton title="New role" icon="＋" onPress={() => nav.push({ name: "role", serverId: props.serverId })} />
+                    <PrimaryButton title="New role" icon="plus" onPress={() => nav.push({ name: "role", serverId: props.serverId })} />
                   </View>
                   <If when={list.length === 0}>
                     <Text class="text-sm text-muted-foreground">No roles yet.</Text>
@@ -232,7 +233,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
               {(list) => (
                 <View class="gap-3">
                   <View class="md:w-72">
-                    <PrimaryButton title="New invite" icon="✉️" onPress={() => nav.push({ name: "invite", serverId: props.serverId })} />
+                    <PrimaryButton title="New invite" icon="mail" onPress={() => nav.push({ name: "invite", serverId: props.serverId })} />
                   </View>
                   <If when={list.length === 0}>
                     <Text class="text-sm text-muted-foreground">No invites. An invite is a one-time link someone uses to set up their own account.</Text>
@@ -290,7 +291,7 @@ function RoleCard(props: { role: Role; members: string[]; onEdit: () => void }) 
         <View class="flex-row items-center gap-2">
           <Text class="flex-1 text-[15px] font-semibold text-card-foreground">{props.role.name || "Unnamed role"}</Text>
           <Text class="text-xs text-muted-foreground">{`${props.role.permissions.length} permission${props.role.permissions.length === 1 ? "" : "s"}`}</Text>
-          <Text class="text-muted-foreground">{open() ? "▾" : "▸"}</Text>
+          <Icon name={open() ? "chevron-down" : "chevron-right"} size={16} tone="muted" />
         </View>
         <If when={props.role.description}>{(d) => <Text class="text-sm text-muted-foreground">{d()}</Text>}</If>
         <Text class="text-xs text-muted-foreground">
@@ -341,8 +342,8 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
           onOpenChange={(o) => open.set(o)}
           title={priv(inv().userName)}
           items={[
-            { id: "rearm", label: "New link", icon: "🔗", hint: "Makes a fresh link; the old one stops working", onSelect: props.onRearm },
-            { id: "revoke", label: "Revoke", icon: "🚫", tone: "danger", onSelect: props.onRevoke },
+            { id: "rearm", label: "New link", icon: "link", hint: "Makes a fresh link; the old one stops working", onSelect: props.onRearm },
+            { id: "revoke", label: "Revoke", icon: "ban", tone: "danger", onSelect: props.onRevoke },
           ]}
           trigger={<MoreButton testID={`invite-more-${inv().userName}`} class="bg-transparent" />}
         />

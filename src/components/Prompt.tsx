@@ -1,6 +1,7 @@
 import { cleanup, effect, Overlay, signal, Text, View, windowSize } from "nsh";
 import { Input } from "nsh/base";
 import { BackHandler } from "nsh/mobile";
+import { Icon, type IconName } from "./Icon";
 
 export interface PromptRequest {
   title: string;
@@ -11,7 +12,7 @@ export interface PromptRequest {
   /** Hide what's typed (a password). */
   masked?: boolean;
   /** An emoji shown in a tinted circle above the title. */
-  icon?: string;
+  icon?: IconName;
   /** Returns an error to show, or nothing to close. */
   onSubmit: (value: string) => Promise<string | void> | string | void;
 }
@@ -104,7 +105,7 @@ export function Prompt(props: { request: PromptRequest | null; onClose: () => vo
               <If when={request().icon}>
                 {(icon) => (
                   <View class="h-12 w-12 items-center justify-center self-center rounded-full bg-primary/15">
-                    <Text class="text-2xl">{icon()}</Text>
+                    <Icon name={icon()} size={26} tone={"primary"} />
                   </View>
                 )}
               </If>

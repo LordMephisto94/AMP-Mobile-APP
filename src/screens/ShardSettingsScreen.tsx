@@ -28,11 +28,12 @@ import { AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../co
 import { nav } from "../state/nav";
 import { clientFor } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { Icon, type IconName } from "../components/Icon";
 
 interface Group {
   name: string;
   /** An emoji for the category's icon, when AMP gave one. */
-  icon: string | null;
+  icon: IconName | null;
   settings: EffectiveSetting[];
 }
 
@@ -119,7 +120,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   const groups = (): Group[] => {
     const q = search().trim().toLowerCase();
     const map = new Map<string, EffectiveSetting[]>();
-    const icons = new Map<string, string | null>();
+    const icons = new Map<string, IconName | null>();
     for (const s of settings() ?? []) {
       if (!visible(s.spec)) continue;
       if (q) {
@@ -280,10 +281,10 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
                     onPress={() => open.set({ ...open(), [group().name]: !open()[group().name] })}
                     class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent"
                   >
-                    <If when={group().icon}>{(i) => <Text class="text-lg">{i()}</Text>}</If>
+                    <If when={group().icon}>{(i) => <Icon name={i()} size={20} tone="primary" />}</If>
                     <Text class="flex-1 text-base font-semibold text-card-foreground">{group().name}</Text>
                     <Text class="text-xs text-muted-foreground">{String(group().settings.length)}</Text>
-                    <Text class="text-base text-muted-foreground">{open()[group().name] || search().trim() ? "▾" : "▸"}</Text>
+                    <Icon name={open()[group().name] || search().trim() ? "chevron-down" : "chevron-right"} size={18} tone="muted" />
                   </View>
                   <If when={open()[group().name] || search().trim()}>
                     <View class="gap-5 border-t border-white/10 px-4 py-4">
@@ -326,7 +327,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
                           class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent"
                         >
                           <Text class="flex-1 text-base font-semibold text-card-foreground">{group().name}</Text>
-                          <Text class="text-base text-muted-foreground">{open()[`infra:${group().name}`] ? "▾" : "▸"}</Text>
+                          <Icon name={open()[`infra:${group().name}`] ? "chevron-down" : "chevron-right"} size={18} tone="muted" />
                         </View>
                         <If when={open()[`infra:${group().name}`]}>
                           <View class="gap-5 border-t border-white/10 px-4 py-4">

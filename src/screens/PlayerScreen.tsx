@@ -1,7 +1,6 @@
 import { signal, Text, View } from "nsh";
 import {
   duration,
-  flag,
   getProfiles,
   getUserDetail,
   type MinecraftProfile,
@@ -12,7 +11,7 @@ import {
   type UserDetail,
 } from "../api/analytics";
 import { AmpError } from "../api/client";
-import { ago, clockOf, DemoNotice, dayOf, PeriodPicker, type PeriodId, periodOf, Section, ShareRow } from "../components/analyticsUi";
+import { ago, clockOf, CountryBadge, DemoNotice, dayOf, PeriodPicker, type PeriodId, periodOf, Section, ShareRow } from "../components/analyticsUi";
 import { Avatar } from "../components/Avatar";
 import { Screen } from "../components/backdrop";
 import { MainMenu } from "../components/MainMenu";
@@ -165,7 +164,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
                 <Each of={d()!.servers} key={(v: ServerUsage) => v.shardId}>
                   {(v) => (
                     <ShareRow
-                      icon="🎮"
+                      icon="gamepad"
                       label={serverName(v().shardId)}
                       detail={`${v().sessions} sessions`}
                       value={duration(v().minutes)}
@@ -212,7 +211,7 @@ function SessionRow(props: { session: SessionView; server: string; showServer: b
   };
   return (
     <View class="flex-row items-center gap-3 border-b border-white/5 py-1.5">
-      <Text class="text-lg">{flag(props.session.country)}</Text>
+      <CountryBadge country={props.session.country} />
       <View class="flex-1">
         <Text class="text-sm font-semibold text-card-foreground">{`${dayOf(start())}, ${clockOf(start())}`}</Text>
         <If when={props.showServer}>

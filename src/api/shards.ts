@@ -7,8 +7,10 @@ export function getShardMetrics(client: AmpClient, id: string, minutes: number):
 }
 
 /** `GET /api/Shards`: the tenant's shards (instances). */
-export function listShards(client: AmpClient, includeDeleted = false): Promise<DeployedShard[]> {
-  return client.request<DeployedShard[]>("/api/Shards", { query: { includeDeleted } });
+export async function listShards(client: AmpClient, includeDeleted = false): Promise<DeployedShard[]> {
+  const list = await client.request<unknown>("/api/Shards", { query: { includeDeleted } });
+  // Anything but a list of instances with ids is no instances, not a broken page.
+  return Array.isArray(list) ? (list as DeployedShard[]).filter((s) => s && typeof s.id === "string") : [];
 }
 
 /** `GET /api/Shards/{id}/state`: runtime state and current metrics. */

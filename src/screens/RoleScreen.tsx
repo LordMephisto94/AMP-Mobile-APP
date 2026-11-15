@@ -23,6 +23,7 @@ import { AppPage, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from 
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { Icon } from "../components/Icon";
 
 /** Creates a role (no `roleId`) or edits one: its name, description and permissions, as a tree. */
 export function RoleScreen(props: { serverId: string; roleId?: string }) {
@@ -109,7 +110,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
       const choice = await confirm({
         title: "You're in this role",
         message: "Changing it changes what you can do too, and nobody can give themselves back a permission they removed.",
-        icon: "⚠️",
+        icon: "warning",
         tone: "danger",
         actions: [{ id: "go", label: "Save anyway", tone: "danger" }],
       });
@@ -133,7 +134,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
     const choice = await confirm({
       title: `Delete ${role()?.name || "this role"}?`,
       message: "Its members lose everything it gave them. This can't be undone.",
-      icon: "🗑️",
+      icon: "trash",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete role", tone: "danger" }],
     });
@@ -151,7 +152,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
     const choice = await confirm({
       title: "Discard your changes?",
       message: "The role stays as it was.",
-      icon: "✏️",
+      icon: "pencil",
       tone: "danger",
       actions: [{ id: "discard", label: "Discard", tone: "danger" }],
     });
@@ -291,7 +292,7 @@ function PermRow(props: {
           onPress={() => hasChildren() && props.onExpand(props.node.id)}
           class="flex-1 flex-row items-center gap-2"
         >
-          <Text class="w-3 text-xs text-muted-foreground">{hasChildren() ? (isOpen() ? "▾" : "▸") : ""}</Text>
+          <View class="w-3.5">{hasChildren() ? <Icon name={isOpen() ? "chevron-down" : "chevron-right"} size={14} tone="muted" /> : null}</View>
           <View class="flex-1">
             <Text class={`text-sm ${hasChildren() ? "font-semibold" : ""} ${s().state === "denied" ? "text-rose-300" : "text-card-foreground"}`}>
               {props.label(props.node)}

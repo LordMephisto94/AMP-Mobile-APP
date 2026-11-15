@@ -1,6 +1,7 @@
 import { Canvas, type CanvasRenderingContext2D, type JSX, Text, View } from "nsh";
 import type { StateTone } from "../api/types";
 import { PrivText } from "../lib/privacy";
+import { Icon } from "./Icon";
 
 /** Colours of the AMP 3 panel's header: purple to magenta, with a status triangle. */
 const BASE_STOPS = ["#5a3a8e", "#6a2a8c", "#7e2483", "#8d2a7f"];
@@ -82,18 +83,18 @@ function drawTriangles(cx: CanvasRenderingContext2D, width: number, height: numb
   cx.fillRect(0, 0, width, height);
 }
 
-/** The status badge on the banner: a tinted box with a check or dot. */
+/** The status badge on the banner: a tinted box with an icon. */
 export function StatusBadge(props: { label: string; status: BannerStatus; testID?: string }) {
   const style = () =>
     ({
-      online: ["bg-emerald-900/70 border-emerald-400/40", "text-emerald-300", "✓"],
-      offline: ["bg-black/40 border-white/20", "text-white/70", "○"],
-      warning: ["bg-orange-950/70 border-orange-400/40", "text-orange-300", "!"],
-      danger: ["bg-rose-950/70 border-rose-400/40", "text-rose-300", "✕"],
-    })[props.status];
+      online: ["bg-emerald-900/70 border-emerald-400/40", "text-emerald-300", "check", "#6ee7b7"],
+      offline: ["bg-black/40 border-white/20", "text-white/70", "circle", "#ffffffb3"],
+      warning: ["bg-orange-950/70 border-orange-400/40", "text-orange-300", "exclaim", "#fdba74"],
+      danger: ["bg-rose-950/70 border-rose-400/40", "text-rose-300", "x", "#fda4af"],
+    } as const)[props.status];
   return (
     <View testID={props.testID} accessibilityLabel={props.label} class={`flex-row items-center gap-1.5 rounded-md border px-2 py-1 ${style()[0]}`}>
-      <Text class={`text-xs font-bold ${style()[1]}`}>{style()[2]}</Text>
+      <Icon name={style()[2]} size={13} color={style()[3]} />
       <Text class={`text-xs font-semibold ${style()[1]}`}>{props.label}</Text>
     </View>
   );

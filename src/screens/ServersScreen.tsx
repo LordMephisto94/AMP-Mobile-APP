@@ -13,12 +13,13 @@ import { checkServers, reachOf } from "../state/reachability";
 import { isSignedIn, locked, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
 import { priv } from "../lib/privacy";
 import { isPlainHttp, plainHttpRisk } from "../api/client";
+import { Icon, type IconName } from "../components/Icon";
 
 /** The About dialog: what this app is, and that it is not official. */
 function showAbout() {
   confirm({
     title: `AMP Mobile ${app.version}`,
-    icon: "ℹ️",
+    icon: "info",
     message:
       "An unofficial, independent mobile app for managing AMP 3 servers. It is not made, endorsed or supported by " +
       "CubeCoders Limited. AMP, the AMP logo and Application Management Panel are theirs.\n\n" +
@@ -75,7 +76,7 @@ export function ServersScreen() {
             </View>
 
             <View class="mt-2 w-full self-center md:max-w-md">
-              <PrimaryButton title="Add Server" icon="＋" onPress={() => nav.push({ name: "addServer" })} />
+              <PrimaryButton title="Add Server" icon="plus" onPress={() => nav.push({ name: "addServer" })} />
             </View>
 
             <View class="mt-8 items-center gap-2 px-6">
@@ -89,7 +90,7 @@ export function ServersScreen() {
                   onPress={() => nav.push({ name: "security" })}
                   class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
                 >
-                  <Text class="text-xs text-muted-foreground">🔒</Text>
+                  <Icon name="lock" size={13} tone="muted" />
                   <Text class="text-xs font-semibold text-muted-foreground">Security</Text>
                 </View>
                 <View
@@ -98,7 +99,7 @@ export function ServersScreen() {
                   onPress={showAbout}
                   class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
                 >
-                  <Text class="text-xs text-muted-foreground">ⓘ</Text>
+                  <Icon name="info" size={13} tone="muted" />
                   <Text class="text-xs font-semibold text-muted-foreground">About</Text>
                 </View>
               </View>
@@ -123,7 +124,7 @@ function ServerCard(props: { server: SavedServer }) {
     const choice = await confirm({
       title: `Remove ${props.server.name}?`,
       message: "It's removed from this phone and signed out. Nothing on the server changes; you can add it again any time.",
-      icon: "🗑️",
+      icon: "trash" as const,
       tone: "danger",
       actions: [{ id: "remove", label: "Remove", tone: "danger" }],
     });
@@ -131,11 +132,11 @@ function ServerCard(props: { server: SavedServer }) {
   };
 
   const items = (): DropdownItem[] => [
-    { id: "open", label: signedIn() ? "Open instances" : "Sign in", icon: signedIn() ? "🎮" : "🔑", onSelect: open },
+    { id: "open", label: signedIn() ? "Open instances" : "Sign in", icon: (signedIn() ? "gamepad" : "key") as IconName, onSelect: open },
     ...(signedIn()
-      ? [{ id: "signOut", label: "Sign out", icon: "🚪", onSelect: () => signOutServer(props.server.id) }]
+      ? [{ id: "signOut", label: "Sign out", icon: "sign-out" as const, onSelect: () => signOutServer(props.server.id) }]
       : []),
-    { id: "remove", label: "Remove server", icon: "🗑️", tone: "danger" as const, onSelect: remove },
+    { id: "remove", label: "Remove server", icon: "trash" as const, tone: "danger" as const, onSelect: remove },
   ];
 
   return (

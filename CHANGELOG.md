@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.6
+
+- Icons: every emoji in the app is replaced by the app's own icon set, 97 line icons drawn for it in one style (24-point
+  SVGs in `assets/icons`, tinted to the text they sit with). They look the same on every phone, follow the theme's
+  colours (red for danger, green for success), and fit the dark artwork. Country flags in Analytics are now a small
+  country-code badge.
+- Choice chips (auto-lock times, activity filters, invite expiry, snapshot type) no longer clip their last word.
+- An instance whose artwork can't be loaded shows the game placeholder instead of a blank card.
+- A panel answer that isn't a list (an odd proxy, say) shows an empty list of files, instances or machines instead of
+  an error.
+
 ## 0.2.5
 
 - Less memory:

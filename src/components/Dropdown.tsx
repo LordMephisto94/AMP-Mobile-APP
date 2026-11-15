@@ -1,12 +1,13 @@
 import { type JSX, Scroll, signal, Text, View } from "nsh";
 import { Popover } from "nsh/base";
 import { PrivText } from "../lib/privacy";
+import { Icon, type IconName } from "./Icon";
 
 export interface DropdownItem {
   id: string;
   label: string;
-  /** An emoji or symbol before the label. */
-  icon?: string;
+  /** An icon before the label. */
+  icon?: IconName;
   /** `danger` items are red and set apart below a divider. */
   tone?: "default" | "danger";
   hint?: string;
@@ -107,20 +108,20 @@ function DropdownRow(props: { item: DropdownItem; onPress: () => void }) {
       } ${props.item.selected ? "bg-primary/15" : ""}`}
     >
       <If when={props.item.icon}>
-        {(icon) => <Text class={`w-6 text-center text-base ${danger() ? "text-destructive" : "text-foreground"}`}>{icon()}</Text>}
+        {(icon) => <Icon name={icon()} size={20} tone={danger() ? "destructive" : "foreground"} />}
       </If>
       <View class="flex-1">
         <Text class={`text-[15px] font-medium ${danger() ? "text-destructive" : "text-popover-foreground"}`}>{props.item.label}</Text>
         <If when={props.item.hint}>{(h) => <Text class="text-xs text-muted-foreground">{h()}</Text>}</If>
       </View>
       <If when={props.item.selected}>
-        <Text class="text-base font-bold text-primary">✓</Text>
+        <Icon name="check" size={18} tone="primary" />
       </If>
     </View>
   );
 }
 
-/** The round ⋯ button menus open from. */
+/** The round "more" button menus open from. */
 export function MoreButton(props: { onPress?: () => void; testID?: string; class?: string }) {
   return (
     <View
@@ -130,7 +131,7 @@ export function MoreButton(props: { onPress?: () => void; testID?: string; class
       onPress={props.onPress}
       class={`h-9 w-9 items-center justify-center rounded-full bg-black/30 active:bg-black/50 ${props.class ?? ""}`}
     >
-      <Text class="text-lg leading-none text-white/90">⋯</Text>
+      <Icon name="more" size={20} tone="white" />
     </View>
   );
 }
@@ -178,7 +179,7 @@ export function Select(props: {
           <Text class={`flex-1 text-base ${current() ? "text-foreground" : "text-muted-foreground"}`}>
             {current()?.label || props.value || props.placeholder || "Choose…"}
           </Text>
-          <Text class="text-sm text-muted-foreground">{open() ? "▴" : "▾"}</Text>
+          <Icon name={open() ? "chevron-up" : "chevron-down"} size={16} tone="muted" />
         </View>
       }
     />

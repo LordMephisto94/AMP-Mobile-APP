@@ -23,6 +23,8 @@ import { nav } from "../state/nav";
 import { clientFor } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { PrivText, Private, priv } from "../lib/privacy";
+import { Icon } from "../components/Icon";
+import { Rate } from "../components/HostCard";
 
 const REFRESH_MS = 30_000;
 /** Enum values the API may send as names; numbers say nothing to a person. */
@@ -167,8 +169,8 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                 />
               </If>
               <View class="flex-row flex-wrap gap-x-5 gap-y-1 pt-1">
-                <Text class="text-sm text-card-foreground tabular-nums">{`↓ ${rate(s()!.networkInKBps)}`}</Text>
-                <Text class="text-sm text-card-foreground tabular-nums">{`↑ ${rate(s()!.networkOutKBps)}`}</Text>
+                <Rate direction="down" value={rate(s()!.networkInKBps)} />
+                <Rate direction="up" value={rate(s()!.networkOutKBps)} />
                 <If when={p()?.loadAvgPercent != null && p()!.loadAvgPercent! >= 0}>
                   <Text class="text-sm text-card-foreground tabular-nums">{`Load ${(p()!.loadAvgPercent! / 100).toFixed(2)}`}</Text>
                 </If>
@@ -293,7 +295,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                     </View>
                     <Text class="line-clamp-1 flex-1 text-sm font-semibold text-card-foreground">{e().shardName}</Text>
                     <Pill label={e().startOnBoot ? "Starts on boot" : "Manual start"} tone={e().startOnBoot ? "success" : "muted"} />
-                    <Text class="text-lg text-muted-foreground">›</Text>
+                    <Icon name="chevron-right" size={18} tone="muted" />
                   </View>
                 )}
               </Each>
@@ -358,7 +360,7 @@ function AddressRow(props: { address: string; label: string; copied: boolean; on
         <Private class="font-mono text-sm text-sky-300" text={props.address} />
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
       </View>
-      <Text class="text-xs text-muted-foreground">{props.copied ? "Copied" : "⧉"}</Text>
+      <If when={props.copied} else={<Icon name="copy" size={14} tone="muted" />}><Text class="text-xs text-muted-foreground">Copied</Text></If>
     </View>
   );
 }

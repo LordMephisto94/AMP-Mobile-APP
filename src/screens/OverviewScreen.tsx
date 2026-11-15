@@ -15,6 +15,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { Icon, iconColor, type IconName } from "../components/Icon";
 
 const REFRESH_MS = 30_000;
 const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
@@ -117,10 +118,10 @@ export function OverviewScreen(props: { serverId: string }) {
             <View class="gap-2">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">SERVERS</Text>
               <View class="flex-row flex-wrap justify-between gap-y-3">
-                <Total icon="▶" label="Running" value={String(running())} valueClass="text-success" iconClass="text-success" />
-                <Total icon="■" label="Stopped" value={String(stopped())} valueClass="text-card-foreground" iconClass="text-muted-foreground" />
-                <Total icon="▤" label="Total Shard Usage" value={size(ramMb())} valueClass="text-card-foreground" iconClass="text-violet-300" />
-                <Total icon="👥" label="Players" value={String(players())} valueClass="text-card-foreground" iconClass="text-sky-300" />
+                <Total icon="play" label="Running" value={String(running())} valueClass="text-success" iconColor={iconColor("success")} />
+                <Total icon="stop" label="Stopped" value={String(stopped())} valueClass="text-card-foreground" iconColor={iconColor("muted")} />
+                <Total icon="ram" label="Total Shard Usage" value={size(ramMb())} valueClass="text-card-foreground" iconColor="#c4b5fd" />
+                <Total icon="users" label="Players" value={String(players())} valueClass="text-card-foreground" iconColor="#7dd3fc" />
               </View>
             </View>
 
@@ -186,11 +187,11 @@ export function OverviewScreen(props: { serverId: string }) {
   );
 }
 
-function Total(props: { icon: string; label: string; value: string; valueClass: string; iconClass: string }) {
+function Total(props: { icon: IconName; label: string; value: string; valueClass: string; iconColor: string }) {
   return (
     <View class="w-[48.5%] flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-3.5 shadow-lg md:w-[24%]">
       <View class="h-9 w-9 items-center justify-center rounded-full bg-black/40">
-        <Text class={`text-sm ${props.iconClass}`}>{props.icon}</Text>
+        <Icon name={props.icon} size={18} color={props.iconColor} />
       </View>
       <View class="flex-1">
         <Text class="text-xs text-muted-foreground">{props.label}</Text>

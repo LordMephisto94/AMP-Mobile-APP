@@ -1,5 +1,6 @@
 import type { AmpClient } from "./client";
 import type { DeployedShard } from "./types";
+import type { IconName } from "../components/Icon";
 
 // ---- Templates (the app catalogue) ---------------------------------------------------
 
@@ -54,8 +55,9 @@ export interface SpireDefinition {
 }
 
 /** `GET /api/Spires`: the machines the caller can see. */
-export function listSpires(client: AmpClient): Promise<SpireDefinition[]> {
-  return client.request<SpireDefinition[]>("/api/Spires");
+export async function listSpires(client: AmpClient): Promise<SpireDefinition[]> {
+  const list = await client.request<unknown>("/api/Spires");
+  return Array.isArray(list) ? (list as SpireDefinition[]).filter((s) => s && typeof s.id === "string") : [];
 }
 
 /** `SpireState`: a machine's live figures. Decimals may come as strings. */
@@ -406,71 +408,71 @@ export async function purgeShard(client: AmpClient, id: string): Promise<void> {
   await client.request<void>(`/api/Shards/${encodeURIComponent(id)}/purge`, { method: "POST", timeoutMs: 60_000 });
 }
 
-/** Material Symbols names AMP templates use for categories, as emoji (the app has no icon font). */
-const CATEGORY_ICONS: Record<string, string> = {
-  stadia_controller: "🎮",
-  sports_esports: "🎮",
-  videogame_asset: "🎮",
-  gamepad: "🎮",
-  settings: "⚙️",
-  tune: "🎛️",
-  dns: "🖥️",
-  storage: "🗄️",
-  computer: "🖥️",
-  memory: "🧠",
-  public: "🌐",
-  language: "🌐",
-  lan: "🔌",
-  router: "📡",
-  wifi: "📶",
-  security: "🛡️",
-  shield: "🛡️",
-  lock: "🔒",
-  key: "🔑",
-  vpn_key: "🔑",
-  group: "👥",
-  people: "👥",
-  person: "👤",
-  admin_panel_settings: "🛡️",
-  schedule: "⏰",
-  timer: "⏱️",
-  update: "🔄",
-  sync: "🔄",
-  extension: "🧩",
-  build: "🔧",
-  construction: "🛠️",
-  map: "🗺️",
-  terrain: "⛰️",
-  public_off: "🚫",
-  chat: "💬",
-  forum: "💬",
-  terminal: "⌨️",
-  code: "💻",
-  description: "📄",
-  folder: "📁",
-  backup: "💾",
-  save: "💾",
-  cloud: "☁️",
-  speed: "⚡",
-  bolt: "⚡",
-  warning: "⚠️",
-  info: "ℹ️",
-  star: "⭐",
-  emoji_events: "🏆",
-  pets: "🐾",
-  agriculture: "🌾",
-  rocket_launch: "🚀",
-  science: "🧪",
-  palette: "🎨",
-  volume_up: "🔊",
-  visibility: "👁️",
+/** Material Symbols names AMP templates use for categories, as the app's own icons. */
+const CATEGORY_ICONS: Record<string, IconName> = {
+  stadia_controller: "gamepad",
+  sports_esports: "gamepad",
+  videogame_asset: "gamepad",
+  gamepad: "gamepad",
+  settings: "gear",
+  tune: "sliders",
+  dns: "monitor",
+  storage: "database",
+  computer: "monitor",
+  memory: "chip",
+  public: "globe",
+  language: "globe",
+  lan: "plug",
+  router: "router",
+  wifi: "signal",
+  security: "shield",
+  shield: "shield",
+  lock: "lock",
+  key: "key",
+  vpn_key: "key",
+  group: "users",
+  people: "users",
+  person: "user",
+  admin_panel_settings: "shield",
+  schedule: "clock",
+  timer: "timer",
+  update: "restart",
+  sync: "restart",
+  extension: "puzzle",
+  build: "wrench",
+  construction: "hammer",
+  map: "map",
+  terrain: "mountain",
+  public_off: "ban",
+  chat: "chat",
+  forum: "chat",
+  terminal: "terminal",
+  code: "code",
+  description: "file-text",
+  folder: "folder",
+  backup: "save",
+  save: "save",
+  cloud: "cloud",
+  speed: "bolt",
+  bolt: "bolt",
+  warning: "warning",
+  info: "info",
+  star: "star",
+  emoji_events: "trophy",
+  pets: "paw",
+  agriculture: "sprout",
+  rocket_launch: "rocket",
+  science: "flask",
+  palette: "palette",
+  volume_up: "speaker",
+  visibility: "eye",
 };
 
 /**
  * AMP writes a category as `Name:icon`, the icon a Material Symbols name the panel draws
  * beside it (`Arma Reforger:stadia_controller`). Splits it as the panel does: at the first colon.
  */
-export function splitCategory(raw: string | undefined): { name: string; icon: string | null } {
+export function splitCategory(raw: string | undefined): { name: string; icon: IconName | null } {
   if (!raw) return { name: "", icon: null };
   const i = raw.indexOf(":");
   if (i < 0) return { name: raw.trim(), icon: null };

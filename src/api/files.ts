@@ -61,8 +61,10 @@ export function parentOf(path: string): string {
 }
 
 /** `GET files?path=`: a folder's entries, without what the caller can't read. */
-export function listFiles(client: AmpClient, id: string, path: string): Promise<FileEntry[]> {
-  return client.request<FileEntry[]>(base(id), { query: { path } });
+export async function listFiles(client: AmpClient, id: string, path: string): Promise<FileEntry[]> {
+  const list = await client.request<unknown>(base(id), { query: { path } });
+  // Anything but a list (an odd proxy or panel answer) is an empty folder, not a broken page.
+  return Array.isArray(list) ? (list as FileEntry[]).filter((e) => e && typeof e.path === "string" && typeof e.name === "string") : [];
 }
 
 /** `GET files/start`: the folder the panel's file manager opens at. */

@@ -27,7 +27,7 @@ import { Screen } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { Dropdown, MoreButton } from "../components/Dropdown";
 import { Prompt, type PromptRequest } from "../components/Prompt";
-import { AppPage, Checkbox, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
+import { AppPage, Checkbox, ChoiceChip, ErrorText, Field, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { sessionRejected } from "../lib/session";
 import { nav } from "../state/nav";
@@ -124,7 +124,7 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
       title: `Restore ${s.name || whenOf(s.createdAt)}?`,
       message:
         "The instance's files go back to how they were in this snapshot. AMP first takes a snapshot of how they are now, so you can undo it. The instance may stop while it restores.",
-      icon: "⏪",
+      icon: "restore" as const,
       tone: "danger",
       actions: [{ id: "restore", label: "Restore", tone: "danger" }],
     });
@@ -139,7 +139,7 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
         children > 0
           ? "Later partial snapshots build on this one; AMP decides whether they can stay. This can't be undone."
           : "Its files are deleted from the machine. This can't be undone.",
-      icon: "🗑️",
+      icon: "trash" as const,
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -149,7 +149,7 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
   const rename = (s: Snapshot) =>
     prompt.set({
       title: "Name this snapshot",
-      icon: "🏷️",
+      icon: "tag" as const,
       value: s.name ?? "",
       placeholder: "e.g. Before the 1.21 update",
       confirm: "Save",
@@ -163,7 +163,7 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
   const describe = (s: Snapshot) =>
     prompt.set({
       title: "Describe this snapshot",
-      icon: "📝",
+      icon: "note" as const,
       value: s.description ?? "",
       placeholder: "What it's for",
       confirm: "Save",
@@ -295,18 +295,7 @@ function RestoreBanner(props: { timeline: SnapshotTimeline; node: Snapshot | nul
 }
 
 function Chip(props: { label: string; on: boolean; disabled?: boolean; onPress: () => void; testID?: string }) {
-  return (
-    <Text
-      role="button"
-      testID={props.testID}
-      onPress={() => !props.disabled && props.onPress()}
-      class={`rounded-full border px-3.5 py-2 text-sm font-semibold ${
-        props.on ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-background/60 text-muted-foreground"
-      } ${props.disabled ? "opacity-40" : ""}`}
-    >
-      {props.label}
-    </Text>
-  );
+  return <ChoiceChip large label={props.label} on={props.on} disabled={props.disabled} onPress={props.onPress} testID={props.testID} />;
 }
 
 /** "Take a snapshot": closed to one button until opened. */
@@ -341,7 +330,7 @@ function TakeCard(props: {
   return (
     <If
       when={open()}
-      else={<PrimaryButton title="Take a snapshot" icon="📸" disabled={props.busy} onPress={() => open.set(true)} />}
+      else={<PrimaryButton title="Take a snapshot" icon="camera" disabled={props.busy} onPress={() => open.set(true)} />}
     >
       <Section title="Take a snapshot">
         <Field label="Name (optional)" value={name()} onChange={(v) => name.set(v)} placeholder="e.g. Before the 1.21 update" testID="snapshot-name" />
@@ -399,19 +388,19 @@ function SnapshotRow(props: {
 
   const items = () => [
     ...(complete() && !s().archiveMissing && !props.restoring
-      ? [{ id: "restore", label: "Restore", icon: "⏪", hint: "Put the instance back to this point", tone: "danger" as const, onSelect: props.onRestore }]
+      ? [{ id: "restore", label: "Restore", icon: "restore" as const, hint: "Put the instance back to this point", tone: "danger" as const, onSelect: props.onRestore }]
       : []),
-    { id: "rename", label: "Rename", icon: "🏷️", onSelect: props.onRename },
-    { id: "describe", label: "Edit description", icon: "📝", onSelect: props.onDescribe },
+    { id: "rename", label: "Rename", icon: "tag" as const, onSelect: props.onRename },
+    { id: "describe", label: "Edit description", icon: "note" as const, onSelect: props.onDescribe },
     {
       id: "pin",
       label: s().sticky ? "Unpin" : "Pin",
-      icon: "📌",
+      icon: "pin" as const,
       hint: s().sticky ? "Automatic clean-up may remove it" : "Automatic clean-up won't remove it",
       onSelect: props.onPin,
     },
     // Nothing is deleted mid-capture or while a restore runs (it may be the one being restored).
-    ...(isBusy(s()) || props.restoring ? [] : [{ id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: props.onDelete }]),
+    ...(isBusy(s()) || props.restoring ? [] : [{ id: "delete", label: "Delete", icon: "trash" as const, tone: "danger" as const, onSelect: props.onDelete }]),
   ];
 
   return (
@@ -430,7 +419,7 @@ function SnapshotRow(props: {
               <Pill label="On disk now" tone="success" />
             </If>
             <If when={s().sticky}>
-              <Pill label="📌 Pinned" tone="muted" />
+              <Pill icon="pin" label="Pinned" tone="muted" />
             </If>
             <If when={s().status === Status.Failed}>
               <Pill label="Failed" tone="danger" />

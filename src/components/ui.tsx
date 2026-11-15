@@ -4,9 +4,10 @@ import { Button, Input, NavPage } from "nsh/base";
 import { nav } from "../state/nav";
 import { hideDetails, PrivText } from "../lib/privacy";
 import { PageDepth, pageDepthHere } from "./backdrop";
+import { Icon, type IconName, type IconTone } from "./Icon";
 
 /** The app's main call to action: a violet-to-pink gradient button. */
-export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean; icon?: string }) {
+export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean; icon?: IconName }) {
   return (
     <Button
       onPress={() => {
@@ -17,7 +18,7 @@ export function PrimaryButton(props: { title: string; onPress: () => void; disab
       }`}
     >
       <If when={props.icon}>
-        {(icon) => <Text class={`text-lg ${props.disabled ? "text-muted-foreground" : "text-white"}`}>{icon()}</Text>}
+        {(icon) => <Icon name={icon()} size={20} tone={props.disabled ? "muted" : "white"} />}
       </If>
       <Text class={`text-base font-semibold ${props.disabled ? "text-muted-foreground" : "text-white"}`}>
         {props.title}
@@ -98,7 +99,7 @@ export function Checkbox(props: { label: string; checked: boolean; onChange: (ch
         class={`h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${props.checked ? "border-primary bg-primary" : "border-input bg-card"}`}
       >
         <If when={props.checked}>
-          <Text class="text-sm font-bold text-primary-foreground">✓</Text>
+          <Icon name="check" size={15} tone="on-primary" />
         </If>
       </View>
       {/* shrink: a long label wraps inside its card instead of running past it. */}
@@ -117,7 +118,9 @@ export function ErrorText(props: { message: string }) {
 }
 
 /** A small coloured status pill. */
-export function Pill(props: { label: string; tone: "success" | "muted" | "warning" | "danger" }) {
+const PILL_TONES: Record<"success" | "muted" | "warning" | "danger", IconTone> = { success: "success", muted: "muted", warning: "warning", danger: "destructive" };
+
+export function Pill(props: { label: string; tone: "success" | "muted" | "warning" | "danger"; icon?: IconName }) {
   const classes = () =>
     ({
       success: ["bg-success/15", "text-success"],
@@ -126,7 +129,8 @@ export function Pill(props: { label: string; tone: "success" | "muted" | "warnin
       danger: ["bg-destructive/15", "text-destructive"],
     })[props.tone];
   return (
-    <View class={`self-start rounded-full px-2.5 py-1 ${classes()[0]}`}>
+    <View class={`flex-row items-center gap-1 self-start rounded-full px-2.5 py-1 ${classes()[0]}`}>
+      <If when={props.icon}>{(i) => <Icon name={i()} size={12} tone={PILL_TONES[props.tone]} />}</If>
       <Text class={`text-xs font-semibold ${classes()[1]}`}>{props.label}</Text>
     </View>
   );
@@ -148,7 +152,7 @@ export function PageHeader(props: { title: string; subtitle?: string; right?: JS
           onPress={() => (props.onBack ? props.onBack() : nav.pop())}
           class="h-10 w-10 items-center justify-center rounded-full bg-primary/15 active:bg-primary/30"
         >
-          <Text class="-mt-0.5 text-2xl leading-none font-semibold text-primary">‹</Text>
+          <Icon name="chevron-left" size={22} tone="primary" />
         </View>
       </If>
       <Image src={mark} accessibilityLabel="AMP" class="h-6 w-6 object-contain" />
@@ -193,5 +197,24 @@ export function AppPage(props: {
         </View>
       </PageDepth.Provider>
     </NavPage>
+  );
+}
+
+/**
+ * A round choice chip (one of a few options). The padding sits on a view around the label:
+ * a padded text alone is measured a letter short and clips its last word.
+ */
+export function ChoiceChip(props: { label: string; on: boolean; onPress: () => void; disabled?: boolean; testID?: string; large?: boolean; bg?: string }) {
+  return (
+    <View
+      role="button"
+      testID={props.testID}
+      onPress={() => !props.disabled && props.onPress()}
+      class={`rounded-full border px-3.5 ${props.large ? "py-2" : "py-1.5"} ${props.on ? "border-primary bg-primary" : `border-white/10 ${props.bg ?? "bg-background/60"}`} ${
+        props.disabled ? "opacity-40" : ""
+      }`}
+    >
+      <Text class={`${props.large ? "text-sm" : "text-xs"} font-semibold ${props.on ? "text-primary-foreground" : "text-muted-foreground"}`}>{props.label}</Text>
+    </View>
   );
 }

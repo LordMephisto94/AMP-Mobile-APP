@@ -109,7 +109,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
         message: c.suspended
           ? "They're signed out everywhere and can't sign in until you lift it."
           : "They're signed out everywhere and must set a new password when they next sign in.",
-        icon: c.suspended ? "⛔" : "🔑",
+        icon: c.suspended ? "ban" : "key",
         tone: "danger",
         actions: [{ id: "go", label: "Save", tone: "danger" }],
       });
@@ -155,7 +155,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     prompt.set({
       title: `New password for ${name()}`,
       message: "They're signed out everywhere, SFTP included. Tick “Must change password” below to make this temporary.",
-      icon: "🔑",
+      icon: "key",
       masked: true,
       confirm: "Set password",
       onSubmit: async (value) => {
@@ -174,7 +174,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     const choice = await confirm({
       title: `Sign ${name()} out everywhere?`,
       message: "Every session ends. They can sign straight back in.",
-      icon: "🚪",
+      icon: "sign-out",
       actions: [{ id: "go", label: "Sign out", tone: "primary" }],
     });
     if (choice !== "go") return;
@@ -190,7 +190,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     const choice = await confirm({
       title: `Delete ${name()}?`,
       message: "Their account, passkeys, preferences and every schedule that runs as them are removed. This can't be undone.",
-      icon: "🗑️",
+      icon: "trash",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete user", tone: "danger" }],
     });
@@ -198,7 +198,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     try {
       const warnings = await deleteUser(clientFor(props.serverId), props.userId!);
       if (warnings.length) {
-        await confirm({ title: "User deleted", message: `Some of their data couldn't be removed: ${warnings.join("; ")}`, icon: "⚠️", cancelLabel: null, actions: [{ id: "ok", label: "OK", tone: "primary" }] });
+        await confirm({ title: "User deleted", message: `Some of their data couldn't be removed: ${warnings.join("; ")}`, icon: "warning", cancelLabel: null, actions: [{ id: "ok", label: "OK", tone: "primary" }] });
       }
       nav.pop();
     } catch (e) {

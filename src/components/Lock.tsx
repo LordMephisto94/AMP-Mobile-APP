@@ -22,14 +22,15 @@ import {
   validatePin,
 } from "../state/servers";
 import { cancelConfirm, confirm } from "./Confirm";
+import { Icon } from "./Icon";
 
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
+const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
 
 /** Dots for the digits typed so far, and a number pad. */
 export function PinPad(props: { value: string; onChange: (v: string) => void; onDone: () => void; disabled?: boolean; max?: number }) {
   const press = (k: string) => {
     if (props.disabled) return;
-    if (k === "⌫") props.onChange(props.value.slice(0, -1));
+    if (k === "back") props.onChange(props.value.slice(0, -1));
     else if (k && props.value.length < (props.max ?? 12)) props.onChange(props.value + k);
   };
   return (
@@ -44,12 +45,12 @@ export function PinPad(props: { value: string; onChange: (v: string) => void; on
           {(k) => (
             <View
               role={k() ? "button" : undefined}
-              testID={k() ? `pin-${k() === "⌫" ? "back" : k()}` : undefined}
-              accessibilityLabel={k() === "⌫" ? "Delete" : k()}
+              testID={k() ? `pin-${k()}` : undefined}
+              accessibilityLabel={k() === "back" ? "Delete" : k()}
               onPress={() => press(k())}
               class={`h-16 w-[31%] items-center justify-center rounded-2xl ${k() ? "bg-white/8 active:bg-white/20" : ""} ${props.disabled ? "opacity-40" : ""}`}
             >
-              <Text class="text-2xl font-semibold text-foreground">{k()}</Text>
+              <If when={k() === "back"} else={<Text class="text-2xl font-semibold text-foreground">{k()}</Text>}><Icon name="backspace" size={26} tone="foreground" /></If>
             </View>
           )}
         </Each>
@@ -139,7 +140,7 @@ function LockScreen() {
           await confirm({
             title: "Saved sign-ins cleared",
             message: "They were locked to a phone key that's no longer here (a reset, or a copy from another phone). Sign in to your servers again.",
-            icon: "🔑",
+            icon: "key",
             cancelLabel: null,
             actions: [{ id: "ok", label: "OK", tone: "primary" }],
           });
@@ -163,7 +164,7 @@ function LockScreen() {
     const choice = await confirm({
       title: "Forgot your PIN?",
       message: "The PIN can't be recovered. Erasing it signs you out of every saved server; the servers stay, and you sign in again.",
-      icon: "🔑",
+      icon: "key",
       tone: "danger",
       actions: [{ id: "erase", label: "Erase and sign out", tone: "danger" }],
     });
@@ -196,7 +197,7 @@ function LockScreen() {
             onPress={useBiometric}
             class={`flex-row items-center justify-center gap-2 self-center rounded-full border border-white/15 bg-white/8 px-5 py-2.5 active:bg-white/20 ${busy() ? "opacity-50" : ""}`}
           >
-            <Text class="text-lg">☝️</Text>
+            <Icon name="fingerprint" size={22} tone="primary" />
             <Text class="text-sm font-semibold text-foreground">Use fingerprint</Text>
           </View>
         </If>
@@ -247,7 +248,7 @@ export function PinSetup(props: { title: string; message: string; onDone: (pin: 
     <FullScreen>
       <View class="w-full max-w-sm gap-7">
         <View class="items-center gap-3">
-          <Text class="text-4xl">🔐</Text>
+          <View class="self-center"><Icon name="lock" size={40} tone="primary" /></View>
           <Text class="text-center text-2xl font-bold text-foreground">{first() === null ? props.title : "Enter it again"}</Text>
           <Text class="text-center text-sm text-muted-foreground">{first() === null ? props.message : "To make sure it's the one you meant."}</Text>
         </View>

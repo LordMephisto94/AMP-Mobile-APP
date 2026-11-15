@@ -2,7 +2,7 @@ import { signal, Text, View } from "nsh";
 import { createInvite, listRoles, type Role } from "../api/access";
 import { AmpError } from "../api/client";
 import { Screen } from "../components/backdrop";
-import { Checkbox, AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
+import { AppPage, Checkbox, ChoiceChip, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { copySecret } from "../lib/links";
@@ -88,16 +88,7 @@ export function InviteScreen(props: { serverId: string }) {
                   <View class="flex-row flex-wrap gap-2">
                     <Each of={EXPIRY}>
                       {(e) => (
-                        <Text
-                          role="button"
-                          testID={`expiry-${e().hours}`}
-                          onPress={() => hours.set(e().hours)}
-                          class={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
-                            hours() === e().hours ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-background/60 text-muted-foreground"
-                          }`}
-                        >
-                          {e().label}
-                        </Text>
+                        <ChoiceChip testID={`expiry-${e().hours}`} label={e().label} on={hours() === e().hours} onPress={() => hours.set(e().hours)} />
                       )}
                     </Each>
                   </View>

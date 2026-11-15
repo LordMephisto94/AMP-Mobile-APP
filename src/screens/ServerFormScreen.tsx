@@ -7,6 +7,7 @@ import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../component
 import { nav } from "../state/nav";
 import { addServer, serverById, setServerSession } from "../state/servers";
 import { PrivText, priv } from "../lib/privacy";
+import { Icon } from "../components/Icon";
 
 /**
  * Adds a server (no `serverId`), or signs in again to a saved one. Either way the
@@ -70,7 +71,7 @@ export function ServerFormScreen(props: { serverId?: string }) {
           exposure === "tailnet"
             ? "This is a Tailscale name over plain HTTP. It's encrypted only while this phone is connected to your tailnet: if it isn't, the name can be looked up on the internet and your password and session token would cross it unencrypted. Check Tailscale is on, or use the server's 100.x address or Tailscale HTTPS."
             : "This address uses plain HTTP. Your password and session token will cross your network unencrypted: any device on it (or whoever runs it) could read them and take over your panel. Use https:// when you can.",
-        icon: "⚠️",
+        icon: "warning",
         tone: "danger",
         cancelLabel: "Cancel",
         actions: [{ id: "send", label: "Sign in anyway", tone: "danger" }],
@@ -200,7 +201,10 @@ export function ServerFormScreen(props: { serverId?: string }) {
           <If when={risk()}>
             {(level) => (
               <View testID="plain-http-warning" class="gap-2.5 rounded-(--radius) border border-destructive/50 bg-destructive/10 p-4">
-                <Text class="text-base font-semibold text-destructive">⚠️ Not secure: plain HTTP</Text>
+                <View class="flex-row items-center gap-2">
+                  <Icon name="warning" size={18} tone="destructive" />
+                  <Text class="text-base font-semibold text-destructive">Not secure: plain HTTP</Text>
+                </View>
                 <Text class="text-sm leading-5 text-card-foreground">
                   {level() === "tailnet"
                     ? "This Tailscale name uses plain HTTP. It's encrypted only while this phone is connected to your tailnet; if it isn't, the name can resolve on the internet and your login would cross it unencrypted. A 100.x Tailscale address or Tailscale HTTPS avoids this."

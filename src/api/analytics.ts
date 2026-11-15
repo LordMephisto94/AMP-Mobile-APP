@@ -246,11 +246,10 @@ export async function avatarUrl(client: AmpClient, hash: string): Promise<string
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
-/** A country's flag from its ISO 3166-1 alpha-2 code ("gb" → 🇬🇧); a globe when unknown. */
-export function flag(country: string | null | undefined): string {
+/** A country's ISO 3166-1 alpha-2 code, upper case ("gb" → "GB"); null when it isn't one. */
+export function countryCode(country: string | null | undefined): string | null {
   const code = (country ?? "").trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(code)) return "🌐";
-  return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+  return /^[A-Z]{2}$/.test(code) ? code : null;
 }
 
 /** Minutes as a short duration: "45m", "3h 20m", "2d 4h". */

@@ -31,6 +31,7 @@ import { nav } from "../state/nav";
 import { clientFor, locked } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
+import { Icon, iconColor, type IconName } from "../components/Icon";
 
 const checkName = nameProblem;
 
@@ -133,7 +134,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const action = await confirm({
       title: `Delete ${entry.name}?`,
       message: entry.isDirectory ? "The folder and everything in it are deleted. This can't be undone." : "This can't be undone.",
-      icon: "🗑️",
+      icon: "trash" as const,
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -145,7 +146,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const rename = (entry: FileEntry) =>
     ask({
       title: `Rename ${entry.isDirectory ? "folder" : "file"}`,
-      icon: "🏷️",
+      icon: "tag" as const,
       value: entry.name,
       confirm: "Rename",
       onSubmit: async (name) => {
@@ -162,7 +163,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const copyName = dot > 0 ? `${entry.name.slice(0, dot)} copy${entry.name.slice(dot)}` : `${entry.name} copy`;
     ask({
       title: `Copy ${entry.name}`,
-      icon: "📋",
+      icon: "copy" as const,
       message: "Name of the copy, in this folder:",
       value: copyName,
       confirm: "Copy",
@@ -179,7 +180,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const zip = (entry: FileEntry) =>
     ask({
       title: `Zip ${entry.name}`,
-      icon: "🗜️",
+      icon: "archive" as const,
       value: `${entry.name}.zip`,
       confirm: "Create zip",
       onSubmit: async (name) => {
@@ -194,7 +195,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const action = await confirm({
       title: `Extract ${entry.name}?`,
       message: "Into this folder. Files that already exist are kept unless you choose to replace them.",
-      icon: "🗜️",
+      icon: "archive" as const,
       actions: [
         { id: "keep", label: "Extract", tone: "primary" },
         { id: "overwrite", label: "Extract and replace", tone: "danger" },
@@ -211,22 +212,22 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
 
   const menuItems = (entry: FileEntry): DropdownItem[] => [
     ...(entry.isDirectory
-      ? [{ id: "open", label: "Open", icon: "📂", onSelect: () => open(entry) }]
+      ? [{ id: "open", label: "Open", icon: "folder-open" as const, onSelect: () => open(entry) }]
       : isTextFile(entry)
-        ? [{ id: "open", label: "Edit", icon: "✏️", onSelect: () => open(entry) }]
+        ? [{ id: "open", label: "Edit", icon: "pencil" as const, onSelect: () => open(entry) }]
         : []),
-    { id: "download", label: entry.isDirectory ? "Download as zip" : "Download", icon: "⬇️", onSelect: () => download(entry) },
-    { id: "rename", label: "Rename", icon: "🏷️", onSelect: () => rename(entry) },
-    { id: "copy", label: "Copy", icon: "📋", onSelect: () => duplicate(entry) },
-    ...(isArchive(entry) ? [{ id: "extract", label: "Extract here", icon: "🗜️", onSelect: () => extract(entry) }] : []),
-    ...(entry.isDirectory ? [{ id: "zip", label: "Zip", icon: "🗜️", onSelect: () => zip(entry) }] : []),
-    { id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: () => remove(entry) },
+    { id: "download", label: entry.isDirectory ? "Download as zip" : "Download", icon: "download" as const, onSelect: () => download(entry) },
+    { id: "rename", label: "Rename", icon: "tag" as const, onSelect: () => rename(entry) },
+    { id: "copy", label: "Copy", icon: "copy" as const, onSelect: () => duplicate(entry) },
+    ...(isArchive(entry) ? [{ id: "extract", label: "Extract here", icon: "archive" as const, onSelect: () => extract(entry) }] : []),
+    ...(entry.isDirectory ? [{ id: "zip", label: "Zip", icon: "archive" as const, onSelect: () => zip(entry) }] : []),
+    { id: "delete", label: "Delete", icon: "trash" as const, tone: "danger" as const, onSelect: () => remove(entry) },
   ];
 
   const newFolder = () =>
     ask({
       title: "New folder",
-      icon: "📁",
+      icon: "folder" as const,
       placeholder: "Folder name",
       confirm: "Create",
       onSubmit: async (name) => {
@@ -240,7 +241,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const newFile = () =>
     ask({
       title: "New text file",
-      icon: "📄",
+      icon: "file-text" as const,
       placeholder: "e.g. notes.txt",
       confirm: "Create",
       onSubmit: async (name) => {
@@ -275,7 +276,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
           const action = await confirm({
             title: `Replace ${file.name}?`,
             message: "A file with this name is already in this folder.",
-            icon: "📄",
+            icon: "file-text" as const,
             cancelLabel: "Skip",
             actions: [{ id: "replace", label: "Replace", tone: "danger" }],
           });
@@ -315,9 +316,9 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
         <View class="gap-2 border-b border-white/10 bg-card/70 px-4 py-2.5">
           <Text class="font-mono text-xs text-muted-foreground" testID="files-path">{`/${props.path}`}</Text>
           <View class="flex-row flex-wrap items-center gap-2">
-            <ToolButton testID="new-folder" label="＋ Folder" onPress={newFolder} />
-            <ToolButton testID="new-file" label="＋ File" onPress={newFile} />
-            <ToolButton testID="upload" label="⇧ Upload" onPress={pickAndUpload} disabled={upload() !== null} />
+            <ToolButton testID="new-folder" icon="plus" label="Folder" onPress={newFolder} />
+            <ToolButton testID="new-file" icon="plus" label="File" onPress={newFile} />
+            <ToolButton testID="upload" icon="upload" label="Upload" onPress={pickAndUpload} disabled={upload() !== null} />
           </View>
           <Text class="text-[10px] text-muted-foreground">Uploads up to 512 MB per file. Larger files: use SFTP or the web panel.</Text>
         </View>
@@ -376,14 +377,15 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   );
 }
 
-function ToolButton(props: { label: string; onPress: () => void; disabled?: boolean; testID?: string }) {
+function ToolButton(props: { label: string; icon?: IconName; onPress: () => void; disabled?: boolean; testID?: string }) {
   return (
     <View
       role="button"
       testID={props.testID}
       onPress={() => !props.disabled && props.onPress()}
-      class={`rounded-lg border border-white/10 px-3 py-1.5 ${props.disabled ? "opacity-50" : "bg-secondary active:opacity-70"}`}
+      class={`flex-row items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 ${props.disabled ? "opacity-50" : "bg-secondary active:opacity-70"}`}
     >
+      <If when={props.icon}>{(i) => <Icon name={i()} size={15} color={iconColor("foreground")} />}</If>
       <Text class="text-sm font-semibold text-secondary-foreground">{props.label}</Text>
     </View>
   );
@@ -397,7 +399,7 @@ function FileRow(props: {
   onMenuOpenChange: (open: boolean) => void;
   items: DropdownItem[];
 }) {
-  const icon = () => (props.entry.isDirectory ? "📁" : isArchive(props.entry) ? "🗜️" : isTextFile(props.entry) ? "📄" : "📦");
+  const icon = () => (props.entry.isDirectory ? "folder" : isArchive(props.entry) ? "archive" : isTextFile(props.entry) ? "file-text" : "package");
   return (
     <View
       role="button"

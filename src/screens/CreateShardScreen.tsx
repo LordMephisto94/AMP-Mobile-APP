@@ -9,6 +9,7 @@ import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../component
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { Icon } from "../components/Icon";
 
 /** Create an instance: choose a game from the server's catalogue, then name and place it. */
 export function CreateShardScreen(props: { serverId: string }) {
@@ -217,7 +218,7 @@ function TemplateArt(props: { template: AppSpec; serverUrl: string }) {
         when={src()}
         else={
           <View class="flex-1 items-center justify-center">
-            <Text class="text-3xl">🎮</Text>
+            <Icon name="gamepad" size={34} tone="muted" />
           </View>
         }
       >
