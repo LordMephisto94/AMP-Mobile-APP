@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3
+
+- Security: **Block screenshots** (off by default). When on, screenshots and screen recordings of the app come out
+  blank and the app switcher shows no preview (Android's `FLAG_SECURE`). It's set before the app's first frame on
+  every launch, so the lock screen is covered too.
+- Security: the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5" on narrower screens.
+
 ## 0.2.2
 
 A fifth audit (SECURITY.md, findings 45 to 54):

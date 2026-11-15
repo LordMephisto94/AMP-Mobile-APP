@@ -1,8 +1,8 @@
 {
   "name": "AMP Mobile",
   "id": "com.meganet.ampmobile",
-  "version": "0.2.2",
-  "build": 14,
+  "version": "0.2.3",
+  "build": 15,
   "icon": "assets/icon.png",
   "theme": "theme.json",
   "appearance": "dark",
@@ -30,7 +30,8 @@
     "picker": true,
     "statusBar": true,
     "host": [
-      "deviceKey.*"
+      "deviceKey.*",
+      "screen.secure.*"
     ]
   }
 }

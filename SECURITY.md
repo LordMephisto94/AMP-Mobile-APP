@@ -27,6 +27,9 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
   itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
 - While the app is in the background its screen is covered, so the app switcher shows nothing.
+- **Block screenshots** (Security, off by default): Android's `FLAG_SECURE`, so screenshots and screen recordings
+  of the app come out blank and the app switcher shows no preview. The Android app keeps the choice itself and sets
+  it before the first frame of every launch, lock screen included.
 - After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
   servers stay, signed out. "Forgot PIN?" does the same.
 
@@ -35,7 +38,8 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
 - **HTTPS only.** `http://` addresses are refused; so are addresses with a user name or password in them.
 - **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
   anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, the clipboard,
-  the file picker, and the Android app's key-store calls (`deviceKey.*`); nothing else at all (no file system,
+  the file picker, and the Android app's calls for the key store (`deviceKey.*`) and for blocking screenshots
+  (`screen.secure.*`); nothing else at all (no file system,
   processes, sockets, web views, notifications or audio).
 - **Online check.** The home page asks each panel for its password policy (no sign-in needed), sending no token,
   and never while the app is locked.
@@ -172,8 +176,6 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **PIN strength where there's no key store.** On Android the vault is bound to the phone's Keystore, so a copy of
   the file is useless elsewhere. Elsewhere (desktops) the vault is only as strong as the PIN.
 - **iOS.** The Keychain and Face ID need the same work in an Xcode project, which needs a Mac.
-- **Screenshots.** Screenshots and screen recording aren't blocked (Android's `FLAG_SECURE`); the Gradle app could
-  now set it, perhaps as a setting.
 - **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (outside
   Android's backups from 0.2.0). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting

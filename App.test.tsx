@@ -116,9 +116,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.2.2");
+  await app.waitFor("text:AMP Mobile 0.2.3");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.2"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.3"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -2742,4 +2742,33 @@ test("a renewal answer without a readable expiry keeps the session it had", asyn
   await app.waitFor("text:Running");
   const shardCalls = app.requests().filter((r) => r.url.includes("/api/Shards"));
   expect(shardCalls.every((r) => (r.headers.authorization ?? r.headers.Authorization) !== "Bearer tok-bad")).toBe(true);
+});
+
+// ---- Block screenshots ----------------------------------------------------------------------------
+
+test("Block screenshots is a Security switch the Android app keeps, and hidden where it can't apply", async () => {
+  let secure = false;
+  const app = await open("./App.tsx", {
+    host: {
+      handlers: {
+        "screen.secure.get": () => secure,
+        "screen.secure.set": ({ on }: { on: boolean }) => (secure = on),
+      },
+    },
+  });
+  await app.press("security");
+  await app.waitFor("text:Block screenshots");
+  await app.press("screenshots-toggle");
+  await app.waitFor("text:Screenshots and screen recordings of the app come out blank, and the app switcher shows no preview.");
+  expect(secure).toBe(true);
+  await app.press("screenshots-toggle");
+  await app.waitUntil(() => secure === false);
+  expect(app.host.calls().map((c) => c.name)).toEqual(["screen.secure.get", "screen.secure.set", "screen.secure.set"]);
+
+  // No Android app around it (nsh run, desktops): nothing to switch.
+  const bare = await open("./App.tsx");
+  await bare.press("security");
+  await bare.waitFor("text:App PIN");
+  await bare.wait(100);
+  expect(bare.texts()).not.toContain("Block screenshots");
 });
