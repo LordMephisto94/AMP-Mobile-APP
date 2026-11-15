@@ -83,3 +83,34 @@ Versions are `MAJOR.MINOR.PATCH` (semantic versioning), tagged `vMAJOR.MINOR.PAT
 
 `nsh.json` holds `version` and `build`. Raise `build` by one for every release: Android only installs an update
 over the old app when its build number is higher. Changes are listed in `CHANGELOG.md`.
+
+## Release signing
+
+Release APKs are signed with the release key, kept outside the repository at `~/.android/amp-mobile-release.jks`
+(alias `amp-mobile`). Every update must be signed with the same key: Android refuses an update signed by another,
+and the only way past that is uninstalling the app, which deletes its saved servers and sign-ins. **Keep a backup of
+the key file and its password somewhere safe (a password manager, plus an offline copy).** A lost key means no more
+updates for anyone who installed the app.
+
+Build both release APKs (asks for the key's password; `.nsh/out/` gets the versioned files):
+
+```sh
+scripts/build-release.sh
+```
+
+The key was made once with (PKCS12, so the key and the keystore share one password):
+
+```sh
+keytool -genkeypair -v -keystore ~/.android/amp-mobile-release.jks -storetype PKCS12 -alias amp-mobile \
+  -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=AMP Mobile, O=MegaNet Systems"
+```
+
+The certificate's SHA-256 fingerprint, to check a download against
+(`apksigner verify --print-certs AMP-Mobile-vX.Y.Z.apk`):
+
+```
+bac44fe4b557bb334bedbd20bc1c39df3f202438c4d3c340e299b9406d5e6dbb
+```
+
+Builds before 0.1.7 were signed with a debug key, so moving from one of those to a release-signed build needs an
+uninstall first.

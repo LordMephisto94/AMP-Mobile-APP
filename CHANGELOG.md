@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+- Release APKs are now signed with the app's own release key instead of a development key. **Uninstall the old app
+  before installing this one** (Android refuses an update signed by a different key); that removes its saved
+  servers, PIN and sign-ins, so add your servers again afterwards. Later updates install over it as usual.
+- `scripts/build-release.sh` builds both release APKs.
+
 ## 0.1.6
 
 - Fixed: after "Lock now", quick unlock didn't come back when you turned the screen off, unlocked the phone and

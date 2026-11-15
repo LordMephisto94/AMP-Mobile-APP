@@ -87,11 +87,15 @@ code in the app. Links and images the panel names are checked before use:
 | 29 | Users, roles or invites missing a field could break the Access pages | Low | Fixed: answers tidied where they arrive |
 | 30 | Avatars weren't size- or type-checked and had no timeout | Low | Fixed: images only, 2 MB at most, 15 s |
 
+## Release signing
+
+From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.
+Android installs an update only when it's signed by the same key, so nobody without it can ship an update that
+replaces the app and reads its data. Earlier builds used a development key. The certificate's SHA-256 fingerprint is
+`bac44fe4b557bb334bedbd20bc1c39df3f202438c4d3c340e299b9406d5e6dbb`.
+
 ## Still open
 
-- **Release signing.** Builds are signed with this computer's debug key. Make a release key (`keytool`), keep it and
-  its password safe and backed up, and build with `nsh package --keystore …`. Changing keys later means
-  uninstalling the app first.
 - **PIN strength where there's no key store.** On Android 12 and newer the vault is bound to the phone's Keystore,
   so a copy of the file is useless elsewhere. On older phones (and desktops) the vault is only as strong as the PIN.
 - **No in-app fingerprint prompt.** `nsh package` can't declare Android's `USE_BIOMETRIC` permission, so instead the
