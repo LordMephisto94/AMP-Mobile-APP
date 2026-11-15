@@ -109,8 +109,7 @@ export class HubConnection {
     // Stopped, or opened again, while the ticket came: this attempt is out of date.
     if (this.stopped || seq !== this.openSeq) return;
 
-    // wss for an HTTPS address; ws for a plain-HTTP one (inside Tailscale's tunnel, or one the
-    // user chose after the warning). The ticket rides in the URL; it works once, for 60 s.
+    // ws only for a plain-HTTP address the user chose; the ticket in the URL works once, for 60 s.
     let base: URL;
     try {
       base = new URL(this.options.baseUrl);

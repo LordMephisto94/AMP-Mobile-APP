@@ -3,11 +3,7 @@ import { avatarUrl } from "../api/analytics";
 import type { AmpClient } from "../api/client";
 import { hideDetails, priv } from "../lib/privacy";
 
-/**
- * Avatars already fetched this run, by hash, so a refresh doesn't fetch them again. Each is
- * a picture held in memory, so only the most recently shown are kept: the oldest is let go
- * (its memory released) once there are more than enough for a long player list.
- */
+/** Fetched avatars by hash; only the most recently shown are kept, the rest released. */
 const cache = new Map<string, Promise<string | null>>();
 const MAX_AVATARS = 100;
 

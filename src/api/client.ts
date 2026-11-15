@@ -19,11 +19,7 @@ export class AmpError extends Error {
   }
 }
 
-/**
- * Tailscale's own addresses: its IPv4 range 100.64.0.0/10, its IPv6 range fd7a:115c:a1e0::/48
- * and MagicDNS names under ts.net. Traffic to them travels inside Tailscale's WireGuard
- * tunnel, encrypted end to end, which is why plain HTTP is allowed to them and nowhere else.
- */
+/** Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48) and MagicDNS names under ts.net. */
 export function isTailscaleHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
@@ -35,17 +31,11 @@ export function isTailscaleHost(hostname: string): boolean {
   return h.endsWith(".ts.net") && h.length > ".ts.net".length;
 }
 
-/** Whether a normalized server address is plain HTTP. */
 export function isPlainHttp(serverUrl: string): boolean {
   return /^http:\/\//i.test(serverUrl);
 }
 
-/**
- * A host on this network only: private IPv4 ranges (10/8, 172.16/12, 192.168/16), loopback,
- * link-local, IPv6 unique-local and link-local, `localhost`, mDNS `.local` names, and bare
- * names without a dot (a name the local network's DNS gives a machine). Tailscale's own are
- * classed apart, as their tunnel encrypts.
- */
+/** Private, loopback and link-local addresses, `localhost`, `.local` and dotless names. */
 function isLocalHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
@@ -58,11 +48,10 @@ function isLocalHost(hostname: string): boolean {
 }
 
 /**
- * How exposed a plain-HTTP server address is, for the warning before signing in: null when
- * nothing travels in the clear (HTTPS, or HTTP inside Tailscale's tunnel); "local" on this
- * network only; "public" across the internet.
+ * How exposed a plain-HTTP address is: null if nothing is sent in the clear (HTTPS, or a Tailscale IP).
+ * A `.ts.net` name is "tailnet": off the tailnet, public DNS can answer it (Tailscale Funnel).
  */
-export function plainHttpRisk(serverUrl: string): "local" | "public" | null {
+export function plainHttpRisk(serverUrl: string): "tailnet" | "local" | "public" | null {
   if (!isPlainHttp(serverUrl)) return null;
   let host: string;
   try {
@@ -70,7 +59,7 @@ export function plainHttpRisk(serverUrl: string): "local" | "public" | null {
   } catch {
     return "public";
   }
-  if (isTailscaleHost(host)) return null;
+  if (isTailscaleHost(host)) return host.toLowerCase().endsWith(".ts.net") ? "tailnet" : null;
   return isLocalHost(host) ? "local" : "public";
 }
 
@@ -201,11 +190,7 @@ function safeJson(text: string): unknown {
   }
 }
 
-/**
- * A failed connection in words a person can act on. The two HTTPS failures people meet most
- * (a panel that only speaks plain HTTP, and a certificate the device doesn't trust) get their
- * own explanation; the low-level reason follows for whoever has to fix it.
- */
+/** A failed connection in words a person can act on, the low-level reason kept at the end. */
 export function connectionProblem(reason: string, baseUrl = ""): string {
   if (/InvalidContentType|wrong version number|http request|packet length too long|not an ssl|plaintext|record overflow/i.test(reason)) {
     let host = "";

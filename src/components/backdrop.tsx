@@ -2,21 +2,13 @@ import { context, Image, type JSX, Scroll, View, windowSize } from "nsh";
 import backdrop from "../../assets/backdrop.webp";
 import backdropPortrait from "../../assets/backdrop-portrait.webp";
 
-/**
- * The artwork for this window. Drawn to cover, a portrait phone only ever shows a centre slice
- * of the wide original (2000×1125), so phones get that slice alone (640×1125, a third of the
- * memory); wider windows (tablets, landscape, desktops) get the whole picture.
- */
+/** A portrait phone only shows a centre slice of the art, so it gets that slice: a third of the memory. */
 const art = () => {
   const { width, height } = windowSize();
   return height > 0 && width / height <= 640 / 1125 ? backdropPortrait : backdrop;
 };
 
-/**
- * How far the page around a component is from the top of the navigation stack: 0 for the
- * page showing, 1 for the one under it. Pages further down stay alive (so back returns to
- * them as they were) but can't be seen, so they don't hold the artwork.
- */
+/** A page's distance from the top of the stack: 0 showing, 1 under it (seen while swiping back). */
 export const PageDepth = context<() => number>(() => 0);
 
 /** The depth of the page being built right now (set by the stack's render function). */
@@ -46,8 +38,7 @@ export function Backdrop(props: { dim?: "light" | "strong" }) {
   const depth = PageDepth();
   return (
     <View class="absolute inset-0">
-      {/* The page showing and the one under it (seen while swiping back) draw the artwork; a
-          decoded copy and its texture are several MB, so deeper pages let theirs go. */}
+      {/* Hidden pages deeper down let their copy go: each is several MB decoded. */}
       <If when={depth() <= 1}>
         <Image testID="backdrop-art" src={art()} class="absolute inset-0 h-full w-full object-cover" />
       </If>

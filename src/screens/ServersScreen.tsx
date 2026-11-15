@@ -156,7 +156,6 @@ function ServerCard(props: { server: SavedServer }) {
             status: ({ checking: "offline", online: "online", offline: "danger" } as const)[reachOf(props.server)],
             testID: `reach-${props.server.name}`,
           },
-          // Plain HTTP outside Tailscale: the login crosses a network unencrypted.
           ...(plainHttpRisk(props.server.serverUrl) ? [{ label: "Not secure", status: "danger" as const, testID: `insecure-${props.server.name}` }] : []),
         ]}
         subtitle={`${priv(props.server.username)} · ${priv(props.server.serverUrl.replace(/^https?:\/\//, ""))}${

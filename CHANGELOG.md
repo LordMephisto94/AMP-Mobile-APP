@@ -10,6 +10,9 @@
   - The AMP wordmark and logo are stored at the most they're ever drawn at (about 6 MB less once decoded).
   - Player avatars are kept for the 100 most recently shown instead of every one seen since the app opened.
   No visible change.
+- An eighth audit (SECURITY.md, findings 61 and 62): a Tailscale name (`.ts.net`) over plain HTTP now asks before
+  signing in, since it's encrypted only while the phone is on the tailnet; Tailscale's own IP addresses still need no
+  warning.
 
 ## 0.2.4
 

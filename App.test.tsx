@@ -2896,6 +2896,12 @@ test("addresses are classed for plain HTTP: Tailscale is safe, the rest local or
   expect(normalizeServerUrl("100.69.36.88:8443")).toBe("https://100.69.36.88:8443"); // HTTPS stays the default
   // Plain HTTP elsewhere is allowed but classed, for the warning.
   expect(plainHttpRisk("http://100.69.36.88:8443")).toBeNull();
+  // A tailnet name is only inside the tunnel while this device is on the tailnet: it's confirmed first.
+  expect(plainHttpRisk("http://panel.tail1234.ts.net")).toBe("tailnet");
+  // Odd spellings are judged by what they parse to; anything unrecognised is treated as the internet.
+  expect(plainHttpRisk("http://2130706433:8080")).toBe("local");
+  expect(plainHttpRisk("http://[::ffff:192.168.1.1]")).toBe("public");
+  expect(plainHttpRisk("http://100.64.0.1.nip.io")).toBe("public");
   expect(plainHttpRisk("https://amp.example.test")).toBeNull();
   for (const local of ["http://192.168.1.2:8080", "http://10.0.0.5", "http://172.20.0.3", "http://localhost:8080", "http://amp-box", "http://nas.local", "http://[fd00::5]"]) expect(plainHttpRisk(local)).toBe("local");
   for (const pub of ["http://amp.example.test", "http://8.8.8.8", "http://172.32.0.1", "http://100.128.0.1"]) expect(plainHttpRisk(pub)).toBe("public");

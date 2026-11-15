@@ -26,9 +26,9 @@ export function ServerFormScreen(props: { serverId?: string }) {
       return null;
     }
   };
-  /** Plain HTTP inside Tailscale's tunnel: fine, with a word about why. */
+  /** Plain HTTP to a Tailscale IP: inside the tunnel, so a hint rather than a warning. */
   const plainTailscale = () => !!address() && isPlainHttp(address()!) && plainHttpRisk(address()!) === null;
-  /** Plain HTTP that crosses a network unencrypted: "local" or "public", for the warning. */
+  /** How exposed a plain-HTTP address is, for the warning (`plainHttpRisk`). */
   const risk = () => (address() ? plainHttpRisk(address()!) : null);
   /** The tick for a public plain-HTTP address; any change of address asks again. */
   const understood = signal(false);
@@ -57,17 +57,19 @@ export function ServerFormScreen(props: { serverId?: string }) {
       error.set("Enter your username and password");
       return;
     }
-    // Plain HTTP outside Tailscale: a public address needs the tick, a local one a confirm, every time.
+    // Every sign-in: an internet address needs the tick, a local or tailnet one a confirm.
     const exposure = plainHttpRisk(serverUrl);
     if (exposure === "public" && !(understood() && understoodFor === serverUrl)) {
       error.set("Tick the box to confirm you understand your login will travel unencrypted, or use https://.");
       return;
     }
-    if (exposure === "local") {
+    if (exposure === "local" || exposure === "tailnet") {
       const choice = await confirm({
         title: "Send your login unencrypted?",
         message:
-          "This address uses plain HTTP. Your password and session token will cross your network unencrypted: any device on it (or whoever runs it) could read them and take over your panel. Use https:// when you can.",
+          exposure === "tailnet"
+            ? "This is a Tailscale name over plain HTTP. It's encrypted only while this phone is connected to your tailnet: if it isn't, the name can be looked up on the internet and your password and session token would cross it unencrypted. Check Tailscale is on, or use the server's 100.x address or Tailscale HTTPS."
+            : "This address uses plain HTTP. Your password and session token will cross your network unencrypted: any device on it (or whoever runs it) could read them and take over your panel. Use https:// when you can.",
         icon: "⚠️",
         tone: "danger",
         cancelLabel: "Cancel",
@@ -200,7 +202,9 @@ export function ServerFormScreen(props: { serverId?: string }) {
               <View testID="plain-http-warning" class="gap-2.5 rounded-(--radius) border border-destructive/50 bg-destructive/10 p-4">
                 <Text class="text-base font-semibold text-destructive">⚠️ Not secure: plain HTTP</Text>
                 <Text class="text-sm leading-5 text-card-foreground">
-                  {level() === "public"
+                  {level() === "tailnet"
+                    ? "This Tailscale name uses plain HTTP. It's encrypted only while this phone is connected to your tailnet; if it isn't, the name can resolve on the internet and your login would cross it unencrypted. A 100.x Tailscale address or Tailscale HTTPS avoids this."
+                    : level() === "public"
                     ? "This address is on the internet and uses plain HTTP. Your password and session token will travel unencrypted: anyone along the way (a public Wi-Fi, its owner, an internet provider) could read them and take over your panel, which can run commands on your server."
                     : "This address uses plain HTTP on your local network. Your password and session token will cross it unencrypted: any device on the network could read them."}
                 </Text>

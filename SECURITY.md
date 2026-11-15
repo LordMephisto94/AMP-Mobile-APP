@@ -49,8 +49,10 @@ While it's on:
 - **HTTPS by default; plain HTTP only when typed, and warned about.** HTTPS is assumed when no scheme is typed. A
   plain `http://` address (and `ws://` for its console) is taken only when typed so, and how the app treats it
   depends on where it leads:
-  - **Tailscale** (100.64.0.0/10, fd7a:115c:a1e0::/48, `*.ts.net`): its WireGuard tunnel encrypts the connection, so
+  - **Tailscale addresses** (100.64.0.0/10, fd7a:115c:a1e0::/48): its WireGuard tunnel encrypts the connection, so
     there's no warning; the server card says "HTTP over Tailscale".
+  - **Tailscale names** (`*.ts.net`): a confirmation before every sign-in, as the name is inside the tunnel only
+    while the device is on the tailnet.
   - **Local network** (private and loopback ranges, `.local` and dotless names): a red "Not secure" warning, and a
     confirmation before every sign-in, as any device on the network could read the password and token.
   - **Internet**: the same warning, stronger, and a box to tick before every sign-in.
@@ -224,6 +226,22 @@ Checked and found sound:
   panel address and email.
 - **Fingerprint unlock:** opens a Keystore key (CryptoObject) a real fingerprint unlocks, so hooking the prompt's
   success callback can't open the vault.
+
+## Eighth audit: plain HTTP and memory (November 2026, 0.2.5)
+
+Covers plain HTTP panels and their warnings, the Tailscale rules and the memory changes, using the API
+authentication weaknesses checklist (where tokens and credentials can leak) and a comment-hygiene pass.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 61 | A `.ts.net` name over plain HTTP got no warning, but it's inside Tailscale's tunnel only while the device is on the tailnet: off it, public DNS can answer (Tailscale Funnel names) and the login would cross the internet unencrypted | Medium | Fixed: such names get a confirmation explaining this; only Tailscale's IP addresses skip the warning |
+| 62 | Comments still said plain HTTP was allowed only to Tailscale, and described the warning as local-or-public only | Info | Fixed, with over-long comments trimmed |
+
+Checked and found sound: tokens and tickets only ever go to the server's own address; odd address spellings
+(`2130706433`, `0x7f.1`) are judged by what they parse to, and unrecognised forms (`[::ffff:…]`, `100.64.0.1.nip.io`)
+fall to the stricter internet class; the tick and the confirmation are asked at every sign-in, and a changed address
+asks again; avatars dropped from the cache are released and fetched again if shown; a page that misses its depth
+draws the artwork as before.
 
 ## Release signing
 

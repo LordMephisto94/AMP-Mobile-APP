@@ -176,7 +176,6 @@ export function AppPage(props: {
   onBack?: () => void;
   children?: JSX.Element;
 }) {
-  // How deep this page sits in the stack, for what it draws (the artwork only near the top).
   const depth = pageDepthHere();
   return (
     <NavPage
