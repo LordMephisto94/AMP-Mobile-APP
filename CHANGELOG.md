@@ -7,10 +7,13 @@
 - Overview: recent activity says what each event acted on, as the Activity page does ("Address: …", "User: …"),
   with Hide personal details blurring addresses and names there too (account names weren't hidden on it before).
   Long titles wrap instead of running under the time.
-- Tailscale: a panel on a Tailscale address (100.64.x.x to 100.127.x.x, or a `.ts.net` name) can be added over plain
-  `http://`, since Tailscale encrypts the connection. HTTPS stays the default and is still required everywhere else;
-  the form says why it's allowed, and the server card reads "HTTP over Tailscale". A Tailscale address typed without
-  `http://` that turns out to be plain HTTP gets a message saying to add it as `http://`.
+- Plain HTTP panels: an `http://` address can now be added (HTTPS stays the default when no scheme is typed), so a
+  panel can be tried on its local address before it has HTTPS.
+  - On a Tailscale address (100.64.x.x to 100.127.x.x, or a `.ts.net` name) it's encrypted by Tailscale anyway: no
+    warning, and the card reads "HTTP over Tailscale".
+  - On the local network: a red warning, and a confirmation before every sign-in.
+  - On the internet: a stronger warning, and a box to tick before every sign-in.
+  - Such servers carry a red "Not secure" badge on their card until they move to HTTPS.
 - Adding a server: a panel that answers in plain HTTP, or with a certificate the device doesn't trust, now gets an
   explanation of what's wrong and how to fix it, instead of a low-level error ("received corrupt message of type
   InvalidContentType").

@@ -1,7 +1,8 @@
 import { signal, Text, View } from "nsh";
 import { Screen } from "../components/backdrop";
 import { changeExpiredPassword, login, passwordRules } from "../api/auth";
-import { AmpClient, isPlainHttp, normalizeServerUrl } from "../api/client";
+import { AmpClient, isPlainHttp, normalizeServerUrl, plainHttpRisk } from "../api/client";
+import { confirm } from "../components/Confirm";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { addServer, serverById, setServerSession } from "../state/servers";
@@ -17,14 +18,21 @@ export function ServerFormScreen(props: { serverId?: string }) {
 
   const name = signal(existing?.name ?? "");
   const server = signal(existing?.serverUrl ?? "");
-  /** The typed address is plain HTTP to a Tailscale address (allowed, with a word about why). */
-  const plainTailscale = () => {
+  /** The typed (or saved) address, normalized; null while it isn't a valid one. */
+  const address = () => {
     try {
-      return isPlainHttp(normalizeServerUrl(server()));
+      return normalizeServerUrl(server());
     } catch {
-      return false;
+      return null;
     }
   };
+  /** Plain HTTP inside Tailscale's tunnel: fine, with a word about why. */
+  const plainTailscale = () => !!address() && isPlainHttp(address()!) && plainHttpRisk(address()!) === null;
+  /** Plain HTTP that crosses a network unencrypted: "local" or "public", for the warning. */
+  const risk = () => (address() ? plainHttpRisk(address()!) : null);
+  /** The tick for a public plain-HTTP address; any change of address asks again. */
+  const understood = signal(false);
+  let understoodFor = "";
   const username = signal(existing?.username ?? "");
   const password = signal("");
   const rememberMe = signal(existing?.rememberMe ?? true);
@@ -48,6 +56,24 @@ export function ServerFormScreen(props: { serverId?: string }) {
     if (!user || !password()) {
       error.set("Enter your username and password");
       return;
+    }
+    // Plain HTTP outside Tailscale: a public address needs the tick, a local one a confirm, every time.
+    const exposure = plainHttpRisk(serverUrl);
+    if (exposure === "public" && !(understood() && understoodFor === serverUrl)) {
+      error.set("Tick the box to confirm you understand your login will travel unencrypted, or use https://.");
+      return;
+    }
+    if (exposure === "local") {
+      const choice = await confirm({
+        title: "Send your login unencrypted?",
+        message:
+          "This address uses plain HTTP. Your password and session token will cross your network unencrypted: any device on it (or whoever runs it) could read them and take over your panel. Use https:// when you can.",
+        icon: "⚠️",
+        tone: "danger",
+        cancelLabel: "Cancel",
+        actions: [{ id: "send", label: "Sign in anyway", tone: "danger" }],
+      });
+      if (choice !== "send") return;
     }
 
     busy.set(true);
@@ -137,8 +163,8 @@ export function ServerFormScreen(props: { serverId?: string }) {
                 keyboardType="url"
                 hint={
                   plainTailscale()
-                    ? "Plain HTTP: allowed only because this is a Tailscale address, which Tailscale encrypts end to end. Your phone must be on the same tailnet."
-                    : "https:// is added if you leave it out. Plain http:// works only for Tailscale addresses."
+                    ? "Plain HTTP over Tailscale: Tailscale encrypts the connection end to end. Your phone must be on the same tailnet."
+                    : "https:// is added if you leave it out."
                 }
               />
             </If>
@@ -165,6 +191,33 @@ export function ServerFormScreen(props: { serverId?: string }) {
                   hint={m().rules ?? undefined}
                 />
                 <Field testID="repeat-password" label="New password again" value={repeatPassword()} onChange={(v) => repeatPassword.set(v)} masked />
+              </View>
+            )}
+          </If>
+
+          <If when={risk()}>
+            {(level) => (
+              <View testID="plain-http-warning" class="gap-2.5 rounded-(--radius) border border-destructive/50 bg-destructive/10 p-4">
+                <Text class="text-base font-semibold text-destructive">⚠️ Not secure: plain HTTP</Text>
+                <Text class="text-sm leading-5 text-card-foreground">
+                  {level() === "public"
+                    ? "This address is on the internet and uses plain HTTP. Your password and session token will travel unencrypted: anyone along the way (a public Wi-Fi, its owner, an internet provider) could read them and take over your panel, which can run commands on your server."
+                    : "This address uses plain HTTP on your local network. Your password and session token will cross it unencrypted: any device on the network could read them."}
+                </Text>
+                <Text class="text-sm leading-5 text-muted-foreground">
+                  Turn on HTTPS for the panel when you can (a certificate, a reverse proxy, or Tailscale), then sign in with https://.
+                </Text>
+                <If when={level() === "public"}>
+                  <Checkbox
+                    testID="plain-http-understood"
+                    label="I understand my login can be stolen on the way"
+                    checked={understood() && understoodFor === address()}
+                    onChange={(v) => {
+                      understoodFor = address() ?? "";
+                      understood.set(v);
+                    }}
+                  />
+                </If>
               </View>
             )}
           </If>

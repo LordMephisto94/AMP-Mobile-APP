@@ -1,4 +1,4 @@
-import { connectionProblem, isTailscaleHost, normalizeServerUrl } from "./src/api/client";
+import { connectionProblem, isTailscaleHost, normalizeServerUrl, plainHttpRisk } from "./src/api/client";
 import { safeHttpsUrl } from "./src/lib/links";
 import { uploadFile } from "./src/api/files";
 import { hideDetails, priv, privIps, privJson } from "./src/lib/privacy";
@@ -1752,22 +1752,67 @@ test("the security page changes the PIN, locks on demand and sets the auto-lock"
 
 // ---- Transport -----------------------------------------------------------------------------
 
-test("only https server addresses are accepted, without credentials in them", async () => {
-  const app = await open("./App.tsx", { network: {} });
+test("plain HTTP on the internet needs the tick, and addresses with credentials or other schemes are refused", async () => {
+  const PUB = "http://amp.example.test";
+  const app = await open("./App.tsx", {
+    network: {
+      [`POST ${PUB}/api/Auth/login`]: { body: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } },
+      [`GET ${PUB}/api/Auth/password-policy`]: { body: {} },
+      [`GET ${PUB}/api/Shards*`]: shardsRoute,
+    },
+  });
   await app.press("Add Server");
-  await app.type("server", "http://amp.example.test");
+  await app.type("server", "ftp://amp.example.test");
   await app.type("username", "admin");
   await app.type("password", "pw");
   await app.press("text:Add Server");
-  await app.waitFor(
-    "text:Use https://. Plain http:// would send your password and session unencrypted. (Plain http:// works only for Tailscale addresses, 100.64.x.x to 100.127.x.x or a .ts.net name, since Tailscale encrypts them.)",
-  );
+  await app.waitFor("text:The address must start with https:// (or http://)");
 
   await clearField(app, "server");
   await app.type("server", "https://admin:pw@amp.example.test");
   await app.press("text:Add Server");
   await app.waitFor("text:Leave the user name and password out of the address");
   expect(app.requests().length).toBe(0); // nothing was sent anywhere
+
+  // An internet address over plain HTTP: the warning, and nothing sent until the box is ticked.
+  await clearField(app, "server");
+  await app.type("server", PUB);
+  await app.waitFor("text:⚠️ Not secure: plain HTTP");
+  await app.press("text:Add Server");
+  await app.waitFor("text:Tick the box to confirm you understand your login will travel unencrypted, or use https://.");
+  expect(app.requests().some((r) => r.url.includes("/api/Auth/login"))).toBe(false);
+  await app.press("plain-http-understood");
+  await app.press("Stay signed in");
+  await app.press("text:Add Server");
+  await app.waitFor("text:Running");
+  await app.press("back");
+  await app.waitFor("text:Your servers");
+  expect(app.shows("insecure-amp.example.test")).toBe(true);
+});
+
+test("plain HTTP on the local network asks first, every sign-in", async () => {
+  const LAN = "http://192.168.1.20:8080";
+  const app = await open("./App.tsx", {
+    network: {
+      [`POST ${LAN}/api/Auth/login`]: { body: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } },
+      [`GET ${LAN}/api/Auth/password-policy`]: { body: {} },
+      [`GET ${LAN}/api/Shards*`]: shardsRoute,
+    },
+  });
+  await app.press("Add Server");
+  await app.type("server", LAN);
+  await app.type("username", "admin");
+  await app.type("password", "pw");
+  await app.waitFor("text:⚠️ Not secure: plain HTTP");
+  expect(app.shows("plain-http-understood")).toBe(false); // a confirm, not a tick, on the local network
+  await app.press("text:Add Server");
+  await app.waitFor("text:Send your login unencrypted?");
+  await app.press("confirm-cancel");
+  expect(app.requests().some((r) => r.url.includes("/api/Auth/login"))).toBe(false);
+  await app.press("text:Add Server");
+  await app.waitFor("text:Send your login unencrypted?");
+  await app.press("confirm-send");
+  await app.waitFor("text:Running");
 });
 
 test("a redirect is refused, so the session token never follows it to another host", async () => {
@@ -2844,15 +2889,19 @@ test("adding a panel that answers in plain HTTP says so", async () => {
   await app.waitUntil(() => app.texts().some((t) => t.startsWith("This address answered without HTTPS. It's a Tailscale address") && t.includes("http://100.69.36.88:8443")));
 });
 
-test("plain HTTP is allowed to Tailscale addresses only", () => {
+test("addresses are classed for plain HTTP: Tailscale is safe, the rest local or public", () => {
   for (const yes of ["100.64.0.1", "100.69.36.88", "100.127.255.255", "[fd7a:115c:a1e0::1]", "panel.tail1234.ts.net"]) expect(isTailscaleHost(yes)).toBe(true);
   for (const no of ["100.63.255.255", "100.128.0.1", "10.0.0.5", "192.168.1.2", "8.8.8.8", "ts.net", "evilts.net", "[fd7a:115c:a1e1::1]", "example.com"]) expect(isTailscaleHost(no)).toBe(false);
   expect(normalizeServerUrl("http://100.69.36.88:8443/")).toBe("http://100.69.36.88:8443");
   expect(normalizeServerUrl("100.69.36.88:8443")).toBe("https://100.69.36.88:8443"); // HTTPS stays the default
-  for (const bad of ["http://192.168.1.2:8080", "http://amp.example.test", "http://10.0.0.5"]) expect(() => normalizeServerUrl(bad)).toThrow("Use https://");
-  // Downloads from a plain-HTTP Tailscale panel open; other plain links still don't.
-  expect(safeHttpsUrl("http://100.69.36.88:8443/f?ticket=t", () => true, true)).toBe("http://100.69.36.88:8443/f?ticket=t");
-  expect(safeHttpsUrl("http://192.168.1.2/f", () => true, true)).toBeNull();
+  // Plain HTTP elsewhere is allowed but classed, for the warning.
+  expect(plainHttpRisk("http://100.69.36.88:8443")).toBeNull();
+  expect(plainHttpRisk("https://amp.example.test")).toBeNull();
+  for (const local of ["http://192.168.1.2:8080", "http://10.0.0.5", "http://172.20.0.3", "http://localhost:8080", "http://amp-box", "http://nas.local", "http://[fd00::5]"]) expect(plainHttpRisk(local)).toBe("local");
+  for (const pub of ["http://amp.example.test", "http://8.8.8.8", "http://172.32.0.1", "http://100.128.0.1"]) expect(plainHttpRisk(pub)).toBe("public");
+  // Plain links open only when the caller pins the host (a panel's own download).
+  expect(safeHttpsUrl("http://192.168.1.2/f?ticket=t", (h) => h === "192.168.1.2", true)).toBe("http://192.168.1.2/f?ticket=t");
+  expect(safeHttpsUrl("http://192.168.1.2/f", undefined, true)).toBeNull();
   expect(safeHttpsUrl("http://100.69.36.88:8443/f", () => true)).toBeNull();
 });
 
@@ -2867,7 +2916,8 @@ test("a panel on a plain-HTTP Tailscale address signs in, and says how it's reac
   });
   await app.press("text:Add Server");
   await app.type("server", TS);
-  await app.waitFor("text:Plain HTTP: allowed only because this is a Tailscale address, which Tailscale encrypts end to end. Your phone must be on the same tailnet.");
+  await app.waitFor("text:Plain HTTP over Tailscale: Tailscale encrypts the connection end to end. Your phone must be on the same tailnet.");
+  expect(app.shows("plain-http-warning")).toBe(false);
   await app.type("username", "admin");
   await app.type("password", "pw");
   await app.press("Stay signed in");

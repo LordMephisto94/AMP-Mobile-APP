@@ -1,5 +1,4 @@
 import { Clipboard, openUrl } from "nsh";
-import { isTailscaleHost } from "../api/client";
 
 /**
  * Links and images whose address comes from a server (release notes, a Steam profile,
@@ -11,8 +10,8 @@ import { isTailscaleHost } from "../api/client";
 export function safeHttpsUrl(
   raw: string | null | undefined,
   hostAllowed?: (host: string) => boolean,
-  /** Also plain http:// to a Tailscale address (a download from a plain-HTTP Tailscale panel). */
-  tailscaleHttp = false,
+  /** Also plain http:// (a download from a plain-HTTP panel, whose host the caller pins). */
+  allowPlain = false,
 ): string | null {
   if (!raw || typeof raw !== "string") return null;
   let url: URL;
@@ -21,7 +20,7 @@ export function safeHttpsUrl(
   } catch {
     return null;
   }
-  const plainOk = tailscaleHttp && url.protocol === "http:" && isTailscaleHost(url.hostname);
+  const plainOk = allowPlain && !!hostAllowed && url.protocol === "http:";
   if ((url.protocol !== "https:" && !plainOk) || url.username || url.password || !url.hostname) return null;
   if (hostAllowed && !hostAllowed(url.hostname.toLowerCase())) return null;
   return url.href;
@@ -33,8 +32,8 @@ export function onDomain(host: string, domain: string): boolean {
 }
 
 /** Opens a server-supplied link in the browser, or throws when it isn't a safe one. */
-export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean, tailscaleHttp = false): Promise<void> {
-  const url = safeHttpsUrl(raw, hostAllowed, tailscaleHttp);
+export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean, allowPlain = false): Promise<void> {
+  const url = safeHttpsUrl(raw, hostAllowed, allowPlain);
   if (!url) throw new Error("That link isn't a secure https:// address, so it wasn't opened.");
   const { opened } = await openUrl(url);
   if (!opened) throw new Error("No browser on this device could open it.");

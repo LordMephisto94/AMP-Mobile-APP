@@ -41,10 +41,10 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 
 ## Notes
 
-- The server address is entered by the user, with `https://` assumed when no scheme is typed. Only `https://` is
-  accepted, except plain `http://` to Tailscale addresses (`isTailscaleHost` in `src/api/client.ts`), whose tunnel
-  encrypts it. `nsh.json`'s capabilities can't express that range, so they allow `http` to any host and the app's
-  address check is what limits it.
+- The server address is entered by the user, with `https://` assumed when no scheme is typed. Plain `http://` is
+  taken when typed: inside Tailscale (`isTailscaleHost`) without a warning, elsewhere with a warning and a confirm or a
+  tick before every sign-in (`plainHttpRisk` in `src/api/client.ts`, the warning in `ServerFormScreen.tsx`).
+  `nsh.json`'s capabilities and the Android app allow plain HTTP generally, since neither can name an address range.
 - NSH `Storage` is a plain JSON file in the app's private directory (the Android app is left out of Android's
   backups). The server list holds no secrets; sessions kept with "Stay signed in" are sealed in a vault
   (`amp.vault`) that needs the app PIN, locked to the phone's secure hardware, and optionally opened by fingerprint.

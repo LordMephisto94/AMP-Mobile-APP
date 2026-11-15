@@ -35,18 +35,52 @@ export function isTailscaleHost(hostname: string): boolean {
   return h.endsWith(".ts.net") && h.length > ".ts.net".length;
 }
 
-/** Whether a normalized server address is plain HTTP (only ever a Tailscale one). */
+/** Whether a normalized server address is plain HTTP. */
 export function isPlainHttp(serverUrl: string): boolean {
   return /^http:\/\//i.test(serverUrl);
 }
 
 /**
+ * A host on this network only: private IPv4 ranges (10/8, 172.16/12, 192.168/16), loopback,
+ * link-local, IPv6 unique-local and link-local, `localhost`, mDNS `.local` names, and bare
+ * names without a dot (a name the local network's DNS gives a machine). Tailscale's own are
+ * classed apart, as their tunnel encrypts.
+ */
+function isLocalHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (v4) {
+    const [a, b] = v4.slice(1).map(Number);
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+  if (h.includes(":")) return h === "::1" || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h);
+  return h === "localhost" || h.endsWith(".local") || h.endsWith(".localhost") || !h.includes(".");
+}
+
+/**
+ * How exposed a plain-HTTP server address is, for the warning before signing in: null when
+ * nothing travels in the clear (HTTPS, or HTTP inside Tailscale's tunnel); "local" on this
+ * network only; "public" across the internet.
+ */
+export function plainHttpRisk(serverUrl: string): "local" | "public" | null {
+  if (!isPlainHttp(serverUrl)) return null;
+  let host: string;
+  try {
+    host = new URL(serverUrl).hostname;
+  } catch {
+    return "public";
+  }
+  if (isTailscaleHost(host)) return null;
+  return isLocalHost(host) ? "local" : "public";
+}
+
+/**
  * Normalizes what the user typed as their server address into an origin the client
  * can append `/api/...` to: adds `https://` when no scheme is given and drops any
- * trailing slashes. HTTPS is required (the password and the session token cross this
- * connection), except for Tailscale addresses, whose tunnel already encrypts it: those may
- * be plain `http://` when typed so. An address with a user name or password in it, a
- * query or a fragment is refused rather than silently changed.
+ * trailing slashes. HTTPS is the default. Plain `http://` is taken when typed so: inside
+ * Tailscale's tunnel it's encrypted anyway, and anywhere else the sign-in form warns first
+ * (see `plainHttpRisk`). An address with a user name or password in it, a query or a
+ * fragment is refused rather than silently changed.
  */
 export function normalizeServerUrl(input: string): string {
   let value = input.trim();
@@ -58,12 +92,7 @@ export function normalizeServerUrl(input: string): string {
   } catch {
     throw new Error("That doesn't look like a valid address");
   }
-  if (url.protocol === "http:" && !isTailscaleHost(url.hostname)) {
-    throw new Error(
-      "Use https://. Plain http:// would send your password and session unencrypted. (Plain http:// works only for Tailscale addresses, 100.64.x.x to 100.127.x.x or a .ts.net name, since Tailscale encrypts them.)",
-    );
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("The address must start with https://");
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("The address must start with https:// (or http://)");
   if (url.username || url.password) throw new Error("Leave the user name and password out of the address");
   if (url.search || url.hash) throw new Error("Leave out anything after ? or # in the address");
   if (!url.hostname) throw new Error("That doesn't look like a valid address");
@@ -187,14 +216,14 @@ export function connectionProblem(reason: string, baseUrl = ""): string {
     }
     if (host && /^https:/i.test(baseUrl) && isTailscaleHost(new URL(baseUrl).hostname)) {
       return (
-        `This address answered without HTTPS. It's a Tailscale address, so plain HTTP is allowed: add it as http://${host} ` +
+        `This address answered without HTTPS. It's a Tailscale address, so plain HTTP is safe here: add it as http://${host} ` +
         `(Tailscale encrypts the connection). (${reason})`
       );
     }
     return (
-      "This address answered without HTTPS. AMP Mobile only connects over https://, so your password and session " +
-      "never travel unencrypted. Turn on HTTPS for the panel (a certificate, a reverse proxy or Tailscale HTTPS), or " +
-      `use the address it serves HTTPS on. (${reason})`
+      "This address answered without HTTPS. Best: turn on HTTPS for the panel (a certificate, a reverse proxy or " +
+      `Tailscale HTTPS). Or add it as http://${host || "…"} instead: the app will warn you first, since your password ` +
+      `and session would then travel unencrypted. (${reason})`
     );
   }
   if (/certificate|UnknownIssuer|NotValidForName|InvalidCertificate|CERT_|self.signed|expired|BadSignature|hostname mismatch/i.test(reason)) {

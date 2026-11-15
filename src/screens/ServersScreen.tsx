@@ -12,7 +12,7 @@ import { nav } from "../state/nav";
 import { checkServers, reachOf } from "../state/reachability";
 import { isSignedIn, locked, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
 import { priv } from "../lib/privacy";
-import { isPlainHttp } from "../api/client";
+import { isPlainHttp, plainHttpRisk } from "../api/client";
 
 /** The About dialog: what this app is, and that it is not official. */
 function showAbout() {
@@ -147,13 +147,17 @@ function ServerCard(props: { server: SavedServer }) {
         title={props.server.name}
         status={signedIn() ? "online" : "offline"}
         statusLabel={signedIn() ? "Signed in" : "Signed out"}
-        extraBadge={{
-          label: { checking: "Checking…", online: "Online", offline: "Offline" }[reachOf(props.server)],
-          status: ({ checking: "offline", online: "online", offline: "danger" } as const)[reachOf(props.server)],
-          testID: `reach-${props.server.name}`,
-        }}
+        extraBadge={[
+          {
+            label: { checking: "Checking…", online: "Online", offline: "Offline" }[reachOf(props.server)],
+            status: ({ checking: "offline", online: "online", offline: "danger" } as const)[reachOf(props.server)],
+            testID: `reach-${props.server.name}`,
+          },
+          // Plain HTTP outside Tailscale: the login crosses a network unencrypted.
+          ...(plainHttpRisk(props.server.serverUrl) ? [{ label: "Not secure", status: "danger" as const, testID: `insecure-${props.server.name}` }] : []),
+        ]}
         subtitle={`${priv(props.server.username)} · ${priv(props.server.serverUrl.replace(/^https?:\/\//, ""))}${
-          isPlainHttp(props.server.serverUrl) ? " · HTTP over Tailscale" : ""
+          isPlainHttp(props.server.serverUrl) && !plainHttpRisk(props.server.serverUrl) ? " · HTTP over Tailscale" : ""
         }`}
       />
       <View class="absolute top-3 right-3">

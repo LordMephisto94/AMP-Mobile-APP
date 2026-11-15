@@ -109,7 +109,7 @@ export function AmpBanner(props: {
   status: BannerStatus;
   statusLabel: string;
   /** A second badge after the first (the home page's "Online"). */
-  extraBadge?: { label: string; status: BannerStatus; testID?: string };
+  extraBadge?: { label: string; status: BannerStatus; testID?: string } | { label: string; status: BannerStatus; testID?: string }[];
   class?: string;
   children?: JSX.Element;
 }) {
@@ -118,7 +118,7 @@ export function AmpBanner(props: {
       <Canvas class="absolute inset-0" draw={(cx, { width, height }) => drawTriangles(cx, width, height, props.status)} />
       <View class="gap-1.5 px-5 py-5">
         <If
-          when={props.extraBadge}
+          when={props.extraBadge ? [props.extraBadge].flat() : null}
           else={
             <View class="flex-row flex-wrap items-center gap-2.5">
               <Text class="text-2xl font-light text-white">{props.title}</Text>
@@ -134,7 +134,7 @@ export function AmpBanner(props: {
               </Text>
               <View class="flex-row flex-wrap items-center gap-2">
                 <StatusBadge label={props.statusLabel} status={props.status} />
-                <StatusBadge label={b().label} status={b().status} testID={b().testID} />
+                <Each of={b()}>{(x) => <StatusBadge label={x().label} status={x().status} testID={x().testID} />}</Each>
               </View>
             </>
           )}
