@@ -135,7 +135,7 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
       const promptReply = state()?.status === ApplicationState.AwaitingUserAction;
       await sendConsoleCommand(clientFor(props.serverId), props.id, text, promptReply);
       command.set("");
-      if (live() !== "connected") setTimeout(loadNewest, 1_000);
+      if (live() !== "connected") setTimeout(() => onTop() && loadNewest(), 1_000);
       list?.scrollToEnd({ animated: true });
     } catch (e) {
       await fail(e);

@@ -113,11 +113,22 @@ and the only way past that is uninstalling the app, which deletes its saved serv
 the key file and its password somewhere safe (a password manager, plus an offline copy).** A lost key means no more
 updates for anyone who installed the app.
 
-Build both release APKs with Gradle (asks for the key's password; `.nsh/out/` gets the versioned files):
+Build both release APKs with Gradle (`.nsh/out/` gets the versioned files):
 
 ```sh
 scripts/build-release.sh
 ```
+
+It asks for the key's password, unless it finds one: `AMP_KEYSTORE_PASSWORD` in the environment, or a private env
+file, `~/.config/amp-mobile/release.env` (or `AMP_RELEASE_ENV`, or `.env.release` or `.env` in the repository, which git ignores).
+Set one up from the example:
+
+```sh
+mkdir -p ~/.config/amp-mobile && cp release.env.example ~/.config/amp-mobile/release.env && chmod 600 ~/.config/amp-mobile/release.env
+```
+
+The file is read as plain `KEY=VALUE` lines (never run as a script), and refused if anyone but you can read it.
+Anyone who can read it can sign updates as you, so keep it off shared backups.
 
 The key was made once with (PKCS12, so the key and the keystore share one password):
 

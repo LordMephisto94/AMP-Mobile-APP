@@ -7,8 +7,10 @@ import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { PrimaryButton } from "../components/ui";
+import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { isSignedIn, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
+import { checkServers, reachOf } from "../state/reachability";
+import { isSignedIn, locked, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
 
 /** The About dialog: what this app is, and that it is not official. */
 function showAbout() {
@@ -26,6 +28,11 @@ function showAbout() {
 
 /** Home: the saved AMP servers and the button to add one. */
 export function ServersScreen() {
+  // Whether each panel answers: checked when the page shows and every minute while it does.
+  // Reading the list inside also checks a server as soon as it's added or edited. Nothing
+  // is asked of any server while the app is locked.
+  poll(() => checkServers(servers()), 60_000, () => !locked() && nav.routes().at(-1)?.name === "servers");
+
   return (
     <NavPage title="Servers" headerVisible={false}>
       <View class="flex-1 bg-background">
@@ -138,6 +145,11 @@ function ServerCard(props: { server: SavedServer }) {
         title={props.server.name}
         status={signedIn() ? "online" : "offline"}
         statusLabel={signedIn() ? "Signed in" : "Signed out"}
+        extraBadge={{
+          label: { checking: "Checking…", online: "Online", offline: "Offline" }[reachOf(props.server)],
+          status: ({ checking: "offline", online: "online", offline: "danger" } as const)[reachOf(props.server)],
+          testID: `reach-${props.server.name}`,
+        }}
         subtitle={`${props.server.username} · ${props.server.serverUrl.replace(/^https?:\/\//, "")}`}
       />
       <View class="absolute top-3 right-3">

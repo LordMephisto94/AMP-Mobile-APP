@@ -110,6 +110,25 @@ encoded, error messages stripped of tickets, links and artwork checked, nothing 
 apart, PIN checks one at a time, vault writes in order, renewals shared and superseded correctly, the console's hub
 stopped with its page, and Schedules sending branched steps back untouched.
 
+## Fourth audit: bugs, races and edge cases (November 2026, 0.2.1)
+
+Covers 0.2.0 (fingerprint unlock, the Java key store, the Gradle app) and the home page's Online check, with a
+pass over timers and late answers across the pages.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 41 | A late look at an instance after a start, stop or restart ran even after leaving the page; signing out of that server meanwhile sent the user to its sign-in page from wherever they were | Low | Fixed: those looks only run while the page shows and the app is unlocked (also the console's) |
+| 42 | A session saved while quick or fingerprint unlock was being added or removed was dropped from disk instead of saved | Low | Fixed: the save seals again onto the current vault |
+| 43 | Turning fingerprint unlock on failed ("the app locked meanwhile") whenever a session renewal saved the vault during the prompt | Low | Fixed: only a lock, an erase or a new data key stops it, and then the new key is deleted |
+| 44 | The Java key store could crash the app if a fingerprint result arrived after its screen had closed | Low | Fixed: answered as cancelled |
+
+Checked and found sound: the old Rust-sealed keys open with the Java code (same aliases and format, tested by
+upgrading on an emulator); a key store that doesn't answer never erases the vault; the fingerprint prompt opens by
+itself once per return, not after "Lock now" or "Use PIN"; a fingerprint added to the phone voids the key and the
+app falls back to the PIN; the vault isn't opened before the server list is read; the Online check sends no token,
+nothing while the app is locked, and drops answers older than the newest; the release password file is read as
+data, never run, and refused when others can read it.
+
 ## Release signing
 
 From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.

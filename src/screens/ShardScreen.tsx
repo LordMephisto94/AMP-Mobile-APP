@@ -21,7 +21,7 @@ import { MetricChart, type MetricPoint } from "../components/MetricChart";
 import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clientFor, clientLater, serverById } from "../state/servers";
+import { clientFor, clientLater, locked, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 /** How often the page refreshes while it is on screen (the agent samples every ~5 s). */
@@ -116,7 +116,8 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
     try {
       await shardPower(clientFor(props.serverId), props.id, action);
       await load();
-      for (const delay of AFTER_ACTION_MS) setTimeout(load, delay);
+      // Only while this page still shows and the app is unlocked (see ShardsScreen).
+      for (const delay of AFTER_ACTION_MS) setTimeout(() => onTop() && !locked() && load(), delay);
     } catch (e) {
       await handle(e);
     } finally {

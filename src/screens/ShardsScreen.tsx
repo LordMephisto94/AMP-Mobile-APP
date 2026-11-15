@@ -20,7 +20,7 @@ import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText, Pill, PrimaryButton, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
-import { clientFor, serverById } from "../state/servers";
+import { clientFor, locked, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 /** How often the list refreshes while it is on screen. */
@@ -122,7 +122,9 @@ export function ShardsScreen(props: { serverId: string }) {
     try {
       await shardPower(clientFor(props.serverId), shard.id, action);
       await load();
-      for (const delay of [2_000, 6_000, 15_000]) setTimeout(load, delay);
+      // Only while this page still shows and the app is unlocked: a late look after leaving
+      // (or signing out) would ask a server for nothing, or send the user to sign in.
+      for (const delay of [2_000, 6_000, 15_000]) setTimeout(() => onTop() && !locked() && load(), delay);
     } catch (e) {
       error.set(e instanceof AmpError && e.status === 403 ? "Your account isn't allowed to do that." : (e as Error).message);
     } finally {

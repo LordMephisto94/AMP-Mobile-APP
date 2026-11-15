@@ -200,19 +200,27 @@ async function persistSessions(): Promise<void> {
   // One write at a time, each sealing what's current when its turn comes, so an older
   // write can never land after a newer one.
   const run = writes.then(async () => {
-    if (locked()) return;
-    const remembered = rememberedSessions();
-    const key = vaultKey;
-    const blob = vaultBlob;
-    if (key && blob) {
-      const sealed = { ...blob, data: await seal(key, remembered) };
+    // A few rounds at most: each one only repeats because a way in was added or removed
+    // (quick or fingerprint unlock) while the sessions were being sealed.
+    for (let round = 0; round < 5; round++) {
+      if (locked()) return;
+      const remembered = rememberedSessions();
+      const key = vaultKey;
+      const blob = vaultBlob;
+      if (!key || !blob) {
+        pinSetupNeeded.set(Object.keys(remembered).length > 0);
+        return;
+      }
+      const data = await seal(key, remembered);
       // Locked, erased or re-keyed meanwhile: this write is out of date.
-      if (vaultKey !== key || vaultBlob !== blob) return;
-      vaultBlob = sealed;
-      await Storage.setItem(VAULT_KEY, JSON.stringify(sealed));
+      if (vaultKey !== key || !vaultBlob) return;
+      // Same key, but the vault around it changed: seal again onto the current one, so the
+      // new sessions aren't lost and the change isn't undone.
+      if (vaultBlob !== blob) continue;
+      vaultBlob = { ...blob, data };
+      await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
       return;
     }
-    pinSetupNeeded.set(Object.keys(remembered).length > 0);
   });
   writes = run.catch(() => {});
   return run;
@@ -610,19 +618,25 @@ export async function setBiometricUnlock(on: boolean): Promise<void> {
     return;
   }
   const epoch = lockEpoch;
+  const raw = dataKeyRaw;
   let bioWrap: string;
   try {
-    bioWrap = await sealWith(BIO_ALIAS, toB64(dataKeyRaw), "biometric", { title: "Turn on fingerprint unlock", subtitle: "Confirm it's you", cancel: "Cancel" });
+    bioWrap = await sealWith(BIO_ALIAS, toB64(raw), "biometric", { title: "Turn on fingerprint unlock", subtitle: "Confirm it's you", cancel: "Cancel" });
   } catch (e) {
     const why = String((e as Error)?.message ?? e);
     if (why.startsWith("cancel")) throw new Error("Not turned on.");
     if (why.startsWith("lockout")) throw new Error("Too many tries. Try again later.");
     throw new Error("This phone couldn't turn fingerprint unlock on.");
   }
-  // Locked, erased or re-made meanwhile: what was sealed belongs to a vault that's gone.
-  if (epoch !== lockEpoch || vaultBlob !== blob) throw new Error("The app locked meanwhile. Try again.");
+  // Locked, erased or re-keyed meanwhile: what was sealed belongs to a vault that's gone.
+  // (A session saved meanwhile only replaced the sessions: the current vault takes it.)
+  const current = vaultBlob;
+  if (epoch !== lockEpoch || dataKeyRaw !== raw || !current || current.v !== 2) {
+    await forgetKey(BIO_ALIAS);
+    throw new Error("The app locked meanwhile. Try again.");
+  }
   // The quick way in would open the app without a fingerprint: it goes while this is on.
-  const { quickWrap: _quick, ...rest } = blob;
+  const { quickWrap: _quick, ...rest } = current;
   vaultBlob = { ...rest, bioWrap };
   await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
   biometricOn.set(true);

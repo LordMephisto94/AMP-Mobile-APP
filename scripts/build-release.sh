@@ -4,10 +4,50 @@
 #   .nsh/out/AMP-Mobile-vX.Y.Z-all-abis.apk  arm64-v8a, armeabi-v7a and x86_64
 #
 # The key stays outside the repository. Override its place with AMP_RELEASE_KEYSTORE.
-# The password is asked for (never echoed) unless AMP_KEYSTORE_PASSWORD is already set.
+#
+# The password comes from, in order: AMP_KEYSTORE_PASSWORD in the environment; an env file
+# (AMP_RELEASE_ENV, else ~/.config/amp-mobile/release.env, else .env.release or .env in the
+# repository, which git ignores); else it's asked for (never echoed). The env file is read as plain
+# KEY=VALUE lines, never run, and must be readable by you alone (chmod 600). See
+# release.env.example.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+# Reads AMP_KEYSTORE_PASSWORD, AMP_RELEASE_KEYSTORE and AMP_RELEASE_ALIAS from an env file,
+# without overriding what the environment already sets.
+load_env_file() {
+  local file="$1" mode line key value
+  mode="$(stat -c '%a' "$file")"
+  if [[ "${mode: -2}" != "00" ]]; then
+    echo "$file can be read by other users (mode $mode). Run: chmod 600 \"$file\"" >&2
+    exit 1
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -z "${line//[[:space:]]/}" || "$line" =~ ^[[:space:]]*# ]] && continue
+    line="${line#export }"
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key//[[:space:]]/}"
+    # Matching quotes around the whole value are dropped; the rest is taken as it is.
+    if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"; fi
+    case "$key" in
+      AMP_KEYSTORE_PASSWORD | AMP_RELEASE_KEYSTORE | AMP_RELEASE_ALIAS)
+        [[ -z "${!key:-}" ]] && printf -v "$key" '%s' "$value"
+        ;;
+      *) echo "Ignoring unknown setting \"$key\" in $file" >&2 ;;
+    esac
+  done <"$file"
+  echo "Using the release settings in $file"
+}
+
+for candidate in "${AMP_RELEASE_ENV:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/amp-mobile/release.env" .env.release .env; do
+  if [[ -n "$candidate" && -f "$candidate" ]]; then
+    load_env_file "$candidate"
+    break
+  fi
+done
 
 KEYSTORE="${AMP_RELEASE_KEYSTORE:-$HOME/.android/amp-mobile-release.jks}"
 ALIAS="${AMP_RELEASE_ALIAS:-amp-mobile}"

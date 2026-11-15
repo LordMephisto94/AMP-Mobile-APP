@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1
+
+- Home page: each server's card now says whether its panel answers (Online, Offline, or Checking… at first), signed
+  in or not. It's checked when the page shows and every minute while it does, never while the app is locked, and
+  without sending your sign-in.
+- A fourth audit (SECURITY.md, findings 41 to 44):
+  - Leaving an instance page right after starting, stopping or restarting it, then signing out of that server, no
+    longer throws you onto its sign-in page.
+  - A session renewed while quick or fingerprint unlock was being switched is saved instead of dropped.
+  - Turning fingerprint unlock on no longer fails when a session renews during the prompt.
+  - A fingerprint result arriving after the app's screen closed can no longer crash it.
+- Release builds can read the signing key's password from a private env file instead of asking
+  (`release.env.example`).
+
 ## 0.2.0
 
 - Fingerprint unlock: turn it on in Security, and the app asks for your fingerprint or face when it opens (Android

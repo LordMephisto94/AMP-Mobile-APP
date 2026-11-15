@@ -62,7 +62,7 @@ final class DeviceKeys {
         view.handle("deviceKey.open", (data, reply) -> open(args(data), reply));
         view.handle("deviceKey.forget", (data, reply) -> {
             String alias = text(args(data), "alias");
-            worker.execute(() -> reply.resolve(forget(alias)));
+            work(reply::reject, () -> reply.resolve(forget(alias)));
         });
     }
 
@@ -72,7 +72,16 @@ final class DeviceKeys {
         worker.shutdown();
     }
 
-    // What the phone can do.
+    /** Runs `task` on the key store's thread; once the screen has closed, answers `refuse` instead. */
+    private void work(java.util.function.Consumer<String> refuse, Runnable task) {
+        try {
+            worker.execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            refuse.accept("cancel: the app closed");
+        }
+    }
+
+        // What the phone can do.
 
     private Map<String, Object> status() {
         Map<String, Object> s = new HashMap<>();
@@ -102,7 +111,7 @@ final class DeviceKeys {
             reply.reject("error: alias, data and kind are needed");
             return;
         }
-        worker.execute(() -> {
+        work(reply::reject, () -> {
             try {
                 Cipher cipher = encryptor(alias, kind);
                 byte[] plain = Base64.getDecoder().decode(data);
@@ -125,7 +134,7 @@ final class DeviceKeys {
             reply.reject("error: not a sealed value");
             return;
         }
-        worker.execute(() -> {
+        work(reply::reject, () -> {
             try {
                 SecretKey key = key(alias);
                 if (key == null) {
@@ -265,7 +274,7 @@ final class DeviceKeys {
                 public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
                     if (prompting == signal) prompting = null;
                     Cipher unlocked = result.getCryptoObject() != null ? result.getCryptoObject().getCipher() : cipher;
-                    worker.execute(() -> {
+                    work(reply::reject, () -> {
                         try {
                             reply.resolve(finish.run(unlocked));
                         } catch (Exception e) {

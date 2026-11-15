@@ -82,7 +82,7 @@ function drawTriangles(cx: CanvasRenderingContext2D, width: number, height: numb
 }
 
 /** The status badge on the banner: a tinted box with a check or dot. */
-export function StatusBadge(props: { label: string; status: BannerStatus }) {
+export function StatusBadge(props: { label: string; status: BannerStatus; testID?: string }) {
   const style = () =>
     ({
       online: ["bg-emerald-900/70 border-emerald-400/40", "text-emerald-300", "✓"],
@@ -91,7 +91,7 @@ export function StatusBadge(props: { label: string; status: BannerStatus }) {
       danger: ["bg-rose-950/70 border-rose-400/40", "text-rose-300", "✕"],
     })[props.status];
   return (
-    <View class={`flex-row items-center gap-1.5 rounded-md border px-2 py-1 ${style()[0]}`}>
+    <View testID={props.testID} accessibilityLabel={props.label} class={`flex-row items-center gap-1.5 rounded-md border px-2 py-1 ${style()[0]}`}>
       <Text class={`text-xs font-bold ${style()[1]}`}>{style()[2]}</Text>
       <Text class={`text-xs font-semibold ${style()[1]}`}>{props.label}</Text>
     </View>
@@ -107,6 +107,8 @@ export function AmpBanner(props: {
   subtitle?: string;
   status: BannerStatus;
   statusLabel: string;
+  /** A second badge after the first (the home page's "Online"). */
+  extraBadge?: { label: string; status: BannerStatus; testID?: string };
   class?: string;
   children?: JSX.Element;
 }) {
@@ -117,6 +119,7 @@ export function AmpBanner(props: {
         <View class="flex-row flex-wrap items-center gap-2.5">
           <Text class="text-2xl font-light text-white">{props.title}</Text>
           <StatusBadge label={props.statusLabel} status={props.status} />
+          <If when={props.extraBadge}>{(b) => <StatusBadge label={b().label} status={b().status} testID={b().testID} />}</If>
         </View>
         <If when={props.subtitle}>{(s) => <Text class="text-sm text-white/75">{s()}</Text>}</If>
         {props.children}

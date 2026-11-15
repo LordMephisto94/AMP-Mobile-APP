@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.2.0");
+  await app.waitFor("text:AMP Mobile 0.2.1");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.0"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.1"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -606,6 +606,34 @@ test("instance controls are a dropdown, enabled by state, and ask before stoppin
   await app.press("confirm-restart");
   await app.waitUntil(() => sent.includes("restart"));
   expect(app.texts()).not.toContain("Start"); // no row of power buttons anymore
+});
+
+test("the looks after a power action stop when the page is left, so signing out doesn't jump to sign in", async () => {
+  const app = await openSignedIn({
+    clock: {},
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`POST ${SERVER}/api/Auth/logout`]: { status: 204 },
+      [`POST ${SERVER}/api/Shards/a1/*`]: { status: 200 },
+      [`GET ${SERVER}/api/Shards*`]: shardsRoute,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.waitFor("text:Running");
+  await app.press("more-Minecraft SMP");
+  await app.press("menu-stop");
+  await app.press("confirm-stop");
+  await app.waitUntil(() => app.requests().some((r) => r.url.endsWith("/a1/stop")));
+  await app.press("back");
+  await app.waitFor("text:Your servers");
+  await app.press("more-Home Lab");
+  await app.press("menu-signOut");
+  await app.waitFor("text:Signed out");
+  const asked = app.requests().length;
+  await app.wait(16_000);
+  expect(app.texts()).toContain("Your servers");
+  expect(app.requests().slice(asked).filter((r) => r.url.includes("/api/Shards"))).toEqual([]);
 });
 
 const totals = (players: number) => ({
@@ -1516,6 +1544,32 @@ const unlockedHome = {
   [`POST ${SERVER}/api/Auth/logout`]: { status: 204 },
   [`GET ${SERVER}/api/Shards*`]: shardsRoute,
 };
+
+test("each server card says whether its panel answers, signed in or not", async () => {
+  const OTHER = "https://down.example.test";
+  let up = true;
+  const app = await open("./App.tsx", {
+    storage: {
+      "amp.servers": JSON.stringify([
+        { id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: false },
+        { id: "s2", name: "Far Away", serverUrl: OTHER, username: "admin", color: 1, rememberMe: false },
+      ]),
+    },
+    network: {
+      [`GET ${SERVER}/api/Auth/password-policy`]: () => (up ? { body: { minLength: 8 } } : { status: 502, body: "Bad Gateway" }),
+      [`GET ${OTHER}/api/Auth/password-policy`]: { error: "connection refused" },
+    },
+    clock: {},
+  });
+  await app.waitFor("id:reach-Home Lab >> text:Online");
+  await app.waitFor("id:reach-Far Away >> text:Offline");
+  // No token goes with the check.
+  expect(app.requests().every((r) => !r.headers.authorization && !r.headers.Authorization)).toBe(true);
+  // A proxy answering for a panel that's down counts as offline, at the next check.
+  up = false;
+  await app.wait(61_000);
+  await app.waitFor("id:reach-Home Lab >> text:Offline");
+});
 
 test("a wrong PIN is counted, waits grow after five, and the tenth erases the saved sign-ins", async () => {
   const app = await open("./App.tsx", { storage: await vaultStorage(), network: unlockedHome });
