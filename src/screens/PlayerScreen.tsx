@@ -21,6 +21,7 @@ import { nav } from "../state/nav";
 import { clientFor } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { onDomain, openSafe } from "../lib/links";
+import { priv } from "../lib/privacy";
 
 /** One player: who they are on Steam or Minecraft, their totals, where and when they played. */
 export function PlayerScreen(props: { serverId: string; userKey: string; name?: string | null; shardId?: string }) {
@@ -97,7 +98,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
   };
 
   return (
-    <AppPage title={name()} subtitle="Player" right={<MainMenu serverId={props.serverId} current="analytics" />}>
+    <AppPage title={priv(name())} subtitle="Player" right={<MainMenu serverId={props.serverId} current="analytics" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <View class="w-full max-w-4xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <If when={error()}>
@@ -122,7 +123,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
             <View class="flex-row items-center gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
               <Avatar client={client()} hash={steam()?.avatarHash} name={name()} size="lg" />
               <View class="flex-1 gap-1.5">
-                <Text class="text-xl font-bold text-card-foreground">{name()}</Text>
+                <Text class="text-xl font-bold text-card-foreground">{priv(name())}</Text>
                 <View class="flex-row flex-wrap gap-1.5">
                   <If when={online()}>
                     <Pill label="Online now" tone="success" />

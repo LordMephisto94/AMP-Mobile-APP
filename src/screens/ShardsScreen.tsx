@@ -22,6 +22,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, locked, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { priv, Private } from "../lib/privacy";
 
 /** How often the list refreshes while it is on screen. */
 const LIST_REFRESH_MS = 60_000;
@@ -321,12 +322,12 @@ function ShardCard(props: {
               <View
                 role="button"
                 testID={`address-${title()}`}
-                accessibilityLabel={`Address ${a()}. Tap to copy.`}
+                accessibilityLabel={`Address ${priv(a())}. Tap to copy.`}
                 onPress={copy}
                 class="flex-row items-center gap-1.5 self-start rounded-full bg-white/5 px-2.5 py-0.5 active:bg-white/15"
               >
                 <Text class="text-[11px]">🌐</Text>
-                <Text class="font-mono text-xs font-semibold text-sky-300">{a()}</Text>
+                <Private class="font-mono text-xs font-semibold text-sky-300" text={a()} />
                 <Text class="text-[11px] text-muted-foreground">{copied() ? "Copied" : "⧉"}</Text>
               </View>
             )}

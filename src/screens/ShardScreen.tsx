@@ -23,6 +23,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, locked, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { priv, Private } from "../lib/privacy";
 
 /** How often the page refreshes while it is on screen (the agent samples every ~5 s). */
 const DETAIL_REFRESH_MS = 30_000;
@@ -173,7 +174,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
           else={
             <AmpBanner
               title={props.title}
-              subtitle={[address()?.display, state()?.runningVersion ? `Version ${state()!.runningVersion}` : null].filter(Boolean).join(" · ") || undefined}
+              subtitle={[priv(address()?.display), state()?.runningVersion ? `Version ${state()!.runningVersion}` : null].filter(Boolean).join(" · ") || undefined}
               status={toneStatus(tone())}
               statusLabel={label()}
             />
@@ -194,12 +195,12 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
                     <View
                       role="button"
                       testID="connect-address"
-                      accessibilityLabel={`Address ${a().display}. Tap to copy.`}
+                      accessibilityLabel={`Address ${priv(a().display)}. Tap to copy.`}
                       onPress={copyAddress}
                       class="flex-row items-center gap-1.5 self-start rounded-full border border-white/20 bg-black/55 px-3 py-1 active:bg-black/75"
                     >
                       <Text class="text-xs">🌐</Text>
-                      <Text class="font-mono text-sm font-semibold text-white">{a().display}</Text>
+                      <Private class="font-mono text-sm font-semibold text-white" text={a().display} />
                       <Text class="text-xs text-white/60">{copied() ? "Copied" : "⧉"}</Text>
                     </View>
                   )}

@@ -129,14 +129,15 @@ function splitWords(action: string): string {
 }
 
 /** Who an event names: the person, "Schedule: Daily Backup", or "System". */
-export function actorOf(event: AuditEvent): string {
+/** `name` dresses a person's name (the app's "Hide personal details"); schedules and the system stay readable. */
+export function actorOf(event: AuditEvent, name: (n: string) => string = (n) => n): string {
   const p = event.principal;
   const person = p?.userDisplayName || p?.onBehalfOfUserDisplayName;
   if (event.origin === AuditOrigin.Impersonation && p?.userDisplayName && p.onBehalfOfUserDisplayName) {
-    return `${p.userDisplayName} as ${p.onBehalfOfUserDisplayName}`;
+    return `${name(p.userDisplayName)} as ${name(p.onBehalfOfUserDisplayName)}`;
   }
-  if (event.origin === AuditOrigin.Scheduled) return p?.systemSource ? `Schedule: ${p.systemSource}` : person ? `Schedule (${person})` : "Schedule";
-  if (person) return person;
+  if (event.origin === AuditOrigin.Scheduled) return p?.systemSource ? `Schedule: ${p.systemSource}` : person ? `Schedule (${name(person)})` : "Schedule";
+  if (person) return name(person);
   return p?.systemSource || "System";
 }
 

@@ -12,6 +12,7 @@ import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { privIps } from "../lib/privacy";
 
 /** How many lines the console keeps in memory. */
 const MAX_LINES = 3_000;
@@ -232,7 +233,8 @@ function clock(timestamp: string): string {
 
 /** One console line, coloured by its kind and log level; lifecycle markers as dividers. */
 function ConsoleRow(props: { line: ConsoleLine }) {
-  const text = () => stripAnsi(props.line.text);
+  // Players' IPs often show in join lines: hidden with the other personal details.
+  const text = () => privIps(stripAnsi(props.line.text));
   const isMarker = () => props.line.kind === "marker";
   const isInput = () => props.line.streamId === "input";
   const colour = () => {

@@ -27,6 +27,7 @@ import { SpireScreen } from "./src/screens/SpireScreen";
 import { SpiresScreen } from "./src/screens/SpiresScreen";
 import { UserScreen } from "./src/screens/UserScreen";
 import { nav, type Route } from "./src/state/nav";
+import { loadPrivacy } from "./src/lib/privacy";
 import { loadServers, locked, serversReady } from "./src/state/servers";
 
 function screen(route: Route) {
@@ -112,4 +113,5 @@ function App() {
 }
 
 loadServers();
+loadPrivacy();
 mount(App);

@@ -2,11 +2,11 @@
 
 ## 0.2.3
 
-- Security: **Block screenshots** (off by default). When on, screenshots and screen recordings of the app come out
-  blank and the app switcher shows no preview (Android's `FLAG_SECURE`). It's set before the app's first frame on
-  every launch, so the lock screen is covered too.
-- Security: the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5" on narrower screens.
-- Security: the page scrolls, so everything below the fold (Block screenshots) can be reached.
+- Security: **Hide personal details**, a switch you can flip at any time. While it's on, addresses (your panel's,
+  IPs, host names, instance connect addresses, and IPs inside console lines), account and player names, avatars,
+  emails and invite links are blurred across the app, for screenshots, screen sharing and streams. The real text
+  isn't drawn underneath, so a capture can't be zoomed to read it. Copy buttons still copy the real value.
+- Security: the page scrolls, and the auto-lock choices "1 min" and "5 min" no longer show as "1" and "5".
 
 ## 0.2.2
 

@@ -30,8 +30,7 @@
     "picker": true,
     "statusBar": true,
     "host": [
-      "deviceKey.*",
-      "screen.secure.*"
+      "deviceKey.*"
     ]
   }
 }

@@ -33,6 +33,7 @@ import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { SettingRow } from "./ShardSettingsScreen";
 import { openSafe } from "../lib/links";
+import { priv } from "../lib/privacy";
 
 interface Group {
   key: string;
@@ -272,8 +273,8 @@ export function SettingsScreen(props: { serverId: string }) {
             <If when={profile()} else={<Text class="text-sm text-muted-foreground">Loading…</Text>}>
               {(p) => (
                 <View class="gap-0.5">
-                  <Text class="text-base font-semibold text-card-foreground">{p().displayName || p().userName}</Text>
-                  <Text class="text-xs text-muted-foreground">{[p().displayName ? p().userName : null, p().email].filter(Boolean).join(" · ")}</Text>
+                  <Text class="text-base font-semibold text-card-foreground">{priv(p().displayName || p().userName)}</Text>
+                  <Text class="text-xs text-muted-foreground">{[p().displayName ? priv(p().userName) : null, priv(p().email)].filter(Boolean).join(" · ")}</Text>
                 </View>
               )}
             </If>

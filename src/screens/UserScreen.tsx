@@ -20,6 +20,7 @@ import { AppPage, Checkbox, ErrorText, Field, Pill, PrimaryButton, SecondaryButt
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { priv } from "../lib/privacy";
 
 /** Adds a user (no `userId`), or shows and edits one: details, roles, holds, password and sessions. */
 export function UserScreen(props: { serverId: string; userId?: string }) {
@@ -206,7 +207,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
   };
 
   return (
-    <AppPage title={name()} subtitle={adding ? server?.name ?? "" : user()?.userName ?? ""}>
+    <AppPage title={adding ? name() : priv(name())} subtitle={adding ? server?.name ?? "" : priv(user()?.userName)}>
       <Screen>
         <View class="w-full max-w-2xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
           <If when={error()}>{(m) => <ErrorText message={m()} />}</If>

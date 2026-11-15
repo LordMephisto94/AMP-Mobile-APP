@@ -25,6 +25,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { priv } from "../lib/privacy";
 
 const PAGE = 30;
 const REFRESH_MS = 60_000;
@@ -306,7 +307,7 @@ function FlowRow(props: {
             <SeverityPill severity={props.flow.maxSeverity} />
           </View>
           <Text class="line-clamp-1 text-xs text-muted-foreground">
-            {[actorOf(root()), props.target(root())].filter(Boolean).join(" · ")}
+            {[actorOf(root(), priv), props.target(root())].filter(Boolean).join(" · ")}
           </Text>
         </View>
         <View class="items-end gap-0.5">
@@ -320,7 +321,7 @@ function FlowRow(props: {
       <If when={props.open}>
         <View class="gap-2 bg-black/20 px-4 py-3">
           <Text class="text-xs text-muted-foreground">
-            {[`${dayOf(when())}, ${clockOf(when())}`, root().originIp ? `from ${root().originIp}` : null, root().originNode].filter(Boolean).join(" · ")}
+            {[`${dayOf(when())}, ${clockOf(when())}`, root().originIp ? `from ${priv(root().originIp)}` : null, root().originNode].filter(Boolean).join(" · ")}
           </Text>
           <If when={error()}>{(m) => <Text class="text-sm text-destructive">{m()}</Text>}</If>
           <If when={!tree() && !error()}>
@@ -354,7 +355,7 @@ function EventRow(props: {
             <SeverityPill severity={props.event.severity} />
           </View>
           <Text class="text-[11px] text-muted-foreground">
-            {[clockOf(t()) + `:${String(t().getSeconds()).padStart(2, "0")}`, actorOf(props.event), props.target(props.event)].filter(Boolean).join(" · ")}
+            {[clockOf(t()) + `:${String(t().getSeconds()).padStart(2, "0")}`, actorOf(props.event, priv), props.target(props.event)].filter(Boolean).join(" · ")}
           </Text>
         </View>
         <If when={details()}>

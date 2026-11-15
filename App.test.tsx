@@ -1,4 +1,5 @@
 import { uploadFile } from "./src/api/files";
+import { hideDetails, priv, privIps } from "./src/lib/privacy";
 import { expect, open, test } from "nsh/test";
 import { createVault } from "./src/state/vaultCrypto";
 
@@ -2744,31 +2745,37 @@ test("a renewal answer without a readable expiry keeps the session it had", asyn
   expect(shardCalls.every((r) => (r.headers.authorization ?? r.headers.Authorization) !== "Bearer tok-bad")).toBe(true);
 });
 
-// ---- Block screenshots ----------------------------------------------------------------------------
+// ---- Hide personal details --------------------------------------------------------------------
 
-test("Block screenshots is a Security switch the Android app keeps, and hidden where it can't apply", async () => {
-  let secure = false;
-  const app = await open("./App.tsx", {
-    host: {
-      handlers: {
-        "screen.secure.get": () => secure,
-        "screen.secure.set": ({ on }: { on: boolean }) => (secure = on),
-      },
-    },
-  });
+test("Hide personal details dots out addresses and names on the fly, and is remembered", async () => {
+  const app = await openSignedIn({ network: { [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } } } });
+  expect(app.texts()).toContain("admin · amp.example.test");
   await app.press("security");
-  await app.waitFor("text:Block screenshots");
-  await app.press("screenshots-toggle");
-  await app.waitFor("text:Screenshots and screen recordings of the app come out blank, and the app switcher shows no preview.");
-  expect(secure).toBe(true);
-  await app.press("screenshots-toggle");
-  await app.waitUntil(() => secure === false);
-  expect(app.host.calls().map((c) => c.name)).toEqual(["screen.secure.get", "screen.secure.set", "screen.secure.set"]);
+  await app.waitFor("text:Hide personal details");
+  await app.press("hide-details-toggle");
+  await app.waitFor("text:Addresses, IPs, account and player names, emails and invite links are blurred everywhere, console lines included. Copy buttons still copy the real value.");
+  await app.press("back");
+  await app.waitFor("text:Your servers");
+  expect(app.texts()).not.toContain("admin · amp.example.test");
+  expect(app.texts()).toContain("••••• · •••.•••••••.••••");
+  expect(JSON.parse(app.storage()["amp.privacy"]!)).toEqual({ hideDetails: true });
 
-  // No Android app around it (nsh run, desktops): nothing to switch.
-  const bare = await open("./App.tsx");
-  await bare.press("security");
-  await bare.waitFor("text:App PIN");
-  await bare.wait(100);
-  expect(bare.texts()).not.toContain("Block screenshots");
+  // Remembered at the next launch, before anything is shown.
+  const again = await open("./App.tsx", { storage: app.storage(), network: unlockedHome });
+  await again.waitFor("text:AMP Mobile is locked");
+  await enterPin(again);
+  await again.waitFor("text:Your servers");
+  expect(again.texts()).toContain("••••• · •••.•••••••.••••");
+});
+
+test("hidden details: IPs inside console lines are dotted out, times and versions aren't", () => {
+  hideDetails.set(true);
+  try {
+    expect(privIps("[12:34:56] Steve[/203.0.113.7:51234] logged in on 1.20.4")).toBe("[12:34:56] Steve[/•••.•.•••.•:51234] logged in on 1.20.4");
+    expect(privIps("from 2001:db8::1 and [::1]:8080")).toBe("from ••••:•••::• and [::•]:8080");
+    expect(priv("admin@example.test")).toBe("•••••@•••••••.••••");
+  } finally {
+    hideDetails.set(false);
+  }
+  expect(privIps("Steve[/203.0.113.7:51234]")).toBe("Steve[/203.0.113.7:51234]");
 });

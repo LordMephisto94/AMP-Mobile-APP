@@ -1,6 +1,7 @@
 import { effect, Image, signal, Text, View } from "nsh";
 import { avatarUrl } from "../api/analytics";
 import type { AmpClient } from "../api/client";
+import { hideDetails, priv } from "../lib/privacy";
 
 /** Avatars already fetched this run, by hash, so a refresh doesn't fetch them again. */
 const cache = new Map<string, Promise<string | null>>();
@@ -32,7 +33,8 @@ export function Avatar(props: { client: AmpClient | null; hash?: string | null; 
   const tint = () => TINTS[[...props.name].reduce((a, c) => a + c.charCodeAt(0), 0) % TINTS.length];
   return (
     <View class={`${box()} items-center justify-center overflow-hidden rounded-full ${tint()}`}>
-      <If when={src()} else={<Text class={`font-bold text-white ${props.size === "lg" ? "text-2xl" : "text-sm"}`}>{initial()}</Text>}>
+      {/* Hidden details: no picture and no initial. */}
+      <If when={hideDetails() ? null : src()} else={<Text class={`font-bold text-white ${props.size === "lg" ? "text-2xl" : "text-sm"}`}>{hideDetails() ? "•" : initial()}</Text>}>
         {(url) => <Image src={url()} accessibilityLabel={props.name} class="h-full w-full object-cover" />}
       </If>
     </View>

@@ -27,9 +27,12 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
   itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
 - While the app is in the background its screen is covered, so the app switcher shows nothing.
-- **Block screenshots** (Security, off by default): Android's `FLAG_SECURE`, so screenshots and screen recordings
-  of the app come out blank and the app switcher shows no preview. The Android app keeps the choice itself and sets
-  it before the first frame of every launch, lock screen included.
+- **Hide personal details** (Security, off by default, switched on and off at any time): addresses (the panel's,
+  IPs, host names, connect addresses, IPs inside console lines), account and player names, avatars, emails and
+  invite links are drawn as a blurred stand-in of the same shape, for screenshots, screen sharing and streams. The
+  real text isn't drawn at all, so nothing can be read by zooming a capture, and it holds where the phone can't blur
+  (the stand-in is dots). Copy buttons still copy the real value; fields you're typing in show what you type.
+  Screenshots themselves are always allowed.
 - After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
   servers stay, signed out. "Forgot PIN?" does the same.
 
@@ -38,8 +41,7 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
 - **HTTPS only.** `http://` addresses are refused; so are addresses with a user name or password in them.
 - **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
   anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, the clipboard,
-  the file picker, and the Android app's calls for the key store (`deviceKey.*`) and for blocking screenshots
-  (`screen.secure.*`); nothing else at all (no file system,
+  the file picker, and the Android app's key-store calls (`deviceKey.*`); nothing else at all (no file system,
   processes, sockets, web views, notifications or audio).
 - **Online check.** The home page asks each panel for its password policy (no sign-in needed), sending no token,
   and never while the app is locked.

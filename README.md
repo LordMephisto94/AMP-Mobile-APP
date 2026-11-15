@@ -30,7 +30,7 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 | `assets/` | Artwork and branding: the backdrop, the AMP wordmark and hex mark, the 1024 px app icon, the menu icons |
 | `src/api/` | The AMP 3 REST client (`client.ts`) and one file per area: sign-in (`auth.ts`), instances (`shards.ts`, `manage.ts`, `infraFields.ts`), console (`console.ts`, plus `hub.ts`, a minimal SignalR client for AMP's live hubs, not in the OpenAPI spec), files, snapshots, schedules, machines (`spires.ts`), networking, users and roles (`access.ts`, `permissions.ts`), activity (`audit.ts`), player analytics, panel settings, the panel's own wording (`panelText.ts`) and template artwork. `types.ts` holds the hand-written types |
 | `src/state/` | Saved servers, sessions, the PIN vault and the lock (`servers.ts`, with the crypto in `vaultCrypto.ts`); navigation routes (`nav.ts`); each server's Online check (`reachability.ts`) |
-| `src/lib/` | The Android key store and Block screenshots over NSH's host channel (`deviceKeys.ts`, `screenGuard.ts`), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), and the shared 401 handling (`session.ts`) |
+| `src/lib/` | The Android key store over NSH's host channel (`deviceKeys.ts`), Hide personal details (`privacy.tsx`: `priv()`, `<Private>` and `privIps()` wherever an address or a name is drawn), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), and the shared 401 handling (`session.ts`) |
 | `src/components/` | Shared UI: the lock screen and PIN pad (`Lock.tsx`), the AMP panel's triangle banner (`AmpBanner.tsx`), dialogs, dropdowns, prompts, charts, buttons and fields |
 | `src/screens/` | One file per page: servers home, sign-in, the server overview, instances (and a new one) and an instance (graphs, console, files and the editor, settings, snapshots, schedules), machines, networking, users and roles, activity, player analytics, panel settings, the app's Security page |
 | `android/` | The Gradle project that is the Android app (see below) |
@@ -63,7 +63,7 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
   needs no session token, and the ticket works once.
 - `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTPS and WSS to any host (the server
   address is the user's), `openUrl` for `https`, the clipboard, the picker, the status bar, and the host calls
-  `deviceKey.*` (the key store) and `screen.secure.*` (Block screenshots), both answered by the Android app around it.
+  `deviceKey.*` (the key store, answered by the Android app around it).
 
 ## The Android app (android/)
 
@@ -73,8 +73,6 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
 
 - `MainActivity.java` sets the view up as NSH's packaged app did (edge to edge, the app's own limits) and keeps the
   launcher entry's old name (`com.longbridge.nsh.AppActivity`, an alias), so home-screen icons keep working.
-- `MainActivity.java` also keeps "Block screenshots" (`FLAG_SECURE`) in the app's private preferences and sets it
-  before the first frame; the TSX side reads and changes it through `src/lib/screenGuard.ts`.
 - `DeviceKeys.java` is the phone's key store and the fingerprint prompt, answered over NSH's host channel
   (`host.call("deviceKey.…")`, wrapped in `src/lib/deviceKeys.ts`). Without a host (tests, `nsh run`, desktops)
   there are no device keys and the vault uses the PIN alone; the tests play the host with `open`'s `host.handlers`.

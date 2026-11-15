@@ -12,6 +12,7 @@ import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { InviteLink } from "./InviteScreen";
+import { priv } from "../lib/privacy";
 
 const REFRESH_MS = 60_000;
 type Tab = "users" | "roles" | "invites";
@@ -91,7 +92,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
 
   const revoke = async (inv: Invite) => {
     const choice = await confirm({
-      title: `Revoke the invite for ${inv.userName}?`,
+      title: `Revoke the invite for ${priv(inv.userName)}?`,
       message: "Its link stops working. You can send a new invite later.",
       icon: "✉️",
       tone: "danger",
@@ -167,12 +168,12 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
                           class="flex-row items-center gap-3 border-b border-white/5 px-4 py-3 active:bg-accent"
                         >
                           <View class={`h-10 w-10 items-center justify-center rounded-full ${u().suspended ? "bg-white/10" : "bg-primary/25"}`}>
-                            <Text class="text-base font-bold text-white">{(u().displayName || u().userName || "?")[0].toUpperCase()}</Text>
+                            <Text class="text-base font-bold text-white">{priv((u().displayName || u().userName || "?")[0].toUpperCase())}</Text>
                           </View>
                           <View class="flex-1 gap-1">
                             <View class="flex-row flex-wrap items-center gap-1.5">
                               <Text class={`text-[15px] font-semibold ${u().suspended ? "text-muted-foreground" : "text-card-foreground"}`}>
-                                {u().displayName || u().userName || "Unnamed"}
+                                {priv(u().displayName || u().userName || "Unnamed")}
                               </Text>
                               <If when={u().userName?.toLowerCase() === me}>
                                 <Text class="text-xs text-muted-foreground">(you)</Text>
@@ -188,7 +189,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
                               <Each of={u().roleIds ?? []}>{(id) => <Pill label={roleName(id())} tone="muted" />}</Each>
                             </View>
                             <Text class="text-xs text-muted-foreground">
-                              {[u().displayName ? u().userName : null, u().lastLoginAt ? `last signed in ${ago(u().lastLoginAt)}` : "never signed in"]
+                              {[u().displayName ? priv(u().userName) : null, u().lastLoginAt ? `last signed in ${ago(u().lastLoginAt)}` : "never signed in"]
                                 .filter(Boolean)
                                 .join(" · ")}
                             </Text>
@@ -331,11 +332,11 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
     <View class="flex-row items-center gap-3 border-b border-white/5 px-4 py-3">
       <View class="flex-1 gap-1">
         <View class="flex-row flex-wrap items-center gap-1.5">
-          <Text class="text-[15px] font-semibold text-card-foreground">{inv().displayName || inv().userName}</Text>
+          <Text class="text-[15px] font-semibold text-card-foreground">{priv(inv().displayName || inv().userName)}</Text>
           <Pill label={capitalize(inv().status)} tone={tone()} />
         </View>
         <Text class="text-xs text-muted-foreground">
-          {[inv().displayName ? inv().userName : null, (inv().roleIds ?? []).map(props.roleName).join(", "), when(), inv().createdByName ? `by ${inv().createdByName}` : null]
+          {[inv().displayName ? priv(inv().userName) : null, (inv().roleIds ?? []).map(props.roleName).join(", "), when(), inv().createdByName ? `by ${priv(inv().createdByName)}` : null]
             .filter(Boolean)
             .join(" · ")}
         </Text>
@@ -344,7 +345,7 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
         <Dropdown
           open={open()}
           onOpenChange={(o) => open.set(o)}
-          title={inv().userName}
+          title={priv(inv().userName)}
           items={[
             { id: "rearm", label: "New link", icon: "🔗", hint: "Makes a fresh link; the old one stops working", onSelect: props.onRearm },
             { id: "revoke", label: "Revoke", icon: "🚫", tone: "danger", onSelect: props.onRevoke },

@@ -22,6 +22,7 @@ import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { priv, Private } from "../lib/privacy";
 
 const REFRESH_MS = 30_000;
 /** Enum values the API may send as names; numbers say nothing to a person. */
@@ -138,7 +139,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
               <If when={spire()?.description}>{(d) => <Text class="text-sm text-muted-foreground">{d()}</Text>}</If>
               <View class="gap-1.5">
                 <Fact label="System" value={[p()?.osName, named(p()?.architecture)].filter(Boolean).join(" · ") || null} />
-                <Fact label="Hostname" value={p()?.hostname || null} />
+                <Fact label="Hostname" value={p()?.hostname ? priv(p()!.hostname) : null} />
                 <Fact label="Hardware" value={p()?.hardwareName || null} />
                 <Fact label="CPU" value={cpuName()} />
                 <Fact label="Memory" value={p()?.installedRamMb ? size(p()!.installedRamMb!) : null} />
@@ -315,7 +316,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                     <View class="flex-1">
                       <Text class="line-clamp-1 text-sm text-card-foreground">{x().name}</Text>
                       <Text class="line-clamp-1 text-xs text-muted-foreground">
-                        {[x().shardName, x().ipBinding && x().ipBinding !== "0.0.0.0" ? x().ipBinding : null].filter(Boolean).join(" · ")}
+                        {[x().shardName, x().ipBinding && x().ipBinding !== "0.0.0.0" ? priv(x().ipBinding) : null].filter(Boolean).join(" · ")}
                       </Text>
                     </View>
                     <If when={x().conflict}>
@@ -356,7 +357,7 @@ function AddressRow(props: { address: string; label: string; copied: boolean; on
   return (
     <View role="button" onPress={props.onCopy} class="flex-row items-center gap-3 rounded-lg py-1 active:bg-accent">
       <View class="flex-1">
-        <Text class="font-mono text-sm text-sky-300">{props.address}</Text>
+        <Private class="font-mono text-sm text-sky-300" text={props.address} />
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
       </View>
       <Text class="text-xs text-muted-foreground">{props.copied ? "Copied" : "⧉"}</Text>

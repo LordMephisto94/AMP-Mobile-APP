@@ -2,7 +2,7 @@ import { effect, lifecycle, Scroll, signal, Text, View } from "nsh";
 import { confirm } from "../components/Confirm";
 import { FullScreen, PinPad, PinSetup } from "../components/Lock";
 import { AppPage, Pill, SecondaryButton } from "../components/ui";
-import { screenGuard, setScreenGuard } from "../lib/screenGuard";
+import { hideDetails, setHideDetails } from "../lib/privacy";
 import {
   autoLockSeconds,
   biometricChoice,
@@ -46,25 +46,6 @@ export function SecurityScreen() {
       .then((c) => bio.set(c))
       .catch(() => bio.set("unavailable"));
   });
-
-  /** "Block screenshots": null where the app can't block them (no Android app around it). */
-  const guard = signal<boolean | null>(null);
-  const guardBusy = signal(false);
-  const guardError = signal<string | null>(null);
-  screenGuard().then((on) => guard.set(on));
-  const toggleGuard = async () => {
-    const now = guard();
-    if (guardBusy() || now === null) return;
-    guardBusy.set(true);
-    guardError.set(null);
-    try {
-      guard.set(await setScreenGuard(!now));
-    } catch (e) {
-      guardError.set((e as Error).message);
-    } finally {
-      guardBusy.set(false);
-    }
-  };
 
   const toggleBiometric = async () => {
     if (bioBusy()) return;
@@ -194,30 +175,27 @@ export function SecurityScreen() {
             </View>
           </If>
 
-          <If when={guard() !== null}>
-            <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
-              <View class="flex-row items-center gap-3">
-                <View class="flex-1 gap-1">
-                  <Text class="text-base font-semibold text-card-foreground">Block screenshots</Text>
-                  <Text class="text-sm text-muted-foreground">
-                    {guard()
-                      ? "Screenshots and screen recordings of the app come out blank, and the app switcher shows no preview."
-                      : "Stop screenshots and screen recordings of the app (and its preview in the app switcher), so a server address, console or file can't be captured."}
-                  </Text>
-                </View>
-                <View
-                  role="switch"
-                  testID="screenshots-toggle"
-                  accessibilityLabel="Block screenshots"
-                  onPress={toggleGuard}
-                  class={`h-7 w-12 justify-center rounded-full px-0.5 ${guard() ? "items-end bg-primary" : "items-start bg-white/15"} ${guardBusy() ? "opacity-50" : ""}`}
-                >
-                  <View class="h-6 w-6 rounded-full bg-white" />
-                </View>
+          <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="flex-row items-center gap-3">
+              <View class="flex-1 gap-1">
+                <Text class="text-base font-semibold text-card-foreground">Hide personal details</Text>
+                <Text class="text-sm text-muted-foreground">
+                  {hideDetails()
+                    ? "Addresses, IPs, account and player names, emails and invite links are blurred everywhere, console lines included. Copy buttons still copy the real value."
+                    : "Blur addresses, IPs, account and player names and emails across the app, for screenshots, screen sharing and streams. Turn it on and off whenever you like."}
+                </Text>
               </View>
-              <If when={guardError()}>{(m) => <Text class="text-sm text-destructive">{m()}</Text>}</If>
+              <View
+                role="switch"
+                testID="hide-details-toggle"
+                accessibilityLabel="Hide personal details"
+                onPress={() => setHideDetails(!hideDetails())}
+                class={`h-7 w-12 justify-center rounded-full px-0.5 ${hideDetails() ? "items-end bg-primary" : "items-start bg-white/15"}`}
+              >
+                <View class="h-6 w-6 rounded-full bg-white" />
+              </View>
             </View>
-          </If>
+          </View>
         </View>
       </Scroll>
 

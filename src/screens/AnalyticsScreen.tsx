@@ -37,6 +37,7 @@ import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
+import { priv } from "../lib/privacy";
 
 /** Who plays on a server (or one instance): headline figures, activity, countries, top players. */
 export function AnalyticsScreen(props: { serverId: string; shardId?: string; title?: string }) {
@@ -274,7 +275,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                               <View class="flex-1">
                                 <View class="flex-row items-center gap-1.5">
                                   <Text class="line-clamp-1 text-sm font-semibold text-card-foreground">
-                                    {u().displayName ?? "Unnamed player"}
+                                    {priv(u().displayName ?? "Unnamed player")}
                                   </Text>
                                   <If when={u().online}>
                                     <View class="h-2 w-2 rounded-full bg-success" />
@@ -311,7 +312,7 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                               <Avatar client={client()} name={u().displayName ?? "?"} />
                               <View class="flex-1">
                                 <Text class="line-clamp-1 text-sm font-semibold text-card-foreground">
-                                  {u().displayName ?? u().userId ?? "Unnamed player"}
+                                  {priv(u().displayName ?? u().userId ?? "Unnamed player")}
                                 </Text>
                                 <Text class="text-xs text-muted-foreground">{`Last seen ${ago(u().lastSeen)}`}</Text>
                               </View>

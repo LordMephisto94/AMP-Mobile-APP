@@ -35,6 +35,7 @@ import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 import { openSafe } from "../lib/links";
+import { priv, Private } from "../lib/privacy";
 
 const REFRESH_MS = 30_000;
 
@@ -259,7 +260,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                 <If when={h().url}>
                   {(url) => (
                     <View role="button" testID="panel-url" onPress={() => openSafe(url()).catch((e) => error.set((e as Error).message))} class="rounded-lg py-1 active:bg-accent">
-                      <Text class="font-mono text-sm text-sky-300">{url()}</Text>
+                      <Private class="font-mono text-sm text-sky-300" text={url()} />
                       <Text class="text-xs text-muted-foreground">Tap to open</Text>
                     </View>
                   )}
@@ -284,7 +285,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                   </If>
                 </View>
                 <If when={(h().trustedProxies ?? []).length}>
-                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${(h().trustedProxies ?? []).join(", ")}`}</Text>
+                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${(h().trustedProxies ?? []).map(priv).join(", ")}`}</Text>
                 </If>
               </Section>
             )}
@@ -308,7 +309,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                       <View class="flex-row items-baseline gap-2">
                         <Text class="flex-1 text-[15px] font-semibold text-card-foreground">{shardName(shard().id)}</Text>
                         <If when={addresses()[shard().id]}>
-                          {(a) => <Text class="font-mono text-xs text-sky-300">{a()}</Text>}
+                          {(a) => <Private class="font-mono text-xs text-sky-300" text={a()} />}
                         </If>
                       </View>
                       <If when={list() === "denied"}>
@@ -384,7 +385,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                       </View>
                       <Text class="text-xs text-muted-foreground">
                         {[
-                          t().frontEndpointHost ? `${t().frontEndpointHost}:${t().listenPort}` : null,
+                          t().frontEndpointHost ? `${priv(t().frontEndpointHost)}:${t().listenPort}` : null,
                           t().status?.rttMs != null ? `${Number(t().status!.rttMs).toFixed(0)} ms` : null,
                           t().permanentForEntryNode ? "carries the panel" : null,
                         ]
@@ -425,7 +426,7 @@ function CopyRow(props: { value: string; label: string; copied: boolean; onCopy:
   return (
     <View role="button" onPress={props.onCopy} class="flex-row items-center gap-3 rounded-lg py-1 active:bg-accent">
       <View class="flex-1">
-        <Text class="font-mono text-sm text-sky-300">{props.value}</Text>
+        <Private class="font-mono text-sm text-sky-300" text={props.value} />
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
       </View>
       <Text class="text-xs text-muted-foreground">{props.copied ? "Copied" : "⧉"}</Text>
