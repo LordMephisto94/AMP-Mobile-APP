@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0
+
+Hardening and features from a contributor's PR (LordMephisto94/AMP-Mobile-APP#1, MinVT-dev), brought over by hand:
+
+- Your PIN can now only be checked on your phone: its key goes through the phone's secure hardware, so even a copy
+  of the app's files can't be used to guess it. Your saved sign-ins move to this the next time you unlock with the
+  PIN (fingerprint unlock keeps working).
+- Quick unlock (opening for a minute after the phone is unlocked) is now off unless you turn it on in Security.
+- The app locks on time while it's in the background, not only when you come back to it.
+- Easy PINs such as 121212, 123123 and 112233 are refused for new PINs.
+- If the saved sign-ins were damaged, the app says so instead of quietly signing you out.
+- A link from your panel asks before it opens in the browser.
+- A reply to a console prompt (a Steam Guard code, say) is hidden while you type it, with Show and Hide.
+- Large or endless server answers are cut off as they arrive; player avatars are only ordinary pictures.
+- New Settings page (home screen): sizes in 1024s (as AMP) or 1000s, network speeds in bytes or bits, and copying
+  your server list to another phone (names, addresses and user names; never passwords) or adding one from the
+  clipboard.
+- Servers can be moved up and down the home list from their menu.
+
 ## 0.3.1
 
 - A tenth audit (SECURITY.md, findings 66 to 74), of crash alerts:

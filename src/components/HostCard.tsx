@@ -1,3 +1,4 @@
+import { formatMb, formatRate } from "../lib/units";
 import { type JSX, Text, View } from "nsh";
 import type { SpireDefinition, SpireState } from "../api/manage";
 import { ago } from "./analyticsUi";
@@ -8,17 +9,14 @@ export const num = (v: number | string | null | undefined) => {
   return Number.isFinite(x) ? x : 0;
 };
 
-/** KB/s (as AMP reports, ×1000) as the panel writes it: "82 KiB/s", "1.4 MiB/s". */
+/** KB/s (as AMP reports, ×1000) in the speed units the user chose: "82 KiB/s", "1.4 MiB/s" by default. */
 export function rate(kbps: number | string): string {
-  const bytes = num(kbps) * 1000;
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MiB/s`;
-  return `${Math.round(bytes / 1024)} KiB/s`;
+  return formatRate(num(kbps));
 }
 
+/** A size AMP reports in MB, in the size units the user chose. */
 export function size(mb: number): string {
-  if (mb >= 1024 * 1024) return `${(mb / 1024 / 1024).toFixed(1)} TB`;
-  if (mb >= 1024) return `${(mb / 1024).toFixed(mb >= 10 * 1024 ? 0 : 1)} GB`;
-  return `${Math.round(mb)} MB`;
+  return formatMb(mb);
 }
 
 /** A machine, as the panel's host card: online, shard count, CPU and RAM, network and free disk. */

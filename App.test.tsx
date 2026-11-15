@@ -1,3 +1,8 @@
+import { readCapped } from "./src/api/client";
+import { formatBytes, formatMb, formatRate } from "./src/lib/units";
+import { sizeUnits, speedUnits } from "./src/state/prefs";
+import { parseServerList, validatePin } from "./src/state/servers";
+import { deriveKey, fromB64, unseal } from "./src/state/vaultCrypto";
 import { connectionProblem, isTailscaleHost, normalizeServerUrl, plainHttpRisk } from "./src/api/client";
 import { splitCategory } from "./src/api/manage";
 import { statusLabel } from "./src/api/schedules";
@@ -27,6 +32,11 @@ async function enterPin(app: { press(s: string): Promise<void> }, pin = PIN) {
 }
 
 /** Opens the app with the vault above and unlocks it, as a returning user does. */
+/** Our Security page is a link on the home screen. */
+async function openSecurity(app: { press(s: string): Promise<void> }) {
+  await app.press("security");
+}
+
 async function openSignedIn(options: NonNullable<Parameters<typeof open>[1]>) {
   const app = await open("./App.tsx", { ...options, storage: { ...(await vaultStorage()), ...(options.storage ?? {}) } });
   await app.waitFor("text:AMP Mobile is locked");
@@ -121,7 +131,7 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.3.1");
+  await app.waitFor("text:AMP Mobile 0.4.0");
   await app.press("confirm-ok");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
@@ -2015,7 +2025,22 @@ test("typing during a save stays unsaved, and an edit survives the app locking",
  * Plays the Android app around the TSX app: its key store, where sealing is reversible, the
  * quick key opens only while `recent` holds, and the biometric prompt answers with `finger`.
  */
-function fakeDeviceKeys(state: { recent: boolean; keys: Set<string>; finger?: "ok" | "cancel" | "invalid"; biometric?: string; prompts?: string[] }) {
+/** A stand-in for the key store's HMAC: the same 32 bytes for the same alias and data, different for any other. Not secure; tests only. */
+function fakeMac(alias: string, data: string): string {
+  const text = `${alias}|${data}`;
+  const out = new Uint8Array(32);
+  let h = 2166136261;
+  for (let i = 0; i < out.length; i++) {
+    for (let j = 0; j < text.length; j++) {
+      h ^= text.charCodeAt(j) + i;
+      h = Math.imul(h, 16777619);
+    }
+    out[i] = (h >>> 24) & 255;
+  }
+  return btoa(String.fromCharCode(...out));
+}
+
+function fakeDeviceKeys(state: { recent: boolean; keys: Set<string>; finger?: "ok" | "cancel" | "invalid"; biometric?: string; prompts?: string[]; mac?: boolean }) {
   type Args = { alias: string; data?: string; sealed?: string; kind?: string; prompt?: { title: string } | null };
   const ask = (a: Args) => {
     if (!a.prompt) return;
@@ -2025,7 +2050,7 @@ function fakeDeviceKeys(state: { recent: boolean; keys: Set<string>; finger?: "o
   };
   return {
     handlers: {
-      "deviceKey.status": () => ({ keys: true, biometric: state.biometric ?? "ready" }),
+      "deviceKey.status": () => ({ keys: true, biometric: state.biometric ?? "ready", mac: state.mac !== false }),
       "deviceKey.seal": async (a: Args) => {
         if (a.kind === "quick" && !state.recent) throw new Error("auth: not unlocked recently");
         if (a.kind === "biometric") ask(a);
@@ -2041,6 +2066,13 @@ function fakeDeviceKeys(state: { recent: boolean; keys: Set<string>; finger?: "o
         }
         return a.sealed!.slice(a.alias.length + 1);
       },
+      "deviceKey.mac": async (a: Args & { create?: boolean }) => {
+        if (!state.keys.has(a.alias)) {
+          if (!a.create) throw new Error("missing: no such key");
+          state.keys.add(a.alias);
+        }
+        return fakeMac(a.alias, a.data!);
+      },
       "deviceKey.forget": async (a: Args) => state.keys.delete(a.alias),
     },
   };
@@ -2055,13 +2087,19 @@ test("on a phone with a key store, the vault is bound to it and opens on a recen
   await enterPin(app, "135790");
   await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 2);
   const vault = JSON.parse(app.storage()["amp.vault"]!);
-  expect(vault.pinWrap.startsWith("amp.vault.bound:")).toBe(true);
+  expect(vault.pinBox).toBeTruthy();
+  expect(vault.pinWrap).toBeUndefined();
   expect(app.storage()["amp.vault"]).not.toContain("tok-1");
 
-  // The quick way in appears at the next unlock (the phone was unlocked recently).
-  await app.press("security");
+  // Quick unlock is off until it's asked for, however recently the phone was unlocked...
+  await openSecurity(app);
   await app.waitFor("text:App PIN");
   expect(app.texts().some((t) => t.includes("locked to this phone's secure hardware"))).toBe(true);
+  expect(JSON.parse(app.storage()["amp.vault"]!).quickWrap).toBeUndefined();
+  // ...and the switch in Security gives the vault its quick way in.
+  await app.press("quick-toggle");
+  await app.waitFor("text:Quick unlock is on.");
+  await app.waitUntil(() => !!JSON.parse(app.storage()["amp.vault"]!).quickWrap);
   await app.press("lock-now");
   await app.waitFor("text:AMP Mobile is locked");
   await enterPin(app, "135790");
@@ -2160,7 +2198,7 @@ test("fingerprint unlock: turned on in Security, it opens the lock screen and re
   await enterPin(app, "135790");
   await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 2);
 
-  await app.press("security");
+  await openSecurity(app);
   await app.waitFor("text:Fingerprint unlock");
   await app.press("biometric-toggle");
   await app.waitFor("text:Fingerprint unlock is on.");
@@ -2195,10 +2233,10 @@ test("fingerprint unlock: turned on in Security, it opens the lock screen and re
   await enterPin(app, "135790");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
 
-  // Turning it off brings the quick way in back.
+  // Turning it off doesn't bring the quick way in back: that's its own choice, off unless asked for.
   await app.press("biometric-toggle");
   await app.waitFor("text:Fingerprint unlock is off.");
-  await app.waitUntil(() => !!JSON.parse(app.storage()["amp.vault"]!).quickWrap);
+  expect(JSON.parse(app.storage()["amp.vault"]!).quickWrap).toBeUndefined();
   expect(JSON.parse(app.storage()["amp.vault"]!).bioWrap).toBeUndefined();
   expect(state.keys.has("amp.vault.bio")).toBe(false);
 });
@@ -3101,4 +3139,256 @@ test("crash alerts: a server no longer in the list loses its alerts at launch", 
   const state = { permission: "granted", watched: new Map([["gone", { token: "x", url: SERVER }]]) };
   await openSignedIn({ network: unlockedHome, host: fakeCrashWatch(state) });
   expect(state.watched.has("gone")).toBe(false);
+});
+
+// ---- Brought over from PR #1 (MinVT-dev) ---------------------------------------------------
+
+test("a reply to a prompt is sent as one, and its field has a Show and Hide control", async () => {
+  const sent: unknown[] = [];
+  let status = 25;
+  const route = (request: { url: string; headers: Record<string, string> }) =>
+    request.url.includes("/state") && status === 110 ? { body: { shardId: "a1", status, isRunning: false } } : shardsRoute(request);
+  const app = await openSignedIn({
+    network: {
+      [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } },
+      [`POST ${SERVER}/api/auth/hub-token`]: { body: { token: "ticket", expiresAt: "2099-01-01T00:00:00Z" } },
+      [`GET ${SERVER}/api/Shards/a1/console/history*`]: () => ({ body: { lines: [], hasMore: false } }),
+      [`POST ${SERVER}/api/Shards/a1/console`]: (request) => {
+        sent.push(JSON.parse(request.body!));
+        return { status: 202 };
+      },
+      [`GET ${SERVER}/api/Shards*`]: route,
+      [`GET ${SERVER}/assets/app-icons/*`]: { status: 404 },
+    },
+  });
+  await app.press("server-Home Lab");
+  await app.press("shard-Minecraft SMP");
+  // From here the instance asks for input (a Steam Guard code, say).
+  status = 110;
+  await app.press("open-console");
+  await app.waitUntil(() => app.count("reveal-reply") === 1);
+  // Hidden by default: it may be a password. The control shows it, and hides it again.
+  expect(app.texts()).toContain("Show");
+  await app.press("reveal-reply");
+  await app.waitFor("text:Hide");
+  await app.press("reveal-reply");
+  await app.waitFor("text:Show");
+
+  await app.type("command", "123456");
+  await app.press("Send");
+  expect(sent).toEqual([{ command: "123456", promptReply: true }]);
+  // Sent: the next reply starts hidden.
+  expect(app.texts()).toContain("Show");
+});
+
+test("quick unlock is off by default; the switch in Security makes its way in and its key, and turning it off removes both", async () => {
+  const state = { recent: true, keys: new Set<string>() };
+  const app = await open("./App.tsx", { storage: KEPT_SERVER, network: unlockedHome, host: fakeDeviceKeys(state) });
+  await enterPin(app, "135790");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 2);
+  // Even with the phone unlocked a moment ago, nothing is sealed for a quick way in.
+  expect(JSON.parse(app.storage()["amp.vault"]!).quickWrap).toBeUndefined();
+  expect(state.keys.has("amp.vault.quick")).toBe(false);
+
+  await openSecurity(app);
+  await app.waitFor("text:Quick unlock");
+  await app.press("quick-toggle");
+  await app.waitFor("text:Quick unlock is on.");
+  await app.waitUntil(() => !!JSON.parse(app.storage()["amp.vault"]!).quickWrap);
+  expect(JSON.parse(app.storage()["amp.security"]!).quickUnlock).toBe(true);
+  expect(state.keys.has("amp.vault.quick")).toBe(true);
+
+  await app.press("quick-toggle");
+  await app.waitFor("text:Quick unlock is off.");
+  expect(JSON.parse(app.storage()["amp.vault"]!).quickWrap).toBeUndefined();
+  expect(state.keys.has("amp.vault.quick")).toBe(false);
+  expect(JSON.parse(app.storage()["amp.security"]!).quickUnlock).toBe(false);
+});
+
+test("a quick way in left from before quick unlock was opt-in is removed at the next PIN unlock, and doesn't open the app", async () => {
+  const keys = new Set<string>();
+  const first = await boundVault(keys);
+  await openSecurity(first);
+  await first.waitFor("text:Quick unlock");
+  await first.press("quick-toggle");
+  await first.waitFor("text:Quick unlock is on.");
+  await first.waitUntil(() => !!JSON.parse(first.storage()["amp.vault"]!).quickWrap);
+  // What an older version left: a quick way in, and no setting saying it was asked for.
+  const saved = { ...first.storage(), "amp.security": JSON.stringify({ autoLockSeconds: 30 }) };
+
+  const app = await open("./App.tsx", { storage: saved, network: unlockedHome, host: fakeDeviceKeys({ recent: true, keys }) });
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.wait(300);
+  // The phone was just unlocked, yet the app doesn't open by itself.
+  expect(app.texts()).toContain("AMP Mobile is locked");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"]!).quickWrap === undefined);
+  expect(keys.has("amp.vault.quick")).toBe(false);
+});
+
+test("the PIN's box on disk can't be opened from the PIN alone, and a wrong PIN is counted as one", async () => {
+  const keys = new Set<string>();
+  const first = await boundVault(keys);
+  const vault = JSON.parse(first.storage()["amp.vault"]!);
+  expect(vault.pinBox).toBeTruthy();
+  expect(vault.pinWrap).toBeUndefined();
+  expect(keys.has("amp.vault.pepper")).toBe(true);
+  // Everything in a copy of the file, and the right PIN, without the phone's HMAC: the box stays shut.
+  const fromPinAlone = await deriveKey("135790", fromB64(vault.salt), vault.rounds);
+  await expect(unseal(fromPinAlone, vault.pinBox)).rejects.toThrow();
+
+  const app = await open("./App.tsx", { storage: first.storage(), network: unlockedHome, host: fakeDeviceKeys({ recent: false, keys }) });
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app, "111112");
+  await app.waitFor("text:Wrong PIN. 9 tries left before your saved sign-ins are erased.");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+});
+
+test("an older phone-bound vault opens with its PIN and moves to the HMAC kind; a lost HMAC key clears the vault, not a wrong-PIN count", async () => {
+  const keys = new Set<string>();
+  // Made the older way: a build of the Android app whose key store can't run the HMAC.
+  const first = await open("./App.tsx", { storage: KEPT_SERVER, network: unlockedHome, host: fakeDeviceKeys({ recent: true, keys, mac: false }) });
+  await enterPin(first, "135790");
+  await enterPin(first, "135790");
+  await first.waitUntil(() => JSON.parse(first.storage()["amp.vault"] ?? "{}").pinWrap !== undefined);
+  expect(keys.has("amp.vault.bound")).toBe(true);
+
+  const app = await open("./App.tsx", { storage: first.storage(), network: unlockedHome, host: fakeDeviceKeys({ recent: false, keys }) });
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"]!).pinBox !== undefined);
+  expect(JSON.parse(app.storage()["amp.vault"]!).pinWrap).toBeUndefined();
+  expect(keys.has("amp.vault.pepper")).toBe(true);
+  expect(keys.has("amp.vault.bound")).toBe(false);
+
+  // The phone's HMAC key gone (a reset): a lost device key, never counted against the PIN.
+  keys.delete("amp.vault.pepper");
+  const lost = await open("./App.tsx", { storage: app.storage(), network: unlockedHome, host: fakeDeviceKeys({ recent: false, keys }) });
+  await lost.waitFor("text:AMP Mobile is locked");
+  await enterPin(lost, "135790");
+  await lost.waitFor("text:Saved sign-ins cleared");
+});
+
+test("easy PINs are refused: repeats, repeated blocks, doubled runs and plain runs", () => {
+  for (const bad of ["111111", "121212", "123123", "112233", "123456", "987654", "000000", "696969"]) {
+    expect(() => validatePin(bad)).toThrow("too easy");
+  }
+  for (const good of ["135790", "246810", "902417", "13579024"]) expect(() => validatePin(good)).not.toThrow();
+  expect(() => validatePin("12345")).toThrow("6 to 12");
+});
+
+test("an answer is cut off as it streams once it passes the cap, even when no length is declared", async () => {
+  /** A response whose body arrives in `chunks` pieces of `size` bytes, counting how many were read and whether it was cancelled. */
+  const stream = (chunks: number, size: number, length?: string) => {
+    const seen = { reads: 0, cancelled: false };
+    const response = {
+      status: 200,
+      headers: { get: (name: string) => (name.toLowerCase() === "content-length" ? (length ?? null) : null) },
+      body: {
+        getReader: () => ({
+          read: async () => (seen.reads < chunks ? (seen.reads++, { done: false, value: new Uint8Array(size) }) : { done: true, value: undefined }),
+          cancel: async () => {
+            seen.cancelled = true;
+          },
+          releaseLock: () => {},
+        }),
+      },
+    } as unknown as Response;
+    return { response, seen };
+  };
+
+  // Within the cap: every byte, as sent.
+  const small = stream(3, 1000);
+  expect((await readCapped(small.response, 3000)).length).toBe(3000);
+  // Over the cap with no length declared: refused as it passes the cap, the rest never read.
+  const big = stream(1000, 1000);
+  await expect(readCapped(big.response, 3000)).rejects.toThrow("too large");
+  expect(big.seen.reads).toBe(4);
+  expect(big.seen.cancelled).toBe(true);
+  // A declared length over the cap is refused before anything is read.
+  const declared = stream(1, 10, "9999");
+  await expect(readCapped(declared.response, 3000)).rejects.toThrow("too large");
+  expect(declared.seen.reads).toBe(0);
+});
+
+test("sizes and speeds follow the units the user chose", () => {
+  sizeUnits.set("binary");
+  speedUnits.set("bytes");
+  expect(formatBytes(1.5 * 1024 ** 3)).toBe("1.5 GB");
+  expect(formatMb(2678)).toBe("2.6 GB");
+  expect(formatRate(1250)).toBe("1.2 MiB/s");
+  sizeUnits.set("decimal");
+  expect(formatBytes(1_500_000_000)).toBe("1.5 GB");
+  expect(formatRate(1250)).toBe("1.3 MB/s");
+  speedUnits.set("bits");
+  expect(formatRate(1250)).toBe("10.0 Mbit/s");
+  expect(formatRate(5)).toBe("40 kbit/s");
+  sizeUnits.set("binary");
+  speedUnits.set("bytes");
+});
+
+test("a server list is read back with only the valid addresses", () => {
+  const list = JSON.stringify({
+    servers: [{ name: "A", serverUrl: "amp.example.test", username: "u" }, { name: "B", serverUrl: "ftp://nope.example.test" }, { serverUrl: 5 }],
+  });
+  expect(parseServerList(list).entries).toEqual([{ name: "A", serverUrl: "https://amp.example.test", username: "u" }]);
+  expect(parseServerList("not json").error).toContain("doesn't hold a server list");
+  expect(parseServerList(JSON.stringify({ servers: [] })).error).toContain("No valid server addresses");
+});
+
+test("servers can be moved up and down the list", async () => {
+  const list = [
+    { id: "s1", name: "Alpha", serverUrl: SERVER, username: "a", color: 0, rememberMe: false },
+    { id: "s2", name: "Beta", serverUrl: "https://beta.example.test", username: "b", color: 0, rememberMe: false },
+  ];
+  const app = await open("./App.tsx", { storage: { "amp.servers": JSON.stringify(list) }, network: {} });
+  await app.waitFor("text:Beta");
+  await app.press("more-Alpha");
+  await app.press("menu-down");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.servers"]!)[0].name === "Beta");
+  expect(JSON.parse(app.storage()["amp.servers"]!).map((s: { name: string }) => s.name)).toEqual(["Beta", "Alpha"]);
+});
+
+test("the app locks on a timer while it stays in the background", async () => {
+  const app = await openSignedIn({
+    storage: { "amp.security": JSON.stringify({ autoLockSeconds: 1 }) },
+    network: { [`POST ${SERVER}/api/Auth/renew`]: { body: { token: "tok-1", expiration: "2099-01-02T00:00:00Z" } } },
+  });
+  await app.setLifecycle("background");
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.setLifecycle("active");
+  expect(app.texts()).toContain("AMP Mobile is locked");
+});
+
+test("a vault whose sessions were tampered with opens, clears them and says so", async () => {
+  const { blob } = await createVault(PIN, { s1: { token: "tok-1", expiration: "2099-01-01T00:00:00Z" } });
+  const damaged = { ...blob, data: { ...blob.data, ct: `${blob.data.ct.slice(0, -4)}AAAA` } };
+  const app = await open("./App.tsx", {
+    storage: {
+      "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true }]),
+      "amp.vault": JSON.stringify(damaged),
+    },
+    network: {},
+  });
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app);
+  await app.waitFor("text:Saved sign-ins couldn't be read");
+});
+
+test("settings: the units chosen are saved, read back and used", async () => {
+  const app = await openSignedIn({ network: unlockedHome });
+  await app.press("app-settings");
+  await app.waitFor("id:units-example");
+  expect(app.texts()).toContain("Example: 1.5 GB of memory, 1.2 MiB/s of traffic");
+  await app.press("speed-bits");
+  await app.press("size-decimal");
+  await app.waitFor("text:Example: 1.6 GB of memory, 10.0 Mbit/s of traffic");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.prefs"] ?? "{}").speedUnits === "bits");
+  expect(JSON.parse(app.storage()["amp.prefs"]!)).toEqual({ sizeUnits: "decimal", speedUnits: "bits" });
+  await app.press("size-binary");
+  await app.press("speed-bytes");
 });

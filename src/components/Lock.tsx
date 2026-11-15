@@ -12,6 +12,7 @@ import {
   hasPin,
   leftApp,
   lockNow,
+  vaultNotice,
   lockoutRemaining,
   locked,
   MAX_PIN_TRIES,
@@ -271,6 +272,8 @@ export function PinSetup(props: { title: string; message: string; onDone: (pin: 
  */
 export function LockHost() {
   let leftAt = 0;
+  let lockTimer: ReturnType<typeof setTimeout> | undefined;
+  cleanup(() => clearTimeout(lockTimer));
   // Locking cancels any dialog left open, so nothing is answered from behind the lock.
   let wasLocked = locked();
   effect(() => {
@@ -278,13 +281,24 @@ export function LockHost() {
     if (now && !wasLocked) cancelConfirm();
     wasLocked = now;
   });
+  // The vault opened with the right PIN but its sessions couldn't be read (the file was changed): say so once.
+  effect(() => {
+    const note = vaultNotice();
+    if (!note || locked()) return;
+    vaultNotice.set(null);
+    confirm({ title: "Saved sign-ins couldn't be read", message: note, icon: "warning", cancelLabel: null, actions: [{ id: "ok", label: "OK", tone: "primary" }] });
+  });
   effect(() => {
     const state = lifecycle();
     // Turning the screen off may only make the app inactive, so any step away counts.
     if (state !== "active") leftApp();
+    if (state === "active") clearTimeout(lockTimer);
     if (state === "background") {
       leftAt = Date.now();
+      clearTimeout(lockTimer);
       if (autoLockSeconds() === 0) lockNow();
+      // A timer as well as the check on return, so the sessions leave memory on time even if the app stays in the background.
+      else lockTimer = setTimeout(() => lockNow(), autoLockSeconds() * 1000);
     } else if (state === "active" && leftAt) {
       const away = Date.now() - leftAt;
       // A clock set back while away (a negative time) locks too, rather than never.

@@ -3,7 +3,9 @@ package com.meganet.ampmobile;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import java.util.HashMap;
@@ -27,22 +29,26 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        // The app switcher keeps no picture of the servers (Android 13+; the app's own cover handles older ones).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(false);
         StandaloneHost.edgeToEdge(this);
         getSharedPreferences(OLD_SCREEN_PREFS, Context.MODE_PRIVATE).edit().clear().apply();
         view = new NshView(this);
         StandaloneHost.useStandaloneLimits(view);
-        view.setErrorListener(message -> Log.e("AMP Mobile", message));
+        // Error text from the app can carry addresses: it goes to the log only in a debuggable build.
+        final boolean debuggable = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        view.setErrorListener(message -> {
+            if (debuggable) Log.e("AMP Mobile", message);
+        });
         keys = new DeviceKeys(this);
         keys.register(view);
         crashWatch = new CrashWatch.Host(this);
         crashWatch.register(view);
         CrashWatch.resume(this);
         setContentView(view);
-        view.handleNotificationIntent(getIntent());
-        if (state == null) {
-            view.handleUrlSchemeIntent(getIntent());
-            openAlert(getIntent());
-        }
+        // Nothing else from the launching intent is passed on to NSH (no URL-scheme or notification
+        // handlers): the app declares neither, and the launcher entry is open to every app.
+        if (state == null) openAlert(getIntent());
         view.loadAssetBundle("nsh");
     }
 
@@ -55,11 +61,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (view != null) {
-            view.handleNotificationIntent(intent);
-            view.handleUrlSchemeIntent(intent);
-            openAlert(intent);
-        }
+        if (view != null) openAlert(intent);
     }
 
     /** A pressed crash alert: the app opens that instance once it's unlocked. */

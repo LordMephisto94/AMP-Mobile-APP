@@ -16,6 +16,7 @@ import { PlayerScreen } from "./src/screens/PlayerScreen";
 import { RoleScreen } from "./src/screens/RoleScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
 import { SecurityScreen } from "./src/screens/SecurityScreen";
+import { AppSettingsScreen } from "./src/screens/AppSettingsScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { ShardScreen } from "./src/screens/ShardScreen";
@@ -29,6 +30,7 @@ import { UserScreen } from "./src/screens/UserScreen";
 import { nav, type Route } from "./src/state/nav";
 import { isSignedIn, loadServers, locked, serverById, serversReady } from "./src/state/servers";
 import { alertOpened, listenForAlertPresses } from "./src/lib/crashWatch";
+import { loadPrefs } from "./src/state/prefs";
 import { withPageDepth } from "./src/components/backdrop";
 
 function screen(route: Route) {
@@ -37,6 +39,8 @@ function screen(route: Route) {
       return <ServersScreen />;
     case "security":
       return <SecurityScreen />;
+    case "appSettings":
+      return <AppSettingsScreen />;
     case "addServer":
       return <ServerFormScreen />;
     case "signIn":
@@ -132,5 +136,6 @@ function App() {
 }
 
 listenForAlertPresses();
+loadPrefs();
 loadServers();
 mount(App);

@@ -92,6 +92,48 @@ export function normalizeServerUrl(input: string): string {
 const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 
 /**
+ * Reads a response body, never holding more than `max` bytes: a declared length over the cap
+ * is refused up front, and a body that has no length (chunked) or understates it is cut off
+ * the moment it crosses the cap, so a hostile or broken server can't make the app buffer an
+ * endless answer before the size check runs.
+ */
+export async function readCapped(response: Response, max: number): Promise<Uint8Array> {
+  const tooLarge = () => new AmpError("The server's answer is too large to read", response.status);
+  if (Number(response.headers.get("content-length") ?? 0) > max) throw tooLarge();
+  const stream = response.body;
+  if (!stream) {
+    // No stream to count (an empty body, or a host that doesn't give one): read it, then check.
+    const all = new Uint8Array(await response.arrayBuffer());
+    if (all.length > max) throw tooLarge();
+    return all;
+  }
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > max) {
+        await reader.cancel().catch(() => {});
+        throw tooLarge();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  return out;
+}
+
+/**
  * An error message with any secret a URL in it carries (a hub ticket, a download ticket,
  * a token) cut out, since messages are shown on screen.
  */
@@ -158,10 +200,7 @@ export class AmpClient {
         // following a redirect to another host.
         redirect: "error",
       });
-      const length = Number(response.headers.get("content-length") ?? 0);
-      if (length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
-      text = await response.text();
-      if (text.length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
+      text = new TextDecoder().decode(await readCapped(response, MAX_RESPONSE_BYTES));
     } catch (error) {
       if (error instanceof AmpError) throw error;
       const aborted = controller.signal.aborted;

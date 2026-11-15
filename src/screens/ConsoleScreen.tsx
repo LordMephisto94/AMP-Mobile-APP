@@ -33,6 +33,10 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
   const error = signal<string | null>(null);
   const command = signal("");
   const sending = signal(false);
+  /** The instance is waiting on input (a Steam password or Guard code): what's typed is a reply, not a command. */
+  const awaiting = () => state()?.status === ApplicationState.AwaitingUserAction;
+  /** Shows a reply in clear while it's typed: it's masked by default, as it may be a password. */
+  const reveal = signal(false);
   let list: ListRef | undefined;
 
   /** Merges lines in by `seq`, oldest first, keeping the newest `MAX_LINES`. */
@@ -133,9 +137,10 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
     sending.set(true);
     try {
       // An instance waiting on input (a Steam Guard code) gets a prompt reply, never audited in the clear.
-      const promptReply = state()?.status === ApplicationState.AwaitingUserAction;
+      const promptReply = awaiting();
       await sendConsoleCommand(clientFor(props.serverId), props.id, text, promptReply);
       command.set("");
+      reveal.set(false);
       if (live() !== "connected") setTimeout(() => onTop() && loadNewest(), 1_000);
       list?.scrollToEnd({ animated: true });
     } catch (e) {
@@ -208,10 +213,23 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
               returnKeyType="send"
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder={state()?.status === ApplicationState.AwaitingUserAction ? "Reply to the prompt…" : "Type a command…"}
+              // A reply to a prompt may be a password: hidden (and kept from the keyboard's learning) unless shown.
+              masked={awaiting() && !reveal()}
+              placeholder={awaiting() ? "Reply to the prompt…" : "Type a command…"}
               class="p-0 font-mono text-sm text-foreground placeholder:text-muted-foreground"
             />
           </View>
+          <If when={awaiting()}>
+            <Text
+              role="button"
+              testID="reveal-reply"
+              accessibilityLabel={reveal() ? "Hide the reply" : "Show the reply"}
+              onPress={() => reveal.set(!reveal())}
+              class="px-1 text-xs font-semibold text-muted-foreground"
+            >
+              {reveal() ? "Hide" : "Show"}
+            </Text>
+          </If>
           <View
             role="button"
             onPress={send}

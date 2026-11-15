@@ -11,10 +11,13 @@ import {
   changePin,
   eraseVault,
   hasPin,
+  keyStoreRefused,
   lockNow,
+  quickUnlockOn,
   servers,
   setAutoLock,
   setBiometricUnlock,
+  setQuickUnlock,
   setupPin,
 } from "../state/servers";
 import { Icon } from "../components/Icon";
@@ -64,6 +67,23 @@ export function SecurityScreen() {
     }
   };
 
+  const quickBusy = signal(false);
+  const quickError = signal<string | null>(null);
+  const toggleQuick = async () => {
+    if (quickBusy()) return;
+    quickBusy.set(true);
+    quickError.set(null);
+    try {
+      const turnOn = !quickUnlockOn();
+      await setQuickUnlock(turnOn);
+      notice.set(turnOn ? "Quick unlock is on." : "Quick unlock is off.");
+    } catch (e) {
+      quickError.set((e as Error).message);
+    } finally {
+      quickBusy.set(false);
+    }
+  };
+
   const erase = async () => {
     const choice = await confirm({
       title: "Remove the PIN?",
@@ -99,12 +119,17 @@ export function SecurityScreen() {
             <Text class="text-sm text-muted-foreground">
               {hasPin()
                 ? bound()
-                  ? `Saved sign-ins (${kept()}) are encrypted with AES-256 and locked to this phone's secure hardware: they need your PIN, ${
-                      biometricOn() ? "or your fingerprint or face" : "or a phone unlock in the last minute"
+                  ? `Saved sign-ins (${kept()}) are encrypted with AES-256 and locked to this phone's secure hardware: they need your PIN${
+                      biometricOn() ? " or your fingerprint or face" : quickUnlockOn() ? " or a phone unlock in the last minute" : ""
                     }, and can't be opened on any other device. Ten wrong PINs erase them.`
                   : `Saved sign-ins (${kept()}) are encrypted with AES-256 under a key made from your PIN. The PIN itself is never stored. Ten wrong PINs erase them.`
                 : "Without a PIN, nothing is kept: you sign in again each time the app starts. Set one to stay signed in."}
             </Text>
+            <If when={hasPin() && !bound() && keyStoreRefused()}>
+              <Text testID="keystore-refused" class="text-sm text-warning">
+                This phone's key store refused the vault key, so saved sign-ins rely on the PIN alone. Choose a PIN of 8 digits or more.
+              </Text>
+            </If>
             <If
               when={hasPin()}
               else={
@@ -135,7 +160,9 @@ export function SecurityScreen() {
                         ? "Add a fingerprint or face in your phone's settings first."
                         : bio() === "notBound"
                           ? "Unlock the app with your PIN once more first, so the saved sign-ins move to this phone's secure hardware."
-                          : "Open the app with your fingerprint or face instead of the PIN. Without it, the app opens by itself for a minute after you unlock your phone."}
+                          : `Open the app with your fingerprint or face instead of the PIN.${
+                              quickUnlockOn() ? " Without it, the app opens by itself for a minute after you unlock your phone." : ""
+                            }`}
                   </Text>
                 </View>
                 <View
@@ -151,6 +178,32 @@ export function SecurityScreen() {
                 </View>
               </View>
               <If when={bioError()}>{(m) => <Text testID="biometric-error" class="text-sm text-destructive">{m()}</Text>}</If>
+            </View>
+          </If>
+
+          {/* Fingerprint unlock replaces it, so it's only offered while that's off. */}
+          <If when={hasPin() && bound() && !biometricOn()}>
+            <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+              <View class="flex-row items-center gap-3">
+                <View class="flex-1 gap-1">
+                  <Text class="text-base font-semibold text-card-foreground">Quick unlock</Text>
+                  <Text class="text-sm text-muted-foreground">
+                    {quickUnlockOn()
+                      ? "For a minute after you unlock your phone, the app opens without its PIN. Anyone who knows your phone's PIN or pattern can open it that way."
+                      : "Off: the app always asks for its PIN. Turn it on to open straight away for a minute after you unlock your phone."}
+                  </Text>
+                </View>
+                <View
+                  role="switch"
+                  testID="quick-toggle"
+                  accessibilityLabel="Quick unlock"
+                  onPress={toggleQuick}
+                  class={`h-7 w-12 justify-center rounded-full px-0.5 ${quickUnlockOn() ? "items-end bg-primary" : "items-start bg-white/15"} ${quickBusy() ? "opacity-50" : ""}`}
+                >
+                  <View class="h-6 w-6 rounded-full bg-white" />
+                </View>
+              </View>
+              <If when={quickError()}>{(m) => <Text testID="quick-error" class="text-sm text-destructive">{m()}</Text>}</If>
             </View>
           </If>
 

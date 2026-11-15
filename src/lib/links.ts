@@ -1,3 +1,4 @@
+import { confirm } from "../components/Confirm";
 import { Clipboard, openUrl } from "nsh";
 
 /**
@@ -35,6 +36,16 @@ export function onDomain(host: string, domain: string): boolean {
 export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean, allowPlain = false): Promise<void> {
   const url = safeHttpsUrl(raw, hostAllowed, allowPlain);
   if (!url) throw new Error("That link isn't a secure https:// address, so it wasn't opened.");
+  // A link the panel names, with no host the app expects: the user sees where it goes first.
+  if (!hostAllowed) {
+    const choice = await confirm({
+      title: "Open this link?",
+      message: `Your panel sent this link. It opens ${new URL(url).host} in your browser.`,
+      icon: "link",
+      actions: [{ id: "open", label: "Open", tone: "primary" }],
+    });
+    if (choice !== "open") return;
+  }
   const { opened } = await openUrl(url);
   if (!opened) throw new Error("No browser on this device could open it.");
 }

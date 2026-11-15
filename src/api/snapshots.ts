@@ -1,3 +1,4 @@
+import { formatMb } from "../lib/units";
 import type { AmpClient } from "./client";
 
 /**
@@ -200,9 +201,7 @@ export function percent(done: number, total: number): number | null {
   return total > 0 ? Math.min(100, Math.max(0, Math.round((done / total) * 100))) : null;
 }
 
-/** "850 MB", "1.4 GB". */
+/** A size AMP reports in MB, in the size units the user chose. */
 export function megabytes(mb: number): string {
-  if (mb >= 1024 * 1024) return `${(mb / 1024 / 1024).toFixed(1)} TB`;
-  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-  return `${Math.max(0, Math.round(mb))} MB`;
+  return formatMb(mb);
 }

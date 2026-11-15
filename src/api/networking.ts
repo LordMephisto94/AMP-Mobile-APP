@@ -1,3 +1,4 @@
+import { formatBytes } from "../lib/units";
 import type { AmpClient } from "./client";
 
 /**
@@ -164,17 +165,9 @@ export async function removePublication(c: AmpClient, id: string): Promise<void>
   await c.request<void>(`/api/networking/publications/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-/** Bytes as "1.2 GB", "340 KB". */
+/** Bytes in the size units the user chose. */
 export function bytes(value: number | string | undefined): string {
-  let n = Number(value ?? 0);
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024;
-    i++;
-  }
-  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+  return formatBytes(value);
 }
 
 /** "TunnelProvisioning" → "Tunnel provisioning". */

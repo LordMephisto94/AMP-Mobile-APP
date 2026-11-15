@@ -23,7 +23,7 @@ export interface PromptText {
   cancel?: string;
 }
 
-const NONE = { keys: false, biometric: "unavailable" as Biometric };
+const NONE = { keys: false, biometric: "unavailable" as Biometric, mac: false };
 /**
  * How long a fingerprint prompt may stay open. The phone always answers a prompt, but if it
  * ever didn't, the PIN pad (which waits for it) would stay blocked until the app restarted.
@@ -31,12 +31,12 @@ const NONE = { keys: false, biometric: "unavailable" as Biometric };
 const PROMPT_MS = 120_000;
 
 /** What the phone can do: device keys, and whether strong biometrics are set up now. Never throws. */
-export async function deviceStatus(): Promise<{ keys: boolean; biometric: Biometric }> {
+export async function deviceStatus(): Promise<{ keys: boolean; biometric: Biometric; mac: boolean }> {
   try {
     if (!host.available()) return NONE;
     const s = ((await host.call("deviceKey.status", null, { timeout: 5000 })) ?? {}) as Record<string, unknown>;
     const biometric = s.biometric === "ready" || s.biometric === "notEnrolled" ? s.biometric : "unavailable";
-    return { keys: s.keys === true, biometric };
+    return { keys: s.keys === true, biometric, mac: s.mac === true };
   } catch {
     return NONE;
   }
@@ -73,6 +73,27 @@ export async function openWith(alias: string, sealed: string, prompt?: PromptTex
     const plain = await host.call("deviceKey.open", { alias, sealed, prompt: prompt ?? null }, { timeout: prompt ? PROMPT_MS : 30000 });
     if (typeof plain !== "string") throw new Error("error: nothing opened");
     return plain;
+  } catch (e) {
+    throw reason(e);
+  }
+}
+
+/** Whether the phone's key store can run the HMAC the vault's PIN key needs (older builds of the Android app can't). */
+export async function deviceMacAvailable(): Promise<boolean> {
+  const s = await deviceStatus();
+  return s.keys && s.mac;
+}
+
+/**
+ * HMAC-SHA-256 of `data` (base64) under the key `alias`, which never leaves the phone. With
+ * `create`, a missing key is made; without it a missing key is an error, so a lost key is
+ * never quietly replaced by a new one.
+ */
+export async function macWith(alias: string, data: string, create: boolean): Promise<string> {
+  try {
+    const out = await host.call("deviceKey.mac", { alias, data, create }, { timeout: 30000 });
+    if (typeof out !== "string") throw new Error("error: no value");
+    return out;
   } catch (e) {
     throw reason(e);
   }

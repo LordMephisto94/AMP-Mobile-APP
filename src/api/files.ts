@@ -207,13 +207,4 @@ export function isArchive(entry: FileEntry): boolean {
   return !entry.isDirectory && /\.(zip|7z|rar|tar|tgz|tar\.gz|gz|bz2|xz)$/i.test(entry.name);
 }
 
-export function formatBytes(bytes: number | string | undefined): string {
-  let n = Number(bytes ?? 0);
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let u = 0;
-  while (n >= 1024 && u < units.length - 1) {
-    n /= 1024;
-    u++;
-  }
-  return `${n < 10 && u > 0 ? n.toFixed(1) : Math.round(n)} ${units[u]}`;
-}
+export { formatBytes } from "../lib/units";

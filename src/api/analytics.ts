@@ -1,4 +1,4 @@
-import type { AmpClient } from "./client";
+import { type AmpClient, readCapped } from "./client";
 
 /**
  * AMP 3's player analytics (`/api/Analytics/*`): who played, when, for how long and from
@@ -231,12 +231,12 @@ export async function avatarUrl(client: AmpClient, hash: string): Promise<string
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    // Only a picture, and only a small one.
-    if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("image/")) return null;
-    if (Number(response.headers.get("content-length") ?? 0) > MAX_AVATAR_BYTES) return null;
-    const blob = await response.blob();
-    if (blob.size > MAX_AVATAR_BYTES) return null;
-    return URL.createObjectURL(blob);
+    // Only a plain raster picture (not SVG, which can carry markup and links), and only a small one.
+    const type = (response.headers.get("content-type") ?? "").toLowerCase().split(";")[0].trim();
+    if (!/^image\/(png|jpe?g|webp|gif)$/.test(type)) return null;
+    // Counted as it arrives: a body with no declared length can't be buffered past the cap.
+    const bytes = await readCapped(response, MAX_AVATAR_BYTES);
+    return URL.createObjectURL(new Blob([bytes], { type }));
   } catch {
     return null;
   } finally {

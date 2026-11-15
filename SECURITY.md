@@ -9,7 +9,7 @@ sensitive).
 | What | Where | Protection |
 |---|---|---|
 | Passwords | Nowhere | Sent once to your panel at sign-in, then dropped |
-| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM under a random data key. On Android that key is sealed by keys in the phone's Keystore (secure hardware), which never leave it: one together with your PIN (PBKDF2-SHA-256, 600,000 rounds), and a second way in that's either quick unlock (works only within a minute of unlocking the phone) or, with fingerprint unlock on, a key that needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added. Without a key store (desktops): the PIN-derived key alone. The PIN is never stored |
+| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM under a random data key. On Android that key is sealed by keys in the phone's Keystore (secure hardware), which never leave it. The PIN's way in uses a key made from your PIN (PBKDF2-SHA-256, 600,000 rounds) run through an HMAC key in the Keystore (StrongBox where the phone has it), so a PIN guess can only be checked on this phone, even by code running as the app; vaults from before 0.4.0 move to this at the next PIN unlock. A second, optional way in is either quick unlock (off unless turned on; works only within a minute of unlocking the phone) or, with fingerprint unlock on, a key that needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added. Without a key store (desktops): the PIN-derived key alone. The PIN is never stored |
 | Session tokens you don't keep | Memory only | Gone when the app closes or locks |
 | Crash alerts' copy of a session (only for servers you turn them on for) | `amp.watch` in the Android app's private preferences | AES-256-GCM under a Keystore key of its own that works without the user, since the check runs while the app is closed. Used only to read instance states and the activity log, and to renew itself. Taken back on sign-out, on turning off "Stay signed in", on removing the server and on erasing the PIN; a session AMP refuses pauses it |
 | Server list (name, address, user name) | `amp.servers` in the app's storage | Not secret, so not encrypted |
@@ -21,13 +21,17 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
 
 ## The app lock
 
-- Staying signed in requires a 6–12 digit PIN. Repeated or sequential PINs (`777777`, `123456`) are refused.
-- The app opens locked, and locks again after a chosen time in the background (immediately, 30 s, 1 min or 5 min).
-- It opens with the PIN, or by itself within a minute of unlocking the phone (quick unlock). With fingerprint unlock
+- Staying signed in requires a 6–12 digit PIN. Easy PINs are refused: repeats and repeated blocks (`777777`, `121212`,
+  `123123`), doubled runs (`112233`) and plain runs (`123456`, `987654`).
+- The app opens locked, and locks again after a chosen time in the background (immediately, 30 s, 1 min or 5 min), on
+  a timer, so the sessions leave memory on time even if the app stays in the background.
+- It opens with the PIN. With quick unlock turned on (Security; off by default), it also opens by itself within a
+  minute of unlocking the phone. With fingerprint unlock
   on (Security; Android 11+, strong biometrics), it asks for a fingerprint or face instead, and doesn't open by
   itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
-- While the app is in the background its screen is covered, so the app switcher shows nothing.
+- While the app is in the background its screen is covered, and on Android 13+ the app switcher keeps no picture of it.
+- A vault whose sessions were changed or damaged on disk opens with the right PIN, clears them and says so.
 - After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
   servers stay, signed out. "Forgot PIN?" does the same.
 
@@ -280,6 +284,24 @@ the insecure data storage checklist. The intent finding was confirmed on the emu
 Checked and found sound: the alerts' PendingIntents are immutable and explicit; the job service is unexported and
 needs `BIND_JOB_SERVICE`; nothing of `amp.watch` is in backups or device transfers; the session in it is encrypted and
 never logged; a session AMP refused isn't tried again until a different one is handed over; two checks never overlap.
+
+## Brought over from a contributor (November 2026, 0.4.0)
+
+PR LordMephisto94/AMP-Mobile-APP#1 (MinVT-dev) proposed a set of hardening changes against an older version. These
+were ported by hand onto 0.3.1, with its tests:
+
+- The PIN's key mixed with a Keystore HMAC (above), so the PIN-sealed box on disk can't be attacked off the phone.
+- Quick unlock off by default.
+- Server answers counted as they stream, so one with no declared length can't be buffered past the cap; avatars only
+  as PNG, JPEG, WebP or GIF (no SVG), counted the same way.
+- A link the panel sends (release notes, the panel's address) asks before it opens in the browser.
+- The auto-lock timer, the damaged-vault notice and the stricter PIN rules above.
+- A reply to a console prompt (a Steam Guard code) is masked while it's typed, with Show and Hide.
+- Release builds don't write the app's error text to the system log (it can carry addresses); the launcher entry passes
+  nothing to NSH (the app has no URL schemes or NSH notifications); schedule ids use the system's random source.
+
+Not taken: blocking screenshots (they stay allowed; Hide personal details covers it), its http/https choice (the app's
+own plain-HTTP rules are stricter about `.ts.net` names) and its icons and redesign.
 
 ## Release signing
 

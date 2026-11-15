@@ -10,7 +10,7 @@ import { PrimaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { checkServers, reachOf } from "../state/reachability";
-import { isSignedIn, locked, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
+import { isSignedIn, locked, moveServer, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
 import { priv } from "../lib/privacy";
 import { isPlainHttp, plainHttpRisk } from "../api/client";
 import { Icon, type IconName } from "../components/Icon";
@@ -95,6 +95,15 @@ export function ServersScreen() {
                 </View>
                 <View
                   role="button"
+                  testID="app-settings"
+                  onPress={() => nav.push({ name: "appSettings" })}
+                  class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
+                >
+                  <Icon name="sliders" size={13} tone="muted" />
+                  <Text class="text-xs font-semibold text-muted-foreground">Settings</Text>
+                </View>
+                <View
+                  role="button"
                   testID="about"
                   onPress={showAbout}
                   class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
@@ -135,6 +144,12 @@ function ServerCard(props: { server: SavedServer }) {
     { id: "open", label: signedIn() ? "Open instances" : "Sign in", icon: (signedIn() ? "gamepad" : "key") as IconName, onSelect: open },
     ...(signedIn()
       ? [{ id: "signOut", label: "Sign out", icon: "sign-out" as const, onSelect: () => signOutServer(props.server.id) }]
+      : []),
+    ...(servers().length > 1
+      ? [
+          { id: "up", label: "Move up", icon: "arrow-up" as const, disabled: servers()[0]?.id === props.server.id, onSelect: () => moveServer(props.server.id, -1) },
+          { id: "down", label: "Move down", icon: "arrow-down" as const, disabled: servers().at(-1)?.id === props.server.id, onSelect: () => moveServer(props.server.id, 1) },
+        ]
       : []),
     { id: "remove", label: "Remove server", icon: "trash" as const, tone: "danger" as const, onSelect: remove },
   ];
