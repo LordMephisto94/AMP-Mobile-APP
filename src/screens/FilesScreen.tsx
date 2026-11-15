@@ -1,4 +1,5 @@
 import { Picker, Scroll, signal, Text, View } from "nsh";
+import { Icon } from "../components/Icon";
 import { AmpError } from "../api/client";
 import {
   copyFile,
@@ -22,7 +23,6 @@ import {
   uploadFile,
   writeText,
 } from "../api/files";
-import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { Prompt, type PromptRequest } from "../components/Prompt";
@@ -122,7 +122,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
       const url = await downloadUrl(client(), props.id, entry);
       // Only ever to this server: the link carries a one-time download ticket.
       const host = new URL(client().baseUrl).hostname.toLowerCase();
-      await openSafe(url, (h) => h === host);
+      await openSafe(url, (h) => h === host, client().baseUrl.startsWith("http://"));
       return entry.isDirectory
         ? "Downloading as a zip in your browser. It will be in your Downloads."
         : "Downloading in your browser. It will be in your Downloads.";
@@ -132,7 +132,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const action = await confirm({
       title: `Delete ${entry.name}?`,
       message: entry.isDirectory ? "The folder and everything in it are deleted. This can't be undone." : "This can't be undone.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -144,7 +143,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const rename = (entry: FileEntry) =>
     ask({
       title: `Rename ${entry.isDirectory ? "folder" : "file"}`,
-      icon: "🏷️",
       value: entry.name,
       confirm: "Rename",
       onSubmit: async (name) => {
@@ -161,7 +159,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const copyName = dot > 0 ? `${entry.name.slice(0, dot)} copy${entry.name.slice(dot)}` : `${entry.name} copy`;
     ask({
       title: `Copy ${entry.name}`,
-      icon: "📋",
       message: "Name of the copy, in this folder:",
       value: copyName,
       confirm: "Copy",
@@ -178,7 +175,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const zip = (entry: FileEntry) =>
     ask({
       title: `Zip ${entry.name}`,
-      icon: "🗜️",
       value: `${entry.name}.zip`,
       confirm: "Create zip",
       onSubmit: async (name) => {
@@ -193,7 +189,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
     const action = await confirm({
       title: `Extract ${entry.name}?`,
       message: "Into this folder. Files that already exist are kept unless you choose to replace them.",
-      icon: "🗜️",
       actions: [
         { id: "keep", label: "Extract", tone: "primary" },
         { id: "overwrite", label: "Extract and replace", tone: "danger" },
@@ -210,22 +205,21 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
 
   const menuItems = (entry: FileEntry): DropdownItem[] => [
     ...(entry.isDirectory
-      ? [{ id: "open", label: "Open", icon: "📂", onSelect: () => open(entry) }]
+      ? [{ id: "open", label: "Open", onSelect: () => open(entry) }]
       : isTextFile(entry)
-        ? [{ id: "open", label: "Edit", icon: "✏️", onSelect: () => open(entry) }]
+        ? [{ id: "open", label: "Edit", onSelect: () => open(entry) }]
         : []),
-    { id: "download", label: entry.isDirectory ? "Download as zip" : "Download", icon: "⬇️", onSelect: () => download(entry) },
-    { id: "rename", label: "Rename", icon: "🏷️", onSelect: () => rename(entry) },
-    { id: "copy", label: "Copy", icon: "📋", onSelect: () => duplicate(entry) },
-    ...(isArchive(entry) ? [{ id: "extract", label: "Extract here", icon: "🗜️", onSelect: () => extract(entry) }] : []),
-    ...(entry.isDirectory ? [{ id: "zip", label: "Zip", icon: "🗜️", onSelect: () => zip(entry) }] : []),
-    { id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: () => remove(entry) },
+    { id: "download", label: entry.isDirectory ? "Download as zip" : "Download", onSelect: () => download(entry) },
+    { id: "rename", label: "Rename", onSelect: () => rename(entry) },
+    { id: "copy", label: "Copy", onSelect: () => duplicate(entry) },
+    ...(isArchive(entry) ? [{ id: "extract", label: "Extract here", onSelect: () => extract(entry) }] : []),
+    ...(entry.isDirectory ? [{ id: "zip", label: "Zip", onSelect: () => zip(entry) }] : []),
+    { id: "delete", label: "Delete", tone: "danger" as const, onSelect: () => remove(entry) },
   ];
 
   const newFolder = () =>
     ask({
       title: "New folder",
-      icon: "📁",
       placeholder: "Folder name",
       confirm: "Create",
       onSubmit: async (name) => {
@@ -239,7 +233,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   const newFile = () =>
     ask({
       title: "New text file",
-      icon: "📄",
       placeholder: "e.g. notes.txt",
       confirm: "Create",
       onSubmit: async (name) => {
@@ -274,7 +267,6 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
           const action = await confirm({
             title: `Replace ${file.name}?`,
             message: "A file with this name is already in this folder.",
-            icon: "📄",
             cancelLabel: "Skip",
             actions: [{ id: "replace", label: "Replace", tone: "danger" }],
           });
@@ -310,25 +302,24 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
   return (
     <AppPage title={`${props.title} files`} subtitle={`/${props.path}`}>
       <View class="flex-1 bg-background">
-        <Backdrop dim="strong" />
-        <View class="gap-2 border-b border-white/10 bg-card/70 px-4 py-2.5">
+        <View class="gap-2 border-b border-border bg-card px-4 py-2.5">
           <Text class="font-mono text-xs text-muted-foreground" testID="files-path">{`/${props.path}`}</Text>
           <View class="flex-row flex-wrap items-center gap-2">
-            <ToolButton testID="new-folder" label="＋ Folder" onPress={newFolder} />
-            <ToolButton testID="new-file" label="＋ File" onPress={newFile} />
-            <ToolButton testID="upload" label="⇧ Upload" onPress={pickAndUpload} disabled={upload() !== null} />
+            <ToolButton testID="new-folder" label="New folder" onPress={newFolder} />
+            <ToolButton testID="new-file" label="New file" onPress={newFile} />
+            <ToolButton testID="upload" label="Upload" onPress={pickAndUpload} disabled={upload() !== null} />
           </View>
           <Text class="text-[10px] text-muted-foreground">Uploads up to 512 MB per file. Larger files: use SFTP or the web panel.</Text>
         </View>
 
         <If when={upload()}>
           {(u) => (
-            <View class="gap-1.5 border-b border-white/10 bg-card/80 px-4 py-2.5">
+            <View class="gap-1.5 border-b border-border bg-card px-4 py-2.5">
               <Text class="text-xs text-foreground">
                 Uploading {u().name} · {formatBytes(u().loaded)} of {formatBytes(u().total)}
               </Text>
-              <View class="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <View class="h-full rounded-full bg-linear-to-r from-hero-from to-hero-to" style={{ width: percent() }} />
+              <View class="h-1.5 overflow-hidden rounded-full bg-border">
+                <View class="h-full rounded-full bg-primary" style={{ width: percent() }} />
               </View>
             </View>
           )}
@@ -352,7 +343,7 @@ export function FilesScreen(props: { serverId: string; id: string; title: string
             <If when={entries()?.length === 0}>
               <Text class="py-6 text-center text-sm text-muted-foreground">This folder is empty.</Text>
             </If>
-            <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85">
+            <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
               <Each of={entries()} key={(e: FileEntry) => e.path}>
                 {(entry) => (
                   <FileRow
@@ -381,7 +372,7 @@ function ToolButton(props: { label: string; onPress: () => void; disabled?: bool
       role="button"
       testID={props.testID}
       onPress={() => !props.disabled && props.onPress()}
-      class={`rounded-lg border border-white/10 px-3 py-1.5 ${props.disabled ? "opacity-50" : "bg-secondary active:opacity-70"}`}
+      class={`rounded-lg border border-border px-3 py-1.5 ${props.disabled ? "opacity-50" : "bg-secondary active:opacity-70"}`}
     >
       <Text class="text-sm font-semibold text-secondary-foreground">{props.label}</Text>
     </View>
@@ -396,16 +387,15 @@ function FileRow(props: {
   onMenuOpenChange: (open: boolean) => void;
   items: DropdownItem[];
 }) {
-  const icon = () => (props.entry.isDirectory ? "📁" : isArchive(props.entry) ? "🗜️" : isTextFile(props.entry) ? "📄" : "📦");
   return (
     <View
       role="button"
       testID={`file-${props.entry.name}`}
       onPress={props.onPress}
       onLongPress={() => props.onMenuOpenChange(true)}
-      class="flex-row items-center gap-3 border-b border-white/5 px-3 py-3 active:bg-accent"
+      class="flex-row items-center gap-3 border-b border-border px-3 py-3 active:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <Text class="text-xl">{icon()}</Text>
+      <Icon name={props.entry.isDirectory ? "folder" : "file"} tone={props.entry.isDirectory ? "accent" : "muted"} size={22} />
       <View class="flex-1 gap-0.5">
         <Text class="text-sm font-medium text-card-foreground">{props.entry.name}</Text>
         <Text class="text-xs text-muted-foreground">

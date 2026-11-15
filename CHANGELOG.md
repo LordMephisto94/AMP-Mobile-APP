@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.2.6-A
+
+A pre-release test build.
+
+- Redesign (`DESIGN.md`, `anti-slop/audit-001-2026-11-15.md`): solid cards and a single violet accent in place of
+  glass, shadows and gradients. The artwork now shows on the home screen only. Emoji are gone from screens, menus and
+  dialogs; folder and file rows use new line icons. Buttons use the theme's own text colour on the accent, which also
+  fixes danger buttons (white on the red was 2.69:1, now 6.96:1). The home screen shows each server as a plain card with
+  its status, and an instance's page has one Controls button above a single list that starts with the console.
+
+- Connection choice when adding a server: https (the default) or http. Plain http shows a warning that fits the
+  address (Tailscale, a private network or the public internet) and needs a tick before anything is sent. A typed
+  `http://` or `https://` moves the choice to match, and an http server's address stays visible on its card. The
+  live console uses `ws://` for http servers, and a download from an http panel opens over http. Android now
+  permits plain http (it blocks it by default) and still trusts only the system certificate store.
+
+- App settings, opened from Settings on the home screen (Security is one tap further): theme (dark, light, or the
+  phone's), sizes in binary (KiB, MiB, GiB) or decimal (kB, MB, GB) units, network speed in bytes or bits per
+  second, hiding IP addresses and host names (never, until tapped, or always; Copy still copies the real address),
+  and blocking screenshots and screen recording on Android. Sizes now read in binary units unless you change that,
+  so a machine that showed 2,678 MB shows 2.6 GiB.
+- Light theme. Every screen follows the chosen theme: colours come from theme tokens (new `info` and `series`
+  ones, plus `success`, `warning` and `destructive`) instead of picks that only worked on black, and the lock screen,
+  PIN pad, status badges, switches, charts and code blocks were redone for it. Contrast was measured, and these
+  light values changed: muted text on muted surfaces (4.39:1 to 5.02:1), destructive text on the page (4.28:1 to
+  5.73:1), success and warning text on cards (3.77:1 and 3.56:1 to 5.48:1 and 5.18:1), and the edge of an input or
+  switch (1.85:1 to 3.30:1 on a card; the dark theme's from 1.86:1 to 3.54:1). Both themes were looked at in
+  real-window screenshots of the lock screen, home, settings, security, add server, the instance list, an instance
+  and its files.
+- Line icons made for the app (`assets/icons`, beside the menu set in `assets/menu`): on the settings groups, the
+  instance menu, and file and folder rows. They are tinted from the theme and sit only where they name a
+  destination or a kind of thing.
+- Servers: move one up or down from its menu, and copy the server list to the clipboard (names, addresses and user
+  names, never passwords or sessions) or add servers from a copied list, both in Settings.
+- The auto-lock time now runs on a timer while the app is in the background; before, it was only checked when the
+  app came back to the front. If the saved sign-ins can't be read (a damaged vault file), the app opens, clears
+  them and says so, instead of resetting them without a word.
+- Keyboard focus rings on buttons, rows, PIN keys and fields. NSH draws them on macOS and the web, so nothing
+  changes on a phone yet.
+
+An outside read of the code (SECURITY.md, findings 55 to 60):
+
+- Quick unlock is now off unless you turn it on in Security. Before, the app could open without its PIN for a minute
+  after the phone was unlocked, so anyone who knew the phone's own PIN or pattern got in. If you used it, it is
+  switched off at your next PIN unlock: turn it on again in Security if you want it. Fingerprint unlock is unchanged.
+- Answers from a panel are cut off as they arrive once they pass 64 MB, even when the panel declares no length
+  (before, only a declared length was checked, after the whole answer had been read). Avatars the same, and only
+  PNG, JPEG, WebP and GIF are shown.
+- A reply to an instance's prompt (a Steam password or Guard code) is hidden as you type it; a Show control reveals it.
+- Android: the app switcher no longer keeps a picture of the app (Android 13 and newer; older versions blank the
+  window as the app leaves the front). The app no longer passes launch intents to NSH's URL-scheme and notification
+  handlers, which it doesn't use, and writes its error text to the log only in debuggable builds.
+- The PIN's key is now made with an HMAC computed inside the Android Keystore (findings 61 to 66). A copy of the
+  vault file can no longer be used to try PINs on a graphics card: every guess needs the phone. Vaults made by
+  earlier versions upgrade at your next PIN unlock. Easy PINs such as 121212 and 112233 are refused, a vault file with
+  an absurd `rounds` value is treated as damaged, and the Security page now says when the key store refused the vault
+  key and the PIN is all that protects it.
+- A link your panel sends (release notes, panel address) shows where it goes and asks before it opens.
+- Schedule step ids use a secure random.
+
 ## 0.2.2
 
 A fifth audit (SECURITY.md, findings 45 to 54):

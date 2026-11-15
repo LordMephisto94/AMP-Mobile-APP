@@ -65,11 +65,11 @@ export function InviteScreen(props: { serverId: string }) {
                   The link lets one person set up the account themselves, with their own password. It works once.
                 </Text>
                 <If when={error()}>{(m) => <ErrorText message={m()} />}</If>
-                <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+                <View class="gap-4 rounded-(--radius) border border-border bg-card p-4">
                   <Field testID="invite-username" label="Username" value={userName()} onChange={(v) => userName.set(v)} hint="The account they'll get." />
                   <Field testID="invite-display-name" label="Display name" value={displayName()} onChange={(v) => displayName.set(v)} placeholder="Optional" />
                 </View>
-                <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+                <View class="gap-2 rounded-(--radius) border border-border bg-card p-4">
                   <Text class="text-xs font-semibold tracking-widest text-muted-foreground">ROLES</Text>
                   <If when={roles()?.length === 0}>
                     <Text class="text-sm text-muted-foreground">No roles to give. Create one in the web panel first.</Text>
@@ -82,7 +82,7 @@ export function InviteScreen(props: { serverId: string }) {
                     )}
                   </Each>
                 </View>
-                <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+                <View class="gap-2 rounded-(--radius) border border-border bg-card p-4">
                   <Text class="text-xs font-semibold tracking-widest text-muted-foreground">LINK EXPIRES AFTER</Text>
                   <View class="flex-row flex-wrap gap-2">
                     <Each of={EXPIRY}>
@@ -92,7 +92,7 @@ export function InviteScreen(props: { serverId: string }) {
                           testID={`expiry-${e().hours}`}
                           onPress={() => hours.set(e().hours)}
                           class={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
-                            hours() === e().hours ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-background/60 text-muted-foreground"
+                            hours() === e().hours ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/60 text-muted-foreground"
                           }`}
                         >
                           {e().label}
@@ -129,7 +129,7 @@ export function InviteLink(props: { userName: string; link: string; onDone: () =
     <View class="gap-3 rounded-(--radius) border border-primary/40 bg-primary/10 p-4">
       <Text class="text-base font-semibold text-card-foreground">{`Invite link for ${props.userName}`}</Text>
       <Text class="text-sm text-muted-foreground">Copy it now and send it to them. It can't be shown again, and it's cleared from your clipboard after a minute.</Text>
-      <Text testID="invite-link" class="rounded-lg bg-black/50 p-3 font-mono text-xs text-sky-200">{props.link}</Text>
+      <Text testID="invite-link" class="rounded-lg bg-muted p-3 font-mono text-xs text-info">{props.link}</Text>
       <View class="flex-row gap-2">
         <SecondaryButton testID="copy-invite" title={copied() ? "Copied" : "Copy link"} tone={copied() ? "success" : "default"} onPress={copy} />
         <SecondaryButton testID="invite-done" title="Done" onPress={props.onDone} />

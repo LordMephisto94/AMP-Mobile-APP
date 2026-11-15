@@ -1,3 +1,5 @@
+import { formatMb } from "../lib/units";
+import { pressAddress, shownAddress } from "../state/prefs";
 import { Clipboard, Image, signal, Text, View } from "nsh";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
@@ -102,7 +104,6 @@ export function ShardsScreen(props: { serverId: string }) {
     const action = await confirm({
       title: `Permanently delete ${label}?`,
       message: "This removes its files, snapshots and history from the machine. It can't be undone.",
-      icon: "⚠️",
       tone: "danger",
       actions: [{ id: "purge", label: "Delete forever", tone: "danger" }],
     });
@@ -147,7 +148,7 @@ export function ShardsScreen(props: { serverId: string }) {
   const running = () => Object.values(states()).filter((s) => stateTone(s) === "running").length;
 
   return (
-    <AppPage title={name} subtitle={host} right={<MainMenu serverId={props.serverId} current="shards" />}>
+    <AppPage title={name} subtitle={shownAddress(host)} right={<MainMenu serverId={props.serverId} current="shards" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <AmpBanner
           title={name}
@@ -175,7 +176,7 @@ export function ShardsScreen(props: { serverId: string }) {
           </If>
           <If when={shards() !== null}>
             <View class={`md:w-72 ${shards()?.length === 1 ? "md:self-center" : "md:self-start"}`}>
-              <PrimaryButton title="New instance" icon="＋" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
+              <PrimaryButton title="New instance" onPress={() => nav.push({ name: "createShard", serverId: props.serverId })} />
             </View>
           </If>
           <View class={`gap-4 md:flex-row md:flex-wrap ${shards()?.length === 1 ? "md:justify-center" : ""}`}>
@@ -197,7 +198,7 @@ export function ShardsScreen(props: { serverId: string }) {
           </View>
 
           <If when={deleted().length > 0}>
-            <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/70">
+            <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
               <View
                 role="button"
                 testID="recently-deleted"
@@ -209,7 +210,7 @@ export function ShardsScreen(props: { serverId: string }) {
                 <Text class="text-muted-foreground">{showDeleted() ? "▾" : "▸"}</Text>
               </View>
               <If when={showDeleted()}>
-                <View class="gap-3 border-t border-white/10 p-4">
+                <View class="gap-3 border-t border-border p-4">
                   <Each of={deleted()} key={(d: DeployedShard) => d.id}>
                     {(d) => (
                       <View>
@@ -277,14 +278,14 @@ function ShardCard(props: {
         nav.push({ name: "shard", serverId: props.serverId, id: props.shard.id, title: title(), image: props.shard.displayImageSource })
       }
       onLongPress={() => menuOpen.set(true)}
-      class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg active:opacity-85"
+      class="overflow-hidden rounded-(--radius) border border-border bg-card active:opacity-85"
     >
       <View class="aspect-[460/215] w-full bg-secondary">
         <If
           when={art()}
           else={
             <View class="flex-1 items-center justify-center">
-              <Text class="text-4xl">🎮</Text>
+              <Text class="text-sm text-muted-foreground">No artwork</Text>
             </View>
           }
         >
@@ -305,9 +306,9 @@ function ShardCard(props: {
             title={title()}
             items={[
               ...powerItems({ title: title(), state: props.state ?? null, busy: props.busy, run: props.onAction }),
-              { id: "console", label: "Console", icon: "⌨️", onSelect: () => go("console") },
-              { id: "files", label: "Files", icon: "📁", onSelect: () => go("files") },
-              { id: "settings", label: "Settings", icon: "⚙️", onSelect: () => go("shardSettings") },
+              { id: "console", label: "Console", onSelect: () => go("console") },
+              { id: "files", label: "Files", onSelect: () => go("files") },
+              { id: "settings", label: "Settings", onSelect: () => go("shardSettings") },
             ]}
             trigger={<MoreButton testID={`more-${title()}`} />}
           />
@@ -321,13 +322,12 @@ function ShardCard(props: {
               <View
                 role="button"
                 testID={`address-${title()}`}
-                accessibilityLabel={`Address ${a()}. Tap to copy.`}
-                onPress={copy}
-                class="flex-row items-center gap-1.5 self-start rounded-full bg-white/5 px-2.5 py-0.5 active:bg-white/15"
+                accessibilityLabel={`Address ${shownAddress(a())}. Tap to copy.`}
+                onPress={() => pressAddress(a(), copy)}
+                class="flex-row items-center gap-1.5 self-start rounded-full bg-accent px-2.5 py-0.5 active:opacity-70"
               >
-                <Text class="text-[11px]">🌐</Text>
-                <Text class="font-mono text-xs font-semibold text-sky-300">{a()}</Text>
-                <Text class="text-[11px] text-muted-foreground">{copied() ? "Copied" : "⧉"}</Text>
+                <Text class="font-mono text-xs font-semibold text-primary">{shownAddress(a())}</Text>
+                <Text class="text-[11px] text-muted-foreground">{copied() ? "Copied" : "Copy"}</Text>
               </View>
             )}
           </If>
@@ -335,12 +335,12 @@ function ShardCard(props: {
         </View>
         <If when={metrics()}>
           <View class="gap-2">
-            <MeterRow label="CPU" value={`${cpu().toFixed(cpu() < 10 ? 1 : 0)}%`} fraction={cpu() / 100} barClass="bg-sky-400" />
+            <MeterRow label="CPU" value={`${cpu().toFixed(cpu() < 10 ? 1 : 0)}%`} fraction={cpu() / 100} barClass="bg-info" />
             <MeterRow
               label="RAM"
-              value={`${memory().toLocaleString()} MB`}
+              value={formatMb(memory())}
               fraction={memoryLimit() > 0 ? memory() / memoryLimit() : 0}
-              barClass="bg-violet-400"
+              barClass="bg-series"
             />
           </View>
         </If>
@@ -354,7 +354,7 @@ function MeterRow(props: { label: string; value: string; fraction: number; barCl
   return (
     <View class="flex-row items-center gap-3">
       <Text class="w-9 text-xs font-semibold text-muted-foreground">{props.label}</Text>
-      <View class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+      <View class="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
         <View class={`h-full rounded-full ${props.barClass}`} style={{ width: percent() }} />
       </View>
       <Text class="w-20 text-right text-xs text-card-foreground tabular-nums">{props.value}</Text>
@@ -368,7 +368,6 @@ function DeletedRow(props: { shard: DeployedShard; busy: boolean; onRestore: () 
   const name = () => props.shard.displayName || props.shard.name || props.shard.id;
   return (
     <View class="flex-row items-center gap-3 py-1.5" onLongPress={() => open.set(true)}>
-      <Text class="text-lg">🗑️</Text>
       <View class="flex-1">
         <Text class="text-base font-semibold text-card-foreground">{name()}</Text>
         <Text class="text-xs text-muted-foreground">
@@ -380,8 +379,8 @@ function DeletedRow(props: { shard: DeployedShard; busy: boolean; onRestore: () 
         onOpenChange={(o) => open.set(o && !props.busy)}
         title={name()}
         items={[
-          { id: "restore", label: "Restore", icon: "♻️", hint: "Back into your instances", onSelect: props.onRestore },
-          { id: "purge", label: "Delete forever", icon: "🔥", tone: "danger", hint: "Removes its files too", onSelect: props.onPurge },
+          { id: "restore", label: "Restore", hint: "Back into your instances", onSelect: props.onRestore },
+          { id: "purge", label: "Delete forever", tone: "danger", hint: "Removes its files too", onSelect: props.onPurge },
         ]}
         trigger={<MoreButton testID={`more-deleted-${name()}`} class="bg-transparent" />}
       />

@@ -7,7 +7,6 @@ import { HubConnection, type HubStatus } from "../api/hub";
 import { getShardState } from "../api/shards";
 import { ApplicationState, type ShardState, stateLabel, stateTone } from "../api/types";
 import { StatusBadge, toneStatus } from "../components/AmpBanner";
-import { Backdrop } from "../components/backdrop";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
 import { clientFor, serverById } from "../state/servers";
@@ -32,6 +31,10 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
   const error = signal<string | null>(null);
   const command = signal("");
   const sending = signal(false);
+  /** The instance is waiting on input (a Steam password or Guard code): what's typed is a reply, not a command. */
+  const awaiting = () => state()?.status === ApplicationState.AwaitingUserAction;
+  /** Shows a reply in clear while it's typed: it's masked by default, as it may be a password. */
+  const reveal = signal(false);
   let list: ListRef | undefined;
 
   /** Merges lines in by `seq`, oldest first, keeping the newest `MAX_LINES`. */
@@ -132,9 +135,10 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
     sending.set(true);
     try {
       // An instance waiting on input (a Steam Guard code) gets a prompt reply, never audited in the clear.
-      const promptReply = state()?.status === ApplicationState.AwaitingUserAction;
+      const promptReply = awaiting();
       await sendConsoleCommand(clientFor(props.serverId), props.id, text, promptReply);
       command.set("");
+      reveal.set(false);
       if (live() !== "connected") setTimeout(() => onTop() && loadNewest(), 1_000);
       list?.scrollToEnd({ animated: true });
     } catch (e) {
@@ -154,9 +158,7 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
   return (
     <AppPage title={`${props.title} console`}>
       <View class="flex-1 bg-background">
-        <Backdrop dim="strong" />
-
-        <View class="flex-row flex-wrap items-center gap-2 border-b border-white/10 bg-card/70 px-4 py-2.5">
+        <View class="flex-row flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2.5">
           <Text class="flex-1 text-base font-semibold text-foreground">{props.title}</Text>
           <If when={state()}>{(s) => <StatusBadge label={stateLabel(s())} status={toneStatus(stateTone(s()))} />}</If>
           <StatusBadge label={liveBadge().label} status={liveBadge().status} />
@@ -195,7 +197,7 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
           {(line) => <ConsoleRow line={line()} />}
         </List>
 
-        <View class="flex-row items-center gap-2 border-t border-white/10 bg-card/90 px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+10px)] mb-[env(keyboard-inset-height)]">
+        <View class="flex-row items-center gap-2 border-t border-border bg-card px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+10px)] mb-[env(keyboard-inset-height)]">
           <Text class="font-mono text-base text-primary">›</Text>
           <View class="flex-1 rounded-lg border border-input bg-background px-3 py-2">
             <Input
@@ -207,16 +209,29 @@ export function ConsoleScreen(props: { serverId: string; id: string; title: stri
               returnKeyType="send"
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder={state()?.status === ApplicationState.AwaitingUserAction ? "Reply to the prompt…" : "Type a command…"}
+              // A reply to a prompt may be a password: hidden (and kept from the keyboard's learning) unless shown.
+              masked={awaiting() && !reveal()}
+              placeholder={awaiting() ? "Reply to the prompt…" : "Type a command…"}
               class="p-0 font-mono text-sm text-foreground placeholder:text-muted-foreground"
             />
           </View>
+          <If when={awaiting()}>
+            <Text
+              role="button"
+              testID="reveal-reply"
+              accessibilityLabel={reveal() ? "Hide the reply" : "Show the reply"}
+              onPress={() => reveal.set(!reveal())}
+              class="px-1 text-xs font-semibold text-muted-foreground"
+            >
+              {reveal() ? "Hide" : "Show"}
+            </Text>
+          </If>
           <View
             role="button"
             onPress={send}
-            class={`rounded-lg px-4 py-2 ${command().trim() && !sending() ? "bg-linear-to-r from-hero-from to-hero-to active:opacity-85" : "bg-muted"}`}
+            class={`rounded-lg px-4 py-2 ${command().trim() && !sending() ? "bg-primary active:opacity-85" : "bg-muted"}`}
           >
-            <Text class={`text-sm font-semibold ${command().trim() && !sending() ? "text-white" : "text-muted-foreground"}`}>Send</Text>
+            <Text class={`text-sm font-semibold ${command().trim() && !sending() ? "text-primary-foreground" : "text-muted-foreground"}`}>Send</Text>
           </View>
         </View>
       </View>
@@ -239,15 +254,15 @@ function ConsoleRow(props: { line: ConsoleLine }) {
     const level = props.line.level?.toLowerCase() ?? "";
     switch (props.line.kind) {
       case "error":
-        return "text-rose-400";
+        return "text-destructive";
       case "notice":
-        return "text-amber-300";
+        return "text-warning";
       case "info":
-        return "text-sky-300";
+        return "text-info";
     }
     if (isInput()) return "text-primary";
-    if (/err|fatal|crit|severe/.test(level)) return "text-rose-400";
-    if (/warn/.test(level)) return "text-amber-300";
+    if (/err|fatal|crit|severe/.test(level)) return "text-destructive";
+    if (/warn/.test(level)) return "text-warning";
     if (/debug|trace|verbose/.test(level)) return "text-muted-foreground";
     return "text-foreground/90";
   };

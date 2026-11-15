@@ -1,4 +1,4 @@
-import type { AmpClient } from "./client";
+import { type AmpClient, readCapped } from "./client";
 
 /**
  * AMP 3's player analytics (`/api/Analytics/*`): who played, when, for how long and from
@@ -231,12 +231,12 @@ export async function avatarUrl(client: AmpClient, hash: string): Promise<string
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    // Only a picture, and only a small one.
-    if (!(response.headers.get("content-type") ?? "").toLowerCase().startsWith("image/")) return null;
-    if (Number(response.headers.get("content-length") ?? 0) > MAX_AVATAR_BYTES) return null;
-    const blob = await response.blob();
-    if (blob.size > MAX_AVATAR_BYTES) return null;
-    return URL.createObjectURL(blob);
+    // Only a plain raster picture (not SVG, which can carry markup and links), and only a small one.
+    const type = (response.headers.get("content-type") ?? "").toLowerCase().split(";")[0].trim();
+    if (!/^image\/(png|jpe?g|webp|gif)$/.test(type)) return null;
+    // Counted as it arrives: a body with no declared length can't be buffered past the cap.
+    const bytes = await readCapped(response, MAX_AVATAR_BYTES);
+    return URL.createObjectURL(new Blob([bytes], { type }));
   } catch {
     return null;
   } finally {
@@ -245,13 +245,6 @@ export async function avatarUrl(client: AmpClient, hash: string): Promise<string
 }
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-
-/** A country's flag from its ISO 3166-1 alpha-2 code ("gb" → 🇬🇧); a globe when unknown. */
-export function flag(country: string | null | undefined): string {
-  const code = (country ?? "").trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(code)) return "🌐";
-  return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
-}
 
 /** Minutes as a short duration: "45m", "3h 20m", "2d 4h". */
 export function duration(minutes: Decimal): string {

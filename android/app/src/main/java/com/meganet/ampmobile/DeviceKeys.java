@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import org.json.JSONObject;
@@ -60,6 +61,7 @@ final class DeviceKeys {
         view.handle("deviceKey.status", (data, reply) -> reply.resolve(status()));
         view.handle("deviceKey.seal", (data, reply) -> seal(args(data), reply));
         view.handle("deviceKey.open", (data, reply) -> open(args(data), reply));
+        view.handle("deviceKey.mac", (data, reply) -> mac(args(data), reply));
         view.handle("deviceKey.forget", (data, reply) -> {
             String alias = text(args(data), "alias");
             work(reply::reject, () -> reply.resolve(forget(alias)));
@@ -87,6 +89,7 @@ final class DeviceKeys {
         Map<String, Object> s = new HashMap<>();
         s.put("keys", true);
         s.put("biometric", biometricState());
+        s.put("mac", true);
         return s;
     }
 
@@ -154,6 +157,58 @@ final class DeviceKeys {
                 reply.reject(classify(e));
             }
         });
+    }
+
+    /**
+     * HMAC-SHA-256 of `data` (base64) under the key `alias`, which never leaves the phone. The vault
+     * mixes it into the PIN's key, so a PIN guess can only be checked here. With `create` a missing
+     * key is made; without it a missing key is an error, so a lost key is never quietly replaced.
+     */
+    private void mac(Map<String, Object> a, NshHostReply reply) {
+        String alias = text(a, "alias");
+        String data = text(a, "data");
+        boolean create = Boolean.TRUE.equals(a.get("create"));
+        if (alias == null || data == null) {
+            reply.reject("error: alias and data are needed");
+            return;
+        }
+        work(reply::reject, () -> {
+            try {
+                SecretKey key = key(alias);
+                if (key == null) {
+                    if (!create) {
+                        reply.reject("missing: no such key");
+                        return;
+                    }
+                    key = makeMacKey(alias);
+                }
+                Mac hmac = Mac.getInstance("HmacSHA256");
+                hmac.init(key);
+                reply.resolve(Base64.getEncoder().encodeToString(hmac.doFinal(Base64.getDecoder().decode(data))));
+            } catch (Exception e) {
+                reply.reject(classify(e));
+            }
+        });
+    }
+
+    /** An HMAC key in the key store: in StrongBox and usable only while the phone is unlocked where the phone allows, else a plain one. */
+    private static SecretKey makeMacKey(String alias) throws Exception {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                return generateMacKey(alias, true);
+            } catch (Exception hardwareRefused) {
+                // No StrongBox or no screen lock: the plain key below still never leaves the key store.
+            }
+        }
+        return generateMacKey(alias, false);
+    }
+
+    private static SecretKey generateMacKey(String alias, boolean hardened) throws Exception {
+        KeyGenParameterSpec.Builder b = new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN).setDigests(KeyProperties.DIGEST_SHA256);
+        if (hardened) b.setUnlockedDeviceRequired(true).setIsStrongBoxBacked(true);
+        KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, PROVIDER);
+        generator.init(b.build());
+        return generator.generateKey();
     }
 
     private boolean forget(String alias) {

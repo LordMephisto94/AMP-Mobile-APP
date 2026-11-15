@@ -2,7 +2,6 @@ import { signal, Text, View } from "nsh";
 import { Input } from "nsh/base";
 import { AmpError } from "../api/client";
 import { readText, writeText } from "../api/files";
-import { Backdrop } from "../components/backdrop";
 import { confirm } from "../components/Confirm";
 import { AppPage, ErrorText } from "../components/ui";
 import { nav } from "../state/nav";
@@ -87,7 +86,6 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
     const action = await confirm({
       title: "Discard your changes?",
       message: `${name} has unsaved changes.`,
-      icon: "📝",
       tone: "danger",
       cancelLabel: "Keep editing",
       actions: [{ id: "discard", label: "Discard", tone: "danger" }],
@@ -122,7 +120,6 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
       }}
     >
       <View class="flex-1 bg-background">
-        <Backdrop dim="strong" />
         <If when={error()}>
           {(m) => (
             <View class="px-4 pt-3">
@@ -155,7 +152,7 @@ export function FileEditScreen(props: { serverId: string; id: string; path: stri
         >
           <View class="flex-1 pb-[env(safe-area-inset-bottom)]">
             <View class="flex-1 px-3 pt-3 pb-[calc(env(keyboard-inset-height)+12px)]">
-              <View class="flex-1 rounded-lg border border-input bg-black/50 p-3">
+              <View class="flex-1 rounded-lg border border-input bg-muted p-3">
                 <Input
                   testID="file-content"
                   multiline

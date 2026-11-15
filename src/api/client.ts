@@ -21,33 +21,100 @@ export class AmpError extends Error {
 
 /**
  * Normalizes what the user typed as their server address into an origin the client
- * can append `/api/...` to: adds `https://` when no scheme is given and drops any
- * trailing slashes. Only HTTPS is accepted: the password and the session token cross
- * this connection. An address with a user name or password in it, a query or a
- * fragment is refused rather than silently changed.
+ * can append `/api/...` to: adds `defaultScheme` (https unless the user picked http) when
+ * no scheme is given and drops any trailing slashes. Only http and https are accepted; the
+ * add-server form asks for an explicit acknowledgement before it saves an http address.
+ * An address with a user name or password in it, a query or a fragment is refused rather
+ * than silently changed.
  */
-export function normalizeServerUrl(input: string): string {
+export function normalizeServerUrl(input: string, defaultScheme: "https" | "http" = "https"): string {
   let value = input.trim();
   if (!value) throw new Error("Enter your AMP server's address");
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) value = `https://${value}`;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) value = `${defaultScheme}://${value}`;
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     throw new Error("That doesn't look like a valid address");
   }
-  if (url.protocol === "http:") {
-    throw new Error("Use https://. Plain http:// would send your password and session unencrypted.");
-  }
-  if (url.protocol !== "https:") throw new Error("The address must start with https://");
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("The address must start with https:// or http://");
   if (url.username || url.password) throw new Error("Leave the user name and password out of the address");
   if (url.search || url.hash) throw new Error("Leave out anything after ? or # in the address");
   if (!url.hostname) throw new Error("That doesn't look like a valid address");
   return `${url.origin}${url.pathname}`.replace(/\/+$/, "");
 }
 
+export type HostKind = "tailscale" | "private" | "public";
+
+/** Whether an address looks like Tailscale, a private network or the public internet: how hard to warn about plain http. */
+export function hostKind(address: string): HostKind {
+  let host: string;
+  try {
+    host = new URL(address).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  } catch {
+    return "public";
+  }
+  if (host.endsWith(".ts.net")) return "tailscale";
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (v4) {
+    const a = Number(v4[1]);
+    const b = Number(v4[2]);
+    if (a === 100 && b >= 64 && b <= 127) return "tailscale";
+    if (a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) return "private";
+    return "public";
+  }
+  if (host.includes(":")) {
+    if (host.startsWith("fd7a:115c:a1e0")) return "tailscale";
+    return host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd") ? "private" : "public";
+  }
+  if (host === "localhost" || !host.includes(".") || /\.(local|lan|home|internal|home\.arpa)$/.test(host)) return "private";
+  return "public";
+}
+
 /** Biggest response the app reads into memory (file downloads go to the browser instead). */
 const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Reads a response body, never holding more than `max` bytes: a declared length over the cap
+ * is refused up front, and a body that has no length (chunked) or understates it is cut off
+ * the moment it crosses the cap, so a hostile or broken server can't make the app buffer an
+ * endless answer before the size check runs.
+ */
+export async function readCapped(response: Response, max: number): Promise<Uint8Array> {
+  const tooLarge = () => new AmpError("The server's answer is too large to read", response.status);
+  if (Number(response.headers.get("content-length") ?? 0) > max) throw tooLarge();
+  const stream = response.body;
+  if (!stream) {
+    // No stream to count (an empty body, or a host that doesn't give one): read it, then check.
+    const all = new Uint8Array(await response.arrayBuffer());
+    if (all.length > max) throw tooLarge();
+    return all;
+  }
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > max) {
+        await reader.cancel().catch(() => {});
+        throw tooLarge();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  return out;
+}
 
 /**
  * An error message with any secret a URL in it carries (a hub ticket, a download ticket,
@@ -116,10 +183,7 @@ export class AmpClient {
         // following a redirect to another host.
         redirect: "error",
       });
-      const length = Number(response.headers.get("content-length") ?? 0);
-      if (length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
-      text = await response.text();
-      if (text.length > MAX_RESPONSE_BYTES) throw new AmpError("The server's answer is too large to read", response.status);
+      text = new TextDecoder().decode(await readCapped(response, MAX_RESPONSE_BYTES));
     } catch (error) {
       if (error instanceof AmpError) throw error;
       const aborted = controller.signal.aborted;

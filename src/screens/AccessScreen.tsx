@@ -93,7 +93,6 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
     const choice = await confirm({
       title: `Revoke the invite for ${inv.userName}?`,
       message: "Its link stops working. You can send a new invite later.",
-      icon: "✉️",
       tone: "danger",
       actions: [{ id: "revoke", label: "Revoke", tone: "danger" }],
     });
@@ -120,7 +119,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
     <AppPage title="Access" subtitle={server?.name ?? ""} right={<MainMenu serverId={props.serverId} current="access" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <View class="w-full max-w-4xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-          <View class="flex-row gap-1 rounded-xl bg-card/85 p-1">
+          <View class="flex-row gap-1 rounded-xl bg-card p-1">
             <Each of={TABS}>
               {(t) => (
                 <View
@@ -155,19 +154,19 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
               {(list) => (
                 <View class="gap-3">
                   <View class="md:w-72">
-                    <PrimaryButton title="Add user" icon="＋" onPress={() => nav.push({ name: "user", serverId: props.serverId })} />
+                    <PrimaryButton title="Add user" onPress={() => nav.push({ name: "user", serverId: props.serverId })} />
                   </View>
-                  <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                  <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                     <Each of={list} key={(u: User) => u.id}>
                       {(u) => (
                         <View
                           role="button"
                           testID={`user-${u().userName}`}
                           onPress={() => nav.push({ name: "user", serverId: props.serverId, userId: u().id })}
-                          class="flex-row items-center gap-3 border-b border-white/5 px-4 py-3 active:bg-accent"
+                          class="flex-row items-center gap-3 border-b border-border px-4 py-3 active:bg-accent"
                         >
-                          <View class={`h-10 w-10 items-center justify-center rounded-full ${u().suspended ? "bg-white/10" : "bg-primary/25"}`}>
-                            <Text class="text-base font-bold text-white">{(u().displayName || u().userName || "?")[0].toUpperCase()}</Text>
+                          <View class={`h-10 w-10 items-center justify-center rounded-full ${u().suspended ? "bg-border" : "bg-primary/25"}`}>
+                            <Text class="text-base font-bold text-foreground">{(u().displayName || u().userName || "?")[0].toUpperCase()}</Text>
                           </View>
                           <View class="flex-1 gap-1">
                             <View class="flex-row flex-wrap items-center gap-1.5">
@@ -209,7 +208,7 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
               {(list) => (
                 <View class="gap-3">
                   <View class="md:w-72">
-                    <PrimaryButton title="New role" icon="＋" onPress={() => nav.push({ name: "role", serverId: props.serverId })} />
+                    <PrimaryButton title="New role" onPress={() => nav.push({ name: "role", serverId: props.serverId })} />
                   </View>
                   <If when={list.length === 0}>
                     <Text class="text-sm text-muted-foreground">No roles yet.</Text>
@@ -235,13 +234,13 @@ export function AccessScreen(props: { serverId: string; tab?: Tab }) {
               {(list) => (
                 <View class="gap-3">
                   <View class="md:w-72">
-                    <PrimaryButton title="New invite" icon="✉️" onPress={() => nav.push({ name: "invite", serverId: props.serverId })} />
+                    <PrimaryButton title="New invite" onPress={() => nav.push({ name: "invite", serverId: props.serverId })} />
                   </View>
                   <If when={list.length === 0}>
                     <Text class="text-sm text-muted-foreground">No invites. An invite is a one-time link someone uses to set up their own account.</Text>
                   </If>
                   <If when={list.length > 0}>
-                    <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                    <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                       <Each of={list.slice().sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))} key={(i: Invite) => i.id}>
                         {(inv) => (
                           <InviteRow invite={inv()} roleName={roleName} onRearm={() => rearm(inv())} onRevoke={() => revoke(inv())} />
@@ -288,7 +287,7 @@ function PartView<T>(props: { part: Part<T>; denied: string; loading: string; ch
 function RoleCard(props: { role: Role; members: string[]; onEdit: () => void }) {
   const open = signal(false);
   return (
-    <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+    <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
       <View role="button" testID={`role-${props.role.name}`} onPress={() => open.set(!open())} class="gap-1 px-4 py-3 active:bg-accent">
         <View class="flex-row items-center gap-2">
           <Text class="flex-1 text-[15px] font-semibold text-card-foreground">{props.role.name || "Unnamed role"}</Text>
@@ -301,12 +300,12 @@ function RoleCard(props: { role: Role; members: string[]; onEdit: () => void }) 
         </Text>
       </View>
       <If when={open()}>
-        <View class="gap-1 border-t border-white/10 bg-black/20 px-4 py-3">
+        <View class="gap-1 border-t border-border bg-muted px-4 py-3">
           <If when={props.role.permissions.length === 0}>
             <Text class="text-xs text-muted-foreground">No permissions.</Text>
           </If>
           <Each of={props.role.permissions.slice().sort()}>
-            {(p) => <Text class={`font-mono text-xs ${p().startsWith("-") ? "text-rose-300" : "text-sky-200"}`}>{p()}</Text>}
+            {(p) => <Text class={`font-mono text-xs ${p().startsWith("-") ? "text-destructive" : "text-info"}`}>{p()}</Text>}
           </Each>
           <View class="flex-row pt-2">
             <SecondaryButton testID={`edit-role-${props.role.name}`} title="Edit role" onPress={props.onEdit} />
@@ -328,7 +327,7 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
         ? `expired ${ago(inv().expiresAt)}`
         : `expires ${new Date(inv().expiresAt).toLocaleDateString()}`;
   return (
-    <View class="flex-row items-center gap-3 border-b border-white/5 px-4 py-3">
+    <View class="flex-row items-center gap-3 border-b border-border px-4 py-3">
       <View class="flex-1 gap-1">
         <View class="flex-row flex-wrap items-center gap-1.5">
           <Text class="text-[15px] font-semibold text-card-foreground">{inv().displayName || inv().userName}</Text>
@@ -346,8 +345,8 @@ function InviteRow(props: { invite: Invite; roleName: (id: string) => string; on
           onOpenChange={(o) => open.set(o)}
           title={inv().userName}
           items={[
-            { id: "rearm", label: "New link", icon: "🔗", hint: "Makes a fresh link; the old one stops working", onSelect: props.onRearm },
-            { id: "revoke", label: "Revoke", icon: "🚫", tone: "danger", onSelect: props.onRevoke },
+            { id: "rearm", label: "New link", hint: "Makes a fresh link; the old one stops working", onSelect: props.onRearm },
+            { id: "revoke", label: "Revoke", tone: "danger", onSelect: props.onRevoke },
           ]}
           trigger={<MoreButton testID={`invite-more-${inv().userName}`} class="bg-transparent" />}
         />

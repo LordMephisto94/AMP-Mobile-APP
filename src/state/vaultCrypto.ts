@@ -9,6 +9,8 @@
  */
 
 export const PBKDF2_ROUNDS = 600_000;
+/** More than this in a vault file is a damaged or altered file: unlocking it would freeze the app. */
+const MAX_ROUNDS = 5_000_000;
 const CHECK = "amp-mobile-vault-v1";
 
 export interface Sealed {
@@ -36,7 +38,13 @@ export interface VaultBlobV2 {
   v: 2;
   salt: string;
   rounds: number;
-  pinWrap: string;
+  /**
+   * Older vaults: the PIN's sealed box, wrapped by a phone key that works without the user. Code
+   * running as the app can read the box and try PINs off the phone, so these are upgraded.
+   */
+  pinWrap?: string;
+  /** Newer vaults: the data key sealed under a key made from the PIN and the phone's HMAC of it. */
+  pinBox?: Sealed;
   quickWrap?: string;
   /** The data key sealed by the biometric key: fingerprint unlock (then there's no quickWrap). */
   bioWrap?: string;
@@ -56,6 +64,7 @@ export type VaultKey = object;
 interface Subtle {
   importKey(format: "raw", data: Uint8Array, algorithm: "PBKDF2" | "AES-GCM", extractable: false, usages: string[]): Promise<VaultKey>;
   deriveKey(algorithm: object, base: VaultKey, derived: object, extractable: false, usages: string[]): Promise<VaultKey>;
+  deriveBits(algorithm: object, base: VaultKey, length: number): Promise<ArrayBuffer>;
   encrypt(algorithm: object, key: VaultKey, data: Uint8Array): Promise<ArrayBuffer>;
   decrypt(algorithm: object, key: VaultKey, data: Uint8Array): Promise<ArrayBuffer>;
 }
@@ -91,6 +100,12 @@ export async function deriveKey(pin: string, salt: Uint8Array, rounds = PBKDF2_R
   ]);
 }
 
+/** The PBKDF2 output for a PIN as raw bytes: what the phone's key store then runs its HMAC over. */
+export async function deriveBits(pin: string, salt: Uint8Array, rounds = PBKDF2_ROUNDS): Promise<Uint8Array> {
+  const base = await subtle().importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await subtle().deriveBits({ name: "PBKDF2", salt, iterations: rounds, hash: "SHA-256" }, base, 256));
+}
+
 export async function seal(key: VaultKey, value: unknown): Promise<Sealed> {
   const iv = randomBytes(12);
   const ct = await subtle().encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(value)));
@@ -124,11 +139,11 @@ export async function keyFor(blob: VaultBlobV1, pin: string): Promise<VaultKey |
 export function isVaultBlob(value: unknown): value is VaultBlob {
   const v = value as VaultBlob;
   // A vault claiming fewer rounds than the app uses would make guessing cheaper: refuse it.
-  if (!v || typeof v.salt !== "string" || typeof v.rounds !== "number" || v.rounds < PBKDF2_ROUNDS || !v.data?.iv) return false;
+  if (!v || typeof v.salt !== "string" || typeof v.rounds !== "number" || v.rounds < PBKDF2_ROUNDS || v.rounds > MAX_ROUNDS || !v.data?.iv) return false;
   if (v.v === 1) return !!v.check?.iv;
   if (v.v === 2) {
     return (
-      typeof v.pinWrap === "string" &&
+      (typeof v.pinWrap === "string" || (!!v.pinBox?.iv && !!v.pinBox?.ct)) &&
       (v.quickWrap === undefined || typeof v.quickWrap === "string") &&
       (v.bioWrap === undefined || typeof v.bioWrap === "string")
     );

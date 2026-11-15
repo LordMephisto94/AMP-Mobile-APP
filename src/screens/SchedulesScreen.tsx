@@ -149,7 +149,6 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
     const action = await confirm({
       title: `Delete ${s.name}?`,
       message: "It won't run again. Its run history goes with it. This can't be undone.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -160,7 +159,6 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
     const action = await confirm({
       title: `Run ${s.name} now?`,
       message: "Its steps run straight away, as if it had fired. Its usual times stay as they are.",
-      icon: "▶️",
       actions: [{ id: "run", label: "Run now" }],
     });
     if (action === "run") await act(() => runSchedule(client(), props.id, s.id), "Started. Its result shows here and in its run history.");
@@ -196,7 +194,7 @@ export function SchedulesScreen(props: { serverId: string; id: string; title: st
           <If when={notice()}>{(n) => <Notice text={n()} />}</If>
 
           <If when={schedules()}>
-            <PrimaryButton title="New schedule" icon="➕" onPress={() => edit()} />
+            <PrimaryButton title="New schedule" onPress={() => edit()} />
           </If>
 
           <If when={!error() && schedules() === null}>
@@ -244,14 +242,14 @@ function ScheduleCard(props: {
   const steps = () => outline(s().steps, props.text).filter((l) => l.depth === 0);
 
   const items = () => [
-    { id: "run", label: "Run now", icon: "▶️", onSelect: props.onRun },
-    { id: "edit", label: "Edit", icon: "✏️", onSelect: props.onEdit },
-    { id: "history", label: "Run history", icon: "🧾", onSelect: props.onHistory },
-    { id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: props.onDelete },
+    { id: "run", label: "Run now", onSelect: props.onRun },
+    { id: "edit", label: "Edit", onSelect: props.onEdit },
+    { id: "history", label: "Run history", onSelect: props.onHistory },
+    { id: "delete", label: "Delete", tone: "danger" as const, onSelect: props.onDelete },
   ];
 
   return (
-    <View testID={`schedule-${s().id}`} class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+    <View testID={`schedule-${s().id}`} class="gap-2 rounded-(--radius) border border-border bg-card p-4">
       <View class="flex-row items-start gap-3">
         <View class="flex-1 gap-1" role="button" onPress={props.onEdit}>
           <Text class="text-base font-semibold text-card-foreground">{s().name || "Untitled"}</Text>
@@ -261,7 +259,7 @@ function ScheduleCard(props: {
           role="switch"
           testID={`schedule-toggle-${s().id}`}
           onPress={() => !props.busy && props.onToggle()}
-          class={`mt-0.5 h-7 w-12 justify-center rounded-full px-0.5 ${s().enabled ? "items-end bg-primary" : "items-start bg-white/15"} ${props.busy ? "opacity-50" : ""}`}
+          class={`mt-0.5 h-7 w-12 justify-center rounded-full px-0.5 ${s().enabled ? "items-end bg-primary" : "items-start bg-input"} ${props.busy ? "opacity-50" : ""}`}
         >
           <View class="h-6 w-6 rounded-full bg-white" />
         </View>
@@ -602,7 +600,7 @@ function TaskEditor(props: {
   const setParam = (name: string, value: string) => props.onChange({ ...props.step, parameters: { ...props.step.parameters, [name]: value } });
 
   return (
-    <View testID={`task-${n()}`} class="gap-2 rounded-lg border border-white/10 bg-background/40 p-3">
+    <View testID={`task-${n()}`} class="gap-2 rounded-lg border border-border bg-background/40 p-3">
       <View class="flex-row items-center gap-2">
         <Text class="text-sm font-semibold text-foreground">{`${n()}.`}</Text>
         <View class="flex-1">
@@ -652,7 +650,7 @@ function SmallButton(props: { label: string; onPress: () => void; disabled?: boo
       testID={props.testID}
       onPress={() => !props.disabled && props.onPress()}
       class={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
-        props.danger ? "border-destructive/30 text-destructive" : "border-white/10 text-muted-foreground"
+        props.danger ? "border-destructive/30 text-destructive" : "border-border text-muted-foreground"
       } ${props.disabled ? "opacity-40" : ""}`}
     >
       {props.label}
@@ -725,7 +723,7 @@ function RunCard(props: { run: Run; names: Record<string, string>; text: Record<
   const open = signal(props.startOpen);
   const r = () => props.run;
   return (
-    <View testID={`run-${r().id}`} class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+    <View testID={`run-${r().id}`} class="gap-2 rounded-(--radius) border border-border bg-card p-4">
       <View role="button" onPress={() => open.set(!open())} class="flex-row items-center gap-2">
         <View class="flex-1 gap-1">
           <Text class="text-base font-semibold text-card-foreground">{whenOf(r().startedAt ?? r().queuedAt) || "Run"}</Text>
@@ -739,7 +737,7 @@ function RunCard(props: { run: Run; names: Record<string, string>; text: Record<
       <If when={r().errorMessage}>{(e) => <Text class="text-xs text-destructive">{e()}</Text>}</If>
       <If when={open()}>
         <If when={r().stepOutcomes.length > 0} else={<Text class="text-xs text-muted-foreground">No step details were recorded for this run.</Text>}>
-          <View class="gap-1.5 border-t border-white/5 pt-2">
+          <View class="gap-1.5 border-t border-border pt-2">
             <Each of={r().stepOutcomes} key={(_o, i) => i}>
               {(o) => (
                 <View class="gap-0.5">

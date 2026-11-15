@@ -1,4 +1,4 @@
-import { Image, type ImageAsset, signal, Text, View } from "nsh";
+import { colorScheme, Image, type ImageAsset, signal, Text, View } from "nsh";
 import { Popover } from "nsh/base";
 import access from "../../assets/menu/access.svg";
 import activity from "../../assets/menu/activity.svg";
@@ -33,9 +33,9 @@ const ENTRIES: Entry[] = [
   { id: "settings", label: "Settings", icon: settings, route: (serverId) => ({ name: "settings", serverId }) },
 ];
 
-const ACCENT = "#38bdf8"; // sky-400, the panel's highlight
-const MUTED = "#a1a1b5";
-const BRIGHT = "#f4f4f8";
+const accent = () => (colorScheme() === "light" ? "#7c3aed" : "#a78bfa"); // the app's one accent (`primary`)
+const muted = () => (colorScheme() === "light" ? "#625f8a" : "#a1a1b5");
+const bright = () => (colorScheme() === "light" ? "#1e1b4b" : "#f4f4f8");
 
 /**
  * Goes to a section of one server: back to that server's instance list (keeping the
@@ -69,7 +69,7 @@ export function MainMenu(props: { serverId: string; current: MenuSection }) {
       align="end"
       offset={8}
       margin={12}
-      popupClass="w-60 overflow-hidden rounded-2xl border border-white/10 bg-popover pt-3 pb-2 shadow-2xl backdrop-blur-xl transition-all duration-150 ease-out"
+      popupClass="w-60 overflow-hidden rounded-(--radius) border border-border bg-popover pt-3 pb-2 shadow-2xl transition-all duration-150 ease-out"
       popupStartingClass="opacity-0 scale-95 -translate-y-1"
       popupEndingClass="opacity-0 scale-95 -translate-y-1"
       trigger={
@@ -79,7 +79,7 @@ export function MainMenu(props: { serverId: string; current: MenuSection }) {
           testID="main-menu"
           class={`h-10 w-10 items-center justify-center rounded-full ${open() ? "bg-primary/30" : "bg-primary/15"} active:bg-primary/30`}
         >
-          <Image src={menu} style={{ width: 22, height: 22, tintColor: "#a78bfa" }} />
+          <Image src={menu} style={{ width: 22, height: 22, tintColor: accent() }} />
         </View>
       }
     >
@@ -95,18 +95,18 @@ export function MainMenu(props: { serverId: string; current: MenuSection }) {
                 testID={`nav-${entry().id}`}
                 accessibilityLabel={available() ? entry().label : `${entry().label}, not in the app yet`}
                 onPress={() => pick(entry())}
-                class={`flex-row items-center gap-3.5 py-3 pr-4 pl-4 ${selected() ? "bg-sky-400/10" : available() ? "active:bg-white/5" : ""}`}
+                class={`flex-row items-center gap-3.5 py-3 pr-4 pl-4 ${selected() ? "bg-primary/10" : available() ? "active:bg-accent" : ""}`}
               >
                 <If when={selected()}>
-                  <View class="absolute top-0 bottom-0 left-0 w-[3px] bg-sky-400" />
+                  <View class="absolute top-0 bottom-0 left-0 w-[3px] bg-primary" />
                 </If>
                 <Image
                   src={entry().icon}
-                  style={{ width: 22, height: 22, tintColor: selected() ? ACCENT : available() ? BRIGHT : MUTED, opacity: available() ? 1 : 0.45 }}
+                  style={{ width: 22, height: 22, tintColor: selected() ? accent() : available() ? bright() : muted(), opacity: available() ? 1 : 0.45 }}
                 />
                 <Text
                   class={`flex-1 text-[15px] font-semibold ${
-                    selected() ? "text-white" : available() ? "text-foreground" : "text-muted-foreground/60"
+                    selected() ? "text-foreground" : available() ? "text-foreground" : "text-muted-foreground/60"
                   }`}
                 >
                   {entry().label}

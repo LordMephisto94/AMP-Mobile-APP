@@ -39,7 +39,7 @@ export function ago(iso: string | null | undefined): string {
 /** The period chips: 24h, 7d, 30d, 90d. */
 export function PeriodPicker(props: { value: PeriodId; onChange: (id: PeriodId) => void }) {
   return (
-    <View class="flex-row gap-1 self-start rounded-lg bg-card/85 p-1">
+    <View class="flex-row gap-1 self-start rounded-lg bg-card p-1">
       <Each of={[...PERIODS]}>
         {(p) => (
           <Text
@@ -66,7 +66,7 @@ export function StatTile(props: { label: string; value: string; change?: Decimal
   const change = () => (props.change == null ? null : num(props.change));
   const good = () => (change() ?? 0) === 0 || (change()! > 0) === (props.goodWhenUp ?? true);
   return (
-    <View class="w-[48%] gap-1 rounded-(--radius) border border-white/10 bg-card/85 p-3.5 shadow-lg md:w-[23.5%]">
+    <View class="w-[48%] gap-1 rounded-(--radius) border border-border bg-card p-3.5 md:w-[23.5%]">
       <Text class={`text-[11px] font-semibold tracking-wider ${props.accent}`}>{props.label.toUpperCase()}</Text>
       <Text class="text-2xl font-bold text-card-foreground tabular-nums">{props.value}</Text>
       <If
@@ -84,7 +84,7 @@ export function StatTile(props: { label: string; value: string; change?: Decimal
 /** A titled card holding a list or a breakdown. */
 export function Section(props: { title: string; note?: string; children?: JSX.Element }) {
   return (
-    <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+    <View class="gap-3 rounded-(--radius) border border-border bg-card p-4">
       <View class="flex-row items-baseline justify-between gap-3">
         <Text class="text-xs font-semibold tracking-widest text-muted-foreground">{props.title.toUpperCase()}</Text>
         <If when={props.note}>{(n) => <Text class="text-xs text-muted-foreground">{n()}</Text>}</If>
@@ -94,9 +94,8 @@ export function Section(props: { title: string; note?: string; children?: JSX.El
   );
 }
 
-/** A row of a breakdown: an icon, a label, a share bar and a figure. */
+/** A row of a breakdown: a label, a share bar and a figure. */
 export function ShareRow(props: {
-  icon: string;
   label: string;
   detail?: string;
   value: string;
@@ -114,7 +113,6 @@ export function ShareRow(props: {
       class={`gap-1.5 rounded-lg py-1 ${props.onPress ? "active:bg-accent" : ""}`}
     >
       <View class="flex-row items-center gap-2.5">
-        <Text class="text-lg">{props.icon}</Text>
         <View class="flex-1">
           <Text class="line-clamp-1 text-sm font-semibold text-card-foreground">{props.label}</Text>
           <If when={props.detail}>{(d) => <Text class="line-clamp-1 text-xs text-muted-foreground">{d()}</Text>}</If>
@@ -124,7 +122,7 @@ export function ShareRow(props: {
           <Text class="text-lg text-muted-foreground">›</Text>
         </If>
       </View>
-      <View class="h-1.5 overflow-hidden rounded-full bg-white/10">
+      <View class="h-1.5 overflow-hidden rounded-full bg-border">
         <View class={`h-full rounded-full ${props.barClass}`} style={{ width: width() }} />
       </View>
     </View>
@@ -135,7 +133,6 @@ export function ShareRow(props: {
 export function DemoNotice() {
   return (
     <View class="flex-row gap-3 rounded-(--radius) border border-warning/40 bg-warning/10 p-3.5">
-      <Text class="text-lg">🧪</Text>
       <View class="flex-1 gap-0.5">
         <Text class="text-sm font-semibold text-warning">Demo numbers</Text>
         <Text class="text-xs text-muted-foreground">

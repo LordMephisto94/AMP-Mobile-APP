@@ -22,7 +22,6 @@ import {
   type ShardInfraSettings,
   validateSetting,
 } from "../api/manage";
-import { Backdrop } from "../components/backdrop";
 import { Select } from "../components/Dropdown";
 import { AppPage, ErrorText, Field, PrimaryButton, SecondaryButton } from "../components/ui";
 import { nav } from "../state/nav";
@@ -31,8 +30,6 @@ import { sessionRejected } from "../lib/session";
 
 interface Group {
   name: string;
-  /** An emoji for the category's icon, when AMP gave one. */
-  icon: string | null;
   settings: EffectiveSetting[];
 }
 
@@ -119,21 +116,18 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   const groups = (): Group[] => {
     const q = search().trim().toLowerCase();
     const map = new Map<string, EffectiveSetting[]>();
-    const icons = new Map<string, string | null>();
     for (const s of settings() ?? []) {
       if (!visible(s.spec)) continue;
       if (q) {
         const hay = `${text(s.spec.displayName)} ${s.spec.fieldName} ${text(s.spec.description)} ${s.spec.keywords ?? ""}`.toLowerCase();
         if (!hay.includes(q)) continue;
       }
-      const { name: catName, icon } = splitCategory(s.spec.category);
+      const { name: catName } = splitCategory(s.spec.category);
       const cat = text(catName) || "General";
-      if (!icons.get(cat)) icons.set(cat, icon);
       map.set(cat, [...(map.get(cat) ?? []), s]);
     }
     return [...map.entries()].map(([groupName, list]) => ({
       name: groupName,
-      icon: icons.get(groupName) ?? null,
       settings: list.sort((a, b) => (a.spec.order ?? 0) - (b.spec.order ?? 0)),
     }));
   };
@@ -235,10 +229,9 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
   return (
     <AppPage title={`${props.title} settings`}>
       <View class="flex-1 bg-background">
-        <Backdrop dim="strong" />
         <Scroll class="flex-1" keyboardDismissMode="on-drag">
           <View class="w-full max-w-3xl gap-4 self-center p-4 pb-32">
-            <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="gap-4 rounded-(--radius) border border-border bg-card p-4">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">DETAILS</Text>
               <Field testID="details-name" label="Name" value={name()} onChange={(v) => (saved.set(false), name.set(v))} />
               <Field
@@ -273,20 +266,19 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
 
             <Each of={groups()} key={(g: Group) => g.name}>
               {(group) => (
-                <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                   <View
                     role="button"
                     testID={`group-${group().name}`}
                     onPress={() => open.set({ ...open(), [group().name]: !open()[group().name] })}
                     class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent"
                   >
-                    <If when={group().icon}>{(i) => <Text class="text-lg">{i()}</Text>}</If>
                     <Text class="flex-1 text-base font-semibold text-card-foreground">{group().name}</Text>
                     <Text class="text-xs text-muted-foreground">{String(group().settings.length)}</Text>
                     <Text class="text-base text-muted-foreground">{open()[group().name] || search().trim() ? "▾" : "▸"}</Text>
                   </View>
                   <If when={open()[group().name] || search().trim()}>
-                    <View class="gap-5 border-t border-white/10 px-4 py-4">
+                    <View class="gap-5 border-t border-border px-4 py-4">
                       <Each of={group().settings} key={(s: EffectiveSetting) => s.spec.fieldName}>
                         {(s) => (
                           <SettingRow
@@ -318,7 +310,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
                   </View>
                   <Each of={infraGroups()} key={(g: InfraGroup) => g.name}>
                     {(group) => (
-                      <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                      <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                         <View
                           role="button"
                           testID={`group-${group().name}`}
@@ -329,7 +321,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
                           <Text class="text-base text-muted-foreground">{open()[`infra:${group().name}`] ? "▾" : "▸"}</Text>
                         </View>
                         <If when={open()[`infra:${group().name}`]}>
-                          <View class="gap-5 border-t border-white/10 px-4 py-4">
+                          <View class="gap-5 border-t border-border px-4 py-4">
                             <Each of={group().fields} key={(f: InfraField) => f.key}>
                               {(f) => (
                                 <SettingRow
@@ -368,7 +360,7 @@ export function ShardSettingsScreen(props: { serverId: string; id: string; title
         </Scroll>
 
         <If when={changeCount() > 0}>
-          <View class="flex-row gap-3 border-t border-white/10 bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] mb-[env(keyboard-inset-height)]">
+          <View class="flex-row gap-3 border-t border-border bg-card px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] mb-[env(keyboard-inset-height)]">
             <SecondaryButton title="Discard" onPress={discard} disabled={saving()} />
             <View class="flex-[2]">
               <PrimaryButton
@@ -434,7 +426,7 @@ export function SettingRow(props: {
             class={`h-7 w-12 justify-center rounded-full px-0.5 ${isChecked(props.spec, props.value) ? "bg-primary" : "bg-muted"}`}
           >
             <View
-              class={`h-6 w-6 rounded-full bg-white shadow ${isChecked(props.spec, props.value) ? "self-end" : "self-start"}`}
+              class={`h-6 w-6 rounded-full ${isChecked(props.spec, props.value) ? "bg-white" : "bg-muted-foreground"} shadow ${isChecked(props.spec, props.value) ? "self-end" : "self-start"}`}
             />
           </View>
         </View>

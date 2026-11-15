@@ -1,3 +1,4 @@
+import { pressAddress, shownAddress } from "../state/prefs";
 import { Clipboard, signal, Text, View } from "nsh";
 import { AmpError } from "../api/client";
 import { getSpireState, listSpires, type SpireDefinition, type SpireState } from "../api/manage";
@@ -121,7 +122,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
 
           <If when={s()}>
             {/* What it is */}
-            <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="gap-3 rounded-(--radius) border border-border bg-card p-4">
               <View class="flex-row flex-wrap items-center gap-2">
                 <Pill label={online() ? "Online" : "Offline"} tone={online() ? "success" : "danger"} />
                 <If when={spire()?.isLocal}>
@@ -150,19 +151,19 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
 
             {/* How busy */}
             <Section title="Load">
-              <Bar label="CPU" percent={num(s()!.cpuUsagePercent)} value={`${num(s()!.cpuUsagePercent).toFixed(0)}%`} barClass="bg-sky-400" />
+              <Bar label="CPU" percent={num(s()!.cpuUsagePercent)} value={`${num(s()!.cpuUsagePercent).toFixed(0)}%`} barClass="bg-info" />
               <Bar
                 label="RAM"
                 percent={num(s()!.memoryTotalMb) > 0 ? (num(s()!.memoryUsedMb) / num(s()!.memoryTotalMb)) * 100 : 0}
                 value={num(s()!.memoryTotalMb) > 0 ? `${size(num(s()!.memoryUsedMb))} / ${size(num(s()!.memoryTotalMb))}` : "–"}
-                barClass="bg-violet-400"
+                barClass="bg-series"
               />
               <If when={num(p()?.totalDiskMb) > 0}>
                 <Bar
                   label="Disk"
                   percent={100 - (num(p()?.freeDiskMb) / num(p()?.totalDiskMb)) * 100}
                   value={`${size(num(p()?.freeDiskMb))} free of ${size(num(p()?.totalDiskMb))}`}
-                  barClass="bg-amber-400"
+                  barClass="bg-warning"
                 />
               </If>
               <View class="flex-row flex-wrap gap-x-5 gap-y-1 pt-1">
@@ -228,7 +229,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                         .sort((a, b) => num(b.sizeMb) - num(a.sizeMb))
                         .slice(0, 5);
                     return (
-                      <View class="gap-2 border-b border-white/5 pb-3">
+                      <View class="gap-2 border-b border-border pb-3">
                         <View class="flex-row flex-wrap items-center gap-2">
                           <Text class="text-sm font-semibold text-card-foreground">{d().name || "Datastore"}</Text>
                           <If when={d().isDefault && d().name?.toLowerCase() !== "default"}>
@@ -247,7 +248,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                                 label="Drive"
                                 percent={num(x().driveTotalMb) > 0 ? 100 - (num(x().driveFreeMb) / num(x().driveTotalMb)) * 100 : 0}
                                 value={`${size(num(x().driveFreeMb))} free`}
-                                barClass="bg-amber-400"
+                                barClass="bg-warning"
                               />
                               <Text class="text-xs text-muted-foreground">{`Instances here use ${size(num(x().totalUsedMb))}`}</Text>
                               <Each of={top()} key={(r: ShardDiskUsage) => r.name}>
@@ -287,7 +288,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                     onPress={() => openShard(e().shardId, e().shardName)}
                     class="flex-row items-center gap-3 rounded-lg py-1.5 active:bg-accent"
                   >
-                    <View class="h-7 w-7 items-center justify-center rounded-full bg-black/40">
+                    <View class="h-7 w-7 items-center justify-center rounded-full bg-muted">
                       <Text class="text-xs font-semibold text-muted-foreground tabular-nums">{String(e().order)}</Text>
                     </View>
                     <Text class="line-clamp-1 flex-1 text-sm font-semibold text-card-foreground">{e().shardName}</Text>
@@ -309,7 +310,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
               <Each of={sortedPorts()} key={(x: SpirePortEntry) => `${x.shardId}-${x.ref}-${x.port}-${x.protocol}`}>
                 {(x) => (
                   <View class={`flex-row items-center gap-3 rounded-lg px-1 py-1.5 ${x().conflict ? "bg-destructive/10" : ""}`}>
-                    <View class={`h-2 w-2 rounded-full ${x().listening ? "bg-success" : x().running ? "bg-warning" : "bg-white/20"}`} />
+                    <View class={`h-2 w-2 rounded-full ${x().listening ? "bg-success" : x().running ? "bg-warning" : "bg-input"}`} />
                     <Text class="w-14 font-mono text-sm font-semibold text-card-foreground tabular-nums">{String(x().port)}</Text>
                     <Text class="w-10 text-[11px] font-semibold text-muted-foreground">{String(x().protocol ?? "").toUpperCase()}</Text>
                     <View class="flex-1">
@@ -328,7 +329,7 @@ export function SpireScreen(props: { serverId: string; id: string; title: string
                 <View class="flex-row flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                   <Legend dot="bg-success" label="Listening" />
                   <Legend dot="bg-warning" label="Running, not listening" />
-                  <Legend dot="bg-white/20" label="Stopped" />
+                  <Legend dot="bg-input" label="Stopped" />
                 </View>
               </If>
             </Section>
@@ -354,9 +355,9 @@ function Fact(props: { label: string; value: string | null }) {
 
 function AddressRow(props: { address: string; label: string; copied: boolean; onCopy: () => void }) {
   return (
-    <View role="button" onPress={props.onCopy} class="flex-row items-center gap-3 rounded-lg py-1 active:bg-accent">
+    <View role="button" onPress={() => pressAddress(props.address, props.onCopy)} class="flex-row items-center gap-3 rounded-lg py-1 active:bg-accent focus-visible:ring-2 focus-visible:ring-ring">
       <View class="flex-1">
-        <Text class="font-mono text-sm text-sky-300">{props.address}</Text>
+        <Text class="font-mono text-sm text-primary">{shownAddress(props.address)}</Text>
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
       </View>
       <Text class="text-xs text-muted-foreground">{props.copied ? "Copied" : "⧉"}</Text>

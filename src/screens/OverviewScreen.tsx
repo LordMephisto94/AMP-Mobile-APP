@@ -16,7 +16,7 @@ import { clientFor, clientLater, serverById } from "../state/servers";
 import { sessionRejected } from "../lib/session";
 
 const REFRESH_MS = 30_000;
-const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
+const KIND_TEXT = { info: "text-info", danger: "text-destructive", warn: "text-warning", ok: "text-success" } as const;
 
 /** A server at a glance, as the panel's Overview: totals, its machines, and what happened lately. */
 export function OverviewScreen(props: { serverId: string }) {
@@ -116,10 +116,10 @@ export function OverviewScreen(props: { serverId: string }) {
             <View class="gap-2">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">SERVERS</Text>
               <View class="flex-row flex-wrap justify-between gap-y-3">
-                <Total icon="▶" label="Running" value={String(running())} valueClass="text-success" iconClass="text-success" />
-                <Total icon="■" label="Stopped" value={String(stopped())} valueClass="text-card-foreground" iconClass="text-muted-foreground" />
-                <Total icon="▤" label="Total Shard Usage" value={size(ramMb())} valueClass="text-card-foreground" iconClass="text-violet-300" />
-                <Total icon="👥" label="Players" value={String(players())} valueClass="text-card-foreground" iconClass="text-sky-300" />
+                <Total label="Running" value={String(running())} valueClass="text-success" />
+                <Total label="Stopped" value={String(stopped())} valueClass="text-card-foreground" />
+                <Total label="Total Shard Usage" value={size(ramMb())} valueClass="text-card-foreground" />
+                <Total label="Players" value={String(players())} valueClass="text-card-foreground" />
               </View>
             </View>
 
@@ -145,7 +145,7 @@ export function OverviewScreen(props: { serverId: string }) {
             <View class="gap-2">
               <View class="flex-row items-center justify-between">
                 <Text class="text-xs font-semibold tracking-widest text-muted-foreground">RECENT ACTIVITY</Text>
-                <Text role="button" testID="view-all-activity" onPress={showActivity} class="text-sm font-semibold text-sky-400">
+                <Text role="button" testID="view-all-activity" onPress={showActivity} class="text-sm font-semibold text-info">
                   View all
                 </Text>
               </View>
@@ -157,13 +157,13 @@ export function OverviewScreen(props: { serverId: string }) {
                 <Text class="text-sm text-muted-foreground">Nothing yet.</Text>
               </If>
               <If when={activity()?.length}>
-                <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                   <Each of={activity() ?? []} key={(f: AuditRootItem) => f.correlationId}>
                     {(flow) => {
                       const e = () => flow().root;
                       const target = () => shardNames()[e().targetId] ?? (e().targetType || null);
                       return (
-                        <View role="button" onPress={showActivity} class="gap-0.5 border-b border-white/5 px-4 py-3 active:bg-accent">
+                        <View role="button" onPress={showActivity} class="gap-0.5 border-b border-border px-4 py-3 active:bg-accent">
                           <View class="flex-row items-start gap-3">
                             <Text class={`flex-1 text-sm font-semibold ${KIND_TEXT[actionKind(e().action)]}`}>
                               {actionLabel(e().action, text())}
@@ -185,16 +185,11 @@ export function OverviewScreen(props: { serverId: string }) {
   );
 }
 
-function Total(props: { icon: string; label: string; value: string; valueClass: string; iconClass: string }) {
+function Total(props: { label: string; value: string; valueClass: string }) {
   return (
-    <View class="w-[48.5%] flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-3.5 shadow-lg md:w-[24%]">
-      <View class="h-9 w-9 items-center justify-center rounded-full bg-black/40">
-        <Text class={`text-sm ${props.iconClass}`}>{props.icon}</Text>
-      </View>
-      <View class="flex-1">
-        <Text class="text-xs text-muted-foreground">{props.label}</Text>
-        <Text class={`text-xl font-bold tabular-nums ${props.valueClass}`}>{props.value}</Text>
-      </View>
+    <View class="w-[48.5%] gap-0.5 rounded-(--radius) border border-border bg-card p-3.5 md:w-[24%]">
+      <Text class="text-xs text-muted-foreground">{props.label}</Text>
+      <Text class={`text-xl font-bold tabular-nums ${props.valueClass}`}>{props.value}</Text>
     </View>
   );
 }

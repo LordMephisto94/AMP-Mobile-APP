@@ -3,7 +3,6 @@ import { Input } from "nsh/base";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { type AppSpec, createShard, listSpires, listTemplates, placeableSpires, type SpireDefinition } from "../api/manage";
-import { Backdrop } from "../components/backdrop";
 import { Select } from "../components/Dropdown";
 import { AppPage, Checkbox, ErrorText, Field, PrimaryButton } from "../components/ui";
 import { nav } from "../state/nav";
@@ -109,7 +108,6 @@ export function CreateShardScreen(props: { serverId: string }) {
   return (
     <AppPage title="New instance">
       <View class="flex-1 bg-background">
-        <Backdrop dim="strong" />
         <If
           when={chosen()}
           else={
@@ -148,7 +146,7 @@ export function CreateShardScreen(props: { serverId: string }) {
           {(t) => (
             <Scroll class="flex-1">
               <View class="w-full max-w-2xl gap-5 self-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-                <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+                <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                   <TemplateArt template={t()} serverUrl={serverUrl} />
                   <View class="gap-1 p-4">
                     <Text class="text-xl font-bold text-card-foreground">{title(t())}</Text>
@@ -161,7 +159,7 @@ export function CreateShardScreen(props: { serverId: string }) {
                   </View>
                 </View>
 
-                <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+                <View class="gap-4 rounded-(--radius) border border-border bg-card p-4">
                   <Field testID="instance-name" label="Name" value={name()} onChange={(v) => name.set(v)} />
                   <Field
                     testID="instance-description"
@@ -217,7 +215,7 @@ function TemplateArt(props: { template: AppSpec; serverUrl: string }) {
         when={src()}
         else={
           <View class="flex-1 items-center justify-center">
-            <Text class="text-3xl">🎮</Text>
+            <Text class="text-sm text-muted-foreground">No artwork</Text>
           </View>
         }
       >
@@ -234,7 +232,7 @@ function TemplateTile(props: { template: AppSpec; serverUrl: string; onPress: ()
       role="button"
       testID={`template-${props.template.templateSlug}`}
       onPress={props.onPress}
-      class="w-[48%] overflow-hidden rounded-xl border border-white/10 bg-card/85 shadow-md active:opacity-80 md:w-[31.5%] lg:w-[23.5%]"
+      class="w-[48%] overflow-hidden rounded-xl border border-border bg-card active:opacity-80 md:w-[31.5%] lg:w-[23.5%]"
     >
       <TemplateArt template={props.template} serverUrl={props.serverUrl} />
       <Text class="line-clamp-2 h-14 px-2.5 py-2 text-sm leading-5 font-semibold text-card-foreground">

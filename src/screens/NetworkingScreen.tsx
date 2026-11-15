@@ -1,3 +1,4 @@
+import { pressAddress, shownAddress } from "../state/prefs";
 import { Clipboard, signal, Text, View } from "nsh";
 import { AmpError } from "../api/client";
 import { listSpires, type SpireDefinition } from "../api/manage";
@@ -192,7 +193,6 @@ export function NetworkingScreen(props: { serverId: string }) {
       message: makePublic
         ? `Port ${port.port} on ${shardName(shard.id)} opens in AMP's firewall and can be published.`
         : `Port ${port.port} on ${shardName(shard.id)} closes in AMP's firewall and stops being published. Players using it lose access.`,
-      icon: makePublic ? "🌐" : "🔒",
       tone: makePublic ? "default" : "danger",
       actions: [{ id: "go", label: makePublic ? "Make public" : "Make private", tone: makePublic ? "primary" : "danger" }],
     });
@@ -207,7 +207,6 @@ export function NetworkingScreen(props: { serverId: string }) {
     const choice = await confirm({
       title: `Stop publishing port ${p.publicPort}?`,
       message: `${shardName(p.shardId)} stops being reachable through ${spireName(p.frontSpireId)} on port ${p.publicPort}.`,
-      icon: "🔌",
       tone: "danger",
       actions: [{ id: "remove", label: "Unpublish", tone: "danger" }],
     });
@@ -259,7 +258,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                 <If when={h().url}>
                   {(url) => (
                     <View role="button" testID="panel-url" onPress={() => openSafe(url()).catch((e) => error.set((e as Error).message))} class="rounded-lg py-1 active:bg-accent">
-                      <Text class="font-mono text-sm text-sky-300">{url()}</Text>
+                      <Text class="font-mono text-sm text-primary">{shownAddress(url())}</Text>
                       <Text class="text-xs text-muted-foreground">Tap to open</Text>
                     </View>
                   )}
@@ -284,7 +283,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                   </If>
                 </View>
                 <If when={(h().trustedProxies ?? []).length}>
-                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${(h().trustedProxies ?? []).join(", ")}`}</Text>
+                  <Text class="text-xs text-muted-foreground">{`Trusted proxies: ${(h().trustedProxies ?? []).map((p) => shownAddress(p)).join(", ")}`}</Text>
                 </If>
               </Section>
             )}
@@ -304,11 +303,11 @@ export function NetworkingScreen(props: { serverId: string }) {
                     return l && l !== "denied" ? l.slice().sort((a, b) => Number(b.primary) - Number(a.primary) || a.port - b.port) : [];
                   };
                   return (
-                    <View class="gap-1.5 border-b border-white/5 pb-3">
+                    <View class="gap-1.5 border-b border-border pb-3">
                       <View class="flex-row items-baseline gap-2">
                         <Text class="flex-1 text-[15px] font-semibold text-card-foreground">{shardName(shard().id)}</Text>
                         <If when={addresses()[shard().id]}>
-                          {(a) => <Text class="font-mono text-xs text-sky-300">{a()}</Text>}
+                          {(a) => <Text class="font-mono text-xs text-primary">{shownAddress(a())}</Text>}
                         </If>
                       </View>
                       <If when={list() === "denied"}>
@@ -354,12 +353,12 @@ export function NetworkingScreen(props: { serverId: string }) {
             <Section title="Gateways" note="whole instance behind a public spire">
               <Each of={valueOf(gateways()) ?? []} key={(g: Gateway) => g.id}>
                 {(g) => (
-                  <View class="gap-1 border-b border-white/5 pb-2">
+                  <View class="gap-1 border-b border-border pb-2">
                     <View class="flex-row flex-wrap items-center gap-2">
                       <Text class="flex-1 text-sm font-semibold text-card-foreground">{`${g().shardName} → ${g().frontSpireName}`}</Text>
                       <Pill label={g().enabled ? words(g().status?.state) || "Pending" : "Disabled"} tone={g().enabled ? stateTone(g().status?.state) : "muted"} />
                     </View>
-                    <If when={g().status?.address}>{(a) => <Text class="font-mono text-xs text-muted-foreground">{`Tunnel address ${a()}`}</Text>}</If>
+                    <If when={g().status?.address}>{(a) => <Text class="font-mono text-xs text-muted-foreground">{`Tunnel address ${shownAddress(a())}`}</Text>}</If>
                     <If when={g().runningWithoutRoute}>
                       <Text class="text-xs text-warning">Running without this route: restart the instance to use it.</Text>
                     </If>
@@ -377,7 +376,7 @@ export function NetworkingScreen(props: { serverId: string }) {
                   const phase = () => t().status?.phase ?? (t().status?.up ? "Up" : "Connecting");
                   const fault = () => t().status?.error || t().front.agentError || t().back.agentError;
                   return (
-                    <View class="gap-1 border-b border-white/5 pb-2">
+                    <View class="gap-1 border-b border-border pb-2">
                       <View class="flex-row flex-wrap items-center gap-2">
                         <Text class="flex-1 text-sm font-semibold text-card-foreground">{`${t().back.spireName} ⇄ ${t().front.spireName}`}</Text>
                         <Pill label={words(phase())} tone={stateTone(phase())} />
@@ -423,9 +422,9 @@ export function NetworkingScreen(props: { serverId: string }) {
 
 function CopyRow(props: { value: string; label: string; copied: boolean; onCopy: () => void }) {
   return (
-    <View role="button" onPress={props.onCopy} class="flex-row items-center gap-3 rounded-lg py-1 active:bg-accent">
+    <View role="button" onPress={() => pressAddress(props.value, props.onCopy)} class="flex-row items-center gap-3 rounded-lg py-1 active:bg-accent focus-visible:ring-2 focus-visible:ring-ring">
       <View class="flex-1">
-        <Text class="font-mono text-sm text-sky-300">{props.value}</Text>
+        <Text class="font-mono text-sm text-primary">{shownAddress(props.value)}</Text>
         <Text class="text-xs text-muted-foreground">{props.label}</Text>
       </View>
       <Text class="text-xs text-muted-foreground">{props.copied ? "Copied" : "⧉"}</Text>
@@ -448,7 +447,7 @@ function PortRow(props: { port: ShardPort; published: string[]; onToggle: () => 
           </If>
         </View>
         <If when={props.published.length}>
-          <Text class="text-xs text-sky-300">{`Published on ${props.published.join(", ")}`}</Text>
+          <Text class="text-xs text-info">{`Published on ${props.published.join(", ")}`}</Text>
         </If>
       </View>
       <If when={!props.port.primary} else={<View class="w-9" />}>
@@ -458,8 +457,8 @@ function PortRow(props: { port: ShardPort; published: string[]; onToggle: () => 
           title={`${props.port.name} · ${props.port.port}`}
           items={[
             props.port.isPublic
-              ? { id: "private", label: "Make private", icon: "🔒", hint: "Closes it in AMP's firewall", tone: "danger", onSelect: props.onToggle }
-              : { id: "public", label: "Make public", icon: "🌐", hint: "Opens it in AMP's firewall", onSelect: props.onToggle },
+              ? { id: "private", label: "Make private", hint: "Closes it in AMP's firewall", tone: "danger", onSelect: props.onToggle }
+              : { id: "public", label: "Make public", hint: "Opens it in AMP's firewall", onSelect: props.onToggle },
           ]}
           trigger={<MoreButton testID={`port-more-${props.port.ref}`} class="bg-transparent" />}
         />
@@ -473,10 +472,10 @@ function PublicationRow(props: { publication: Publication; title: string; target
   const p = () => props.publication;
   const state = () => (p().enabled ? (p().status?.state ?? "Pending") : "Disabled");
   return (
-    <View class="gap-1 border-b border-white/5 pb-2">
+    <View class="gap-1 border-b border-border pb-2">
       <View class="flex-row items-center gap-2">
         <View class="flex-1">
-          <Text class="font-mono text-sm font-semibold text-sky-300">{props.title}</Text>
+          <Text class="font-mono text-sm font-semibold text-info">{props.title}</Text>
           <Text class="line-clamp-1 text-xs text-muted-foreground">{`→ ${props.target} · ${String(p().protocol ?? "").toUpperCase()}`}</Text>
         </View>
         <Pill label={words(state()) === "Disabled" ? "Paused" : words(state())} tone={stateTone(state())} />
@@ -486,9 +485,9 @@ function PublicationRow(props: { publication: Publication; title: string; target
           title={props.title}
           items={[
             p().enabled
-              ? { id: "pause", label: "Pause", icon: "⏸️", hint: "Stops relaying, keeps the setup", onSelect: props.onPause }
-              : { id: "resume", label: "Resume", icon: "▶️", onSelect: props.onPause },
-            { id: "unpublish", label: "Unpublish", icon: "🔌", tone: "danger", onSelect: props.onRemove },
+              ? { id: "pause", label: "Pause", hint: "Stops relaying, keeps the setup", onSelect: props.onPause }
+              : { id: "resume", label: "Resume", onSelect: props.onPause },
+            { id: "unpublish", label: "Unpublish", tone: "danger", onSelect: props.onRemove },
           ]}
           trigger={<MoreButton testID={`pub-more-${p().publicPort}`} class="bg-transparent" />}
         />
@@ -530,7 +529,7 @@ function FirewallView(props: { firewall: FirewallStatus }) {
         )}
       </Each>
       <If when={applied().length > 0}>
-        <Text role="button" testID="firewall-rules" onPress={() => showRules.set(!showRules())} class="text-sm font-semibold text-sky-400">
+        <Text role="button" testID="firewall-rules" onPress={() => showRules.set(!showRules())} class="text-sm font-semibold text-info">
           {showRules() ? "Hide rules" : "Show rules"}
         </Text>
         <If when={showRules()}>

@@ -6,7 +6,6 @@ import {
   type GameUsage,
   type ServerUsage,
   type TopUser,
-  flag,
   getProfiles,
   getSessionSummary,
   num,
@@ -177,25 +176,25 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
             </If>
 
             <View class="flex-row flex-wrap justify-between gap-y-3">
-              <StatTile label="Players" value={cur().uniqueUsers.toLocaleString()} change={change("uniqueUsers")} accent="text-violet-300" />
+              <StatTile label="Players" value={cur().uniqueUsers.toLocaleString()} change={change("uniqueUsers")} accent="text-series" />
               <StatTile label="New players" value={cur().newUsers.toLocaleString()} change={change("newUsers")} accent="text-pink-300" />
-              <StatTile label="Sessions" value={cur().sessions.toLocaleString()} change={change("sessions")} accent="text-sky-300" />
-              <StatTile label="Play time" value={duration(cur().minutes)} change={change("minutes")} accent="text-emerald-300" />
+              <StatTile label="Sessions" value={cur().sessions.toLocaleString()} change={change("sessions")} accent="text-info" />
+              <StatTile label="Play time" value={duration(cur().minutes)} change={change("minutes")} accent="text-success" />
               <StatTile
                 label="Avg session"
                 value={duration(cur().averageSessionMinutes)}
                 change={change("averageSessionMinutes")}
-                accent="text-amber-300"
+                accent="text-warning"
               />
-              <StatTile label="Longest" value={duration(cur().longestSessionMinutes)} change={change("longestSessionMinutes")} accent="text-amber-300" />
+              <StatTile label="Longest" value={duration(cur().longestSessionMinutes)} change={change("longestSessionMinutes")} accent="text-warning" />
               <StatTile
                 label="Bounce rate"
                 value={`${num(cur().bounceRatePercent).toFixed(0)}%`}
                 change={change("bounceRatePercent")}
                 goodWhenUp={false}
-                accent="text-rose-300"
+                accent="text-destructive"
               />
-              <StatTile label="Active players" value={cur().activeUsers.toLocaleString()} change={change("activeUsers")} accent="text-cyan-300" />
+              <StatTile label="Active players" value={cur().activeUsers.toLocaleString()} change={change("activeUsers")} accent="text-info" />
             </View>
             <If when={ruleText()}>
               {(r) => (
@@ -212,17 +211,17 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
               caption={`peak ${peak()}`}
               curve="stepAfter"
               formatTime={(t) => (showsDays() ? `${dayOf(new Date(t))} ${clockOf(new Date(t))}` : clockOf(new Date(t)))}
-              titleClass="text-emerald-400"
-              lineClass="stroke-emerald-400 stroke-2"
-              areaClass="fill-emerald-400/15"
-              dotClass="size-2.5 rounded-full border-2 border-background bg-emerald-400"
+              titleClass="text-success"
+              lineClass="stroke-success stroke-2"
+              areaClass="fill-success/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-success"
             />
             <If when={s()!.busiest || s()!.quietest}>
               <View class="flex-row gap-3">
                 <If when={s()!.busiest}>
                   {(b) => (
-                    <View class="flex-1 gap-0.5 rounded-(--radius) border border-white/10 bg-card/85 p-3.5">
-                      <Text class="text-[11px] font-semibold tracking-wider text-emerald-300">BUSIEST</Text>
+                    <View class="flex-1 gap-0.5 rounded-(--radius) border border-border bg-card p-3.5">
+                      <Text class="text-[11px] font-semibold tracking-wider text-success">BUSIEST</Text>
                       <Text class="text-sm font-semibold text-card-foreground">{momentOf(new Date(b().start))}</Text>
                       <Text class="text-xs text-muted-foreground">{`${b().users} online`}</Text>
                     </View>
@@ -230,8 +229,8 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                 </If>
                 <If when={s()!.quietest}>
                   {(q) => (
-                    <View class="flex-1 gap-0.5 rounded-(--radius) border border-white/10 bg-card/85 p-3.5">
-                      <Text class="text-[11px] font-semibold tracking-wider text-sky-300">QUIETEST</Text>
+                    <View class="flex-1 gap-0.5 rounded-(--radius) border border-border bg-card p-3.5">
+                      <Text class="text-[11px] font-semibold tracking-wider text-info">QUIETEST</Text>
                       <Text class="text-sm font-semibold text-card-foreground">{momentOf(new Date(q().start))}</Text>
                       <Text class="text-xs text-muted-foreground">{`${q().users} online`}</Text>
                     </View>
@@ -244,7 +243,6 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
               <View class="gap-4 lg:flex-1">
                 <Section title="Top players" note="by play time">
                   <View class="flex-row items-center gap-2 rounded-lg border border-input bg-background px-3 py-2.5">
-                    <Text class="text-sm text-muted-foreground">🔍</Text>
                     <Input
                       testID="player-search"
                       value={query()}
@@ -333,12 +331,11 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                   <Each of={s()!.countries.slice(0, 8)} key={(c: CountryUsage) => c.country}>
                     {(c) => (
                       <ShareRow
-                        icon={flag(c().country)}
                         label={c().country ? c().country.toUpperCase() : "Unknown"}
                         detail={`${c().sessions} session${c().sessions === 1 ? "" : "s"}${c().users != null ? ` · ${c().users} players` : ""}`}
                         value={duration(c().minutes)}
                         percent={c().minutesPercent}
-                        barClass="bg-sky-400"
+                        barClass="bg-info"
                       />
                     )}
                   </Each>
@@ -349,12 +346,11 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                     <Each of={s()!.servers} key={(v: ServerUsage) => v.shardId}>
                       {(v) => (
                         <ShareRow
-                          icon="🎮"
                           label={serverName(v().shardId)}
                           detail={`${v().users} players · ${v().sessions} sessions`}
                           value={duration(v().minutes)}
                           percent={v().minutesPercent}
-                          barClass="bg-violet-400"
+                          barClass="bg-series"
                           testID={`usage-${serverName(v().shardId)}`}
                           onPress={() =>
                             nav.push({ name: "analytics", serverId: props.serverId, shardId: v().shardId, title: serverName(v().shardId) })
@@ -370,7 +366,6 @@ export function AnalyticsScreen(props: { serverId: string; shardId?: string; tit
                     <Each of={s()!.games} key={(g: GameUsage) => g.game}>
                       {(g) => (
                         <ShareRow
-                          icon="🕹️"
                           label={Object.values(s()!.serverInfo ?? {}).find((i) => i.game === g().game)?.gameName ?? g().game}
                           detail={`${g().users} players on ${g().servers} instance${g().servers === 1 ? "" : "s"}`}
                           value={duration(g().minutes)}

@@ -40,15 +40,7 @@ const FILTERS: { id: Filter; label: string; query: Partial<AuditQuery> }[] = [
 ];
 
 /** Action colours, as the panel's chips: blue, red, amber, green. */
-const KIND_TEXT = { info: "text-sky-300", danger: "text-rose-400", warn: "text-amber-300", ok: "text-emerald-300" } as const;
-
-const ORIGIN_ICON: Record<number, string> = {
-  [AuditOrigin.System]: "⚙️",
-  [AuditOrigin.User]: "👤",
-  [AuditOrigin.UserFlow]: "👤",
-  [AuditOrigin.Scheduled]: "⏰",
-  [AuditOrigin.Impersonation]: "🎭",
-};
+const KIND_TEXT = { info: "text-info", danger: "text-destructive", warn: "text-warning", ok: "text-success" } as const;
 
 /** The panel's Activity page: who did what and when, newest first, each flow expandable. */
 export function ActivityScreen(props: { serverId: string }) {
@@ -170,8 +162,7 @@ export function ActivityScreen(props: { serverId: string }) {
     <AppPage title="Activity" subtitle={server?.name ?? ""} right={<MainMenu serverId={props.serverId} current="activity" />}>
       <Screen refreshing={refreshing()} onRefresh={pullToRefresh}>
         <View class="w-full max-w-4xl gap-4 self-center p-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
-          <View class="flex-row items-center gap-2 rounded-(--radius) border border-input bg-card/85 px-3.5 py-3">
-            <Text class="text-sm text-muted-foreground">🔍</Text>
+          <View class="flex-row items-center gap-2 rounded-(--radius) border border-input bg-card px-3.5 py-3">
             <Input
               testID="activity-search"
               value={search()}
@@ -191,7 +182,7 @@ export function ActivityScreen(props: { serverId: string }) {
                   testID={`filter-${f().id}`}
                   onPress={() => choose(f().id)}
                   class={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
-                    filter() === f().id ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-card/85 text-muted-foreground"
+                    filter() === f().id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground"
                   }`}
                 >
                   {f().label}
@@ -218,7 +209,7 @@ export function ActivityScreen(props: { serverId: string }) {
           </If>
 
           <If when={flows()?.length}>
-            <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+            <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
               <Each of={flows() ?? []} key={(f: AuditRootItem) => f.correlationId}>
                 {(flow) => (
                   <FlowRow
@@ -290,16 +281,13 @@ function FlowRow(props: {
   };
 
   return (
-    <View class="border-b border-white/5">
+    <View class="border-b border-border">
       <View
         role="button"
         testID={`flow-${root().action}`}
         onPress={toggle}
-        class={`flex-row gap-3 px-4 py-3 ${props.open ? "bg-white/5" : "active:bg-accent"}`}
+        class={`flex-row gap-3 px-4 py-3 ${props.open ? "bg-accent" : "active:bg-accent"}`}
       >
-        <View class="h-9 w-9 items-center justify-center rounded-full bg-black/40">
-          <Text class="text-base">{ORIGIN_ICON[root().origin] ?? "•"}</Text>
-        </View>
         <View class="flex-1 gap-0.5">
           <View class="flex-row flex-wrap items-center gap-2">
             <Text class={`text-[15px] font-semibold ${KIND_TEXT[actionKind(root().action)]}`}>{props.label(root().action)}</Text>
@@ -318,7 +306,7 @@ function FlowRow(props: {
       </View>
 
       <If when={props.open}>
-        <View class="gap-2 bg-black/20 px-4 py-3">
+        <View class="gap-2 bg-muted px-4 py-3">
           <Text class="text-xs text-muted-foreground">
             {[`${dayOf(when())}, ${clockOf(when())}`, root().originIp ? `from ${root().originIp}` : null, root().originNode].filter(Boolean).join(" · ")}
           </Text>
@@ -362,14 +350,14 @@ function EventRow(props: {
             role="button"
             testID={`details-${props.event.id}`}
             onPress={() => showDetails.set(!showDetails())}
-            class="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
+            class="rounded-md bg-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
           >
             {showDetails() ? "Hide" : "Details"}
           </Text>
         </If>
       </View>
       <If when={showDetails() ? details() : null}>
-        {(d) => <Text class="ml-4 rounded-lg bg-black/50 p-2.5 font-mono text-[11px] text-sky-200">{d()}</Text>}
+        {(d) => <Text class="ml-4 rounded-lg bg-muted p-2.5 font-mono text-[11px] text-info">{d()}</Text>}
       </If>
     </View>
   );

@@ -10,8 +10,6 @@ export interface ConfirmAction {
 export interface ConfirmOptions {
   title: string;
   message?: string;
-  /** An emoji shown in a tinted circle above the title. */
-  icon?: string;
   /** Buttons, left to right / top to bottom. A "Cancel" is added first unless `cancelLabel` is null. */
   actions: ConfirmAction[];
   cancelLabel?: string | null;
@@ -97,23 +95,12 @@ export function ConfirmHost() {
           <View style={{ ...screen(), pointerEvents: "box-none" }} class="absolute top-0 left-0 items-center justify-center px-7">
             <View
               testID="confirm"
-              class={`w-full max-w-sm gap-4 rounded-3xl border border-white/10 bg-popover p-6 shadow-2xl transition-all duration-150 ease-out ${
+              class={`w-full max-w-sm gap-4 rounded-(--radius) border border-border bg-popover p-6 shadow-2xl transition-all duration-150 ease-out ${
                 shown() ? "scale-100 opacity-100" : "scale-95 opacity-0"
               }`}
             >
-              <If when={p().icon}>
-                {(icon) => (
-                  <View
-                    class={`h-12 w-12 items-center justify-center self-center rounded-full ${
-                      p().tone === "danger" ? "bg-destructive/15" : "bg-primary/15"
-                    }`}
-                  >
-                    <Text class="text-2xl">{icon()}</Text>
-                  </View>
-                )}
-              </If>
               <View class="gap-1.5">
-                <Text class="text-center text-lg font-semibold text-popover-foreground">{p().title}</Text>
+                <Text class={`text-center text-lg font-semibold ${p().tone === "danger" ? "text-destructive" : "text-popover-foreground"}`}>{p().title}</Text>
                 <If when={p().message}>{(m) => <Text class="text-center text-sm leading-5 text-muted-foreground">{m()}</Text>}</If>
               </View>
               <View class={`gap-2.5 ${buttons(p()).length <= 2 ? "flex-row" : ""}`}>
@@ -123,17 +110,13 @@ export function ConfirmHost() {
                       role="button"
                       testID={`confirm-${a().id === "__cancel" ? "cancel" : a().id}`}
                       onPress={() => finish(a().id === "__cancel" ? null : a().id)}
-                      class={`flex-1 items-center rounded-xl px-4 py-3 active:opacity-80 ${
-                        a().tone === "danger"
-                          ? "bg-destructive"
-                          : a().tone === "primary"
-                            ? "bg-linear-to-r from-hero-from to-hero-to"
-                            : "bg-secondary"
+                      class={`flex-1 items-center rounded-(--radius) px-4 py-3 active:opacity-80 ${
+                        a().tone === "danger" ? "bg-destructive" : a().tone === "primary" ? "bg-primary" : "bg-secondary"
                       }`}
                     >
                       <Text
                         class={`text-[15px] font-semibold ${
-                          a().tone === "danger" || a().tone === "primary" ? "text-white" : "text-secondary-foreground"
+                          a().tone === "danger" || a().tone === "primary" ? "text-primary-foreground" : "text-secondary-foreground"
                         }`}
                       >
                         {a().label}

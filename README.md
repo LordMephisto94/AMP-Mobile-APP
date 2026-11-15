@@ -26,13 +26,13 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 |---|---|
 | `App.tsx` | Entry: loads saved servers, routes the navigation stack, puts the lock over everything |
 | `nsh.json` | App id, name, version and build, theme, and the capabilities NSH enforces |
-| `theme.json` | Colour theme (shadcn `cssVars`), plus `success`, `warning`, `glow`, `hero-from`/`hero-to` tokens. The app is dark-only (`"appearance": "dark"` in `nsh.json`) to suit the artwork |
-| `assets/` | Artwork and branding: the backdrop, the AMP wordmark and hex mark, the 1024 px app icon, the menu icons |
+| `theme.json` | Colour theme (shadcn `cssVars`) in a dark and a light set, plus `success`, `warning`, `info`, `series`, `glow`, `hero-from`/`hero-to` tokens. The app starts dark (`"appearance": "dark"` in `nsh.json`) and follows the theme chosen in Settings (dark, light or the phone's) |
+| `assets/` | Artwork and branding: the backdrop, the AMP wordmark and hex mark, the 1024 px app icon, and the line icons (`menu/` for the instance menu, `icons/` for the rest), tinted from the theme by `Icon.tsx` |
 | `src/api/` | The AMP 3 REST client (`client.ts`) and one file per area: sign-in (`auth.ts`), instances (`shards.ts`, `manage.ts`, `infraFields.ts`), console (`console.ts`, plus `hub.ts`, a minimal SignalR client for AMP's live hubs, not in the OpenAPI spec), files, snapshots, schedules, machines (`spires.ts`), networking, users and roles (`access.ts`, `permissions.ts`), activity (`audit.ts`), player analytics, panel settings, the panel's own wording (`panelText.ts`) and template artwork. `types.ts` holds the hand-written types |
-| `src/state/` | Saved servers, sessions, the PIN vault and the lock (`servers.ts`, with the crypto in `vaultCrypto.ts`); navigation routes (`nav.ts`); each server's Online check (`reachability.ts`) |
-| `src/lib/` | The Android key store over NSH's host channel (`deviceKeys.ts`), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), and the shared 401 handling (`session.ts`) |
+| `src/state/` | Saved servers, sessions, the PIN vault and the lock (`servers.ts`, with the crypto in `vaultCrypto.ts`); navigation routes (`nav.ts`); each server's Online check (`reachability.ts`); the app's own settings (`prefs.ts`: theme, size and speed units, hidden addresses, the screenshot block) |
+| `src/lib/` | The Android key store over NSH's host channel (`deviceKeys.ts`), safe link opening (`links.ts`), polling while a page shows (`poll.ts`), the shared 401 handling (`session.ts`), size and speed formatting (`units.ts`) and the screenshot-block call (`windowFlags.ts`) |
 | `src/components/` | Shared UI: the lock screen and PIN pad (`Lock.tsx`), the AMP panel's triangle banner (`AmpBanner.tsx`), dialogs, dropdowns, prompts, charts, buttons and fields |
-| `src/screens/` | One file per page: servers home, sign-in, the server overview, instances (and a new one) and an instance (graphs, console, files and the editor, settings, snapshots, schedules), machines, networking, users and roles, activity, player analytics, panel settings, the app's Security page |
+| `src/screens/` | One file per page: servers home, sign-in, the server overview, instances (and a new one) and an instance (graphs, console, files and the editor, settings, snapshots, schedules), machines, networking, users and roles, activity, player analytics, panel settings, the app's own Settings page and, from it, Security |
 | `android/` | The Gradle project that is the Android app (see below) |
 | `scripts/` | `build-release.sh` (the signed release APKs) and `fetch-nsh-sdk.sh` (NSH's Android runtime) |
 | `App.test.tsx` | The headless tests |
@@ -41,8 +41,14 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 
 ## Notes
 
-- The server address is entered by the user, with `https://` assumed when no scheme is typed. Only `https://` is
-  accepted: the app refuses `http://`, and `nsh.json`'s capabilities allow nothing else.
+- The server address is entered by the user. The Connection choice on the add-server form sets the scheme a bare
+  address gets: `https://` by default, or `http://` after a warning and a tick (a Tailscale or private network
+  address is the usual reason). A typed `http://` or `https://` moves the choice to match.
+- The app's own settings (Settings, on the home screen) are kept in `amp.prefs`: theme, size units (binary KiB, MiB,
+  GiB or decimal kB, MB, GB), speed units (bytes or bits per second), hiding of IP addresses and host names, and the
+  Android screenshot block. Sizes read in binary units unless that is changed. Screens use theme tokens (`text-info`,
+  `bg-card`, `border-input`) and never a fixed palette colour, so one class list serves both themes; the triangle banner
+  and an instance's artwork stay dark in both.
 - NSH `Storage` is a plain JSON file in the app's private directory (the Android app is left out of Android's
   backups). The server list holds no secrets; sessions kept with "Stay signed in" are sealed in a vault
   (`amp.vault`) that needs the app PIN, locked to the phone's secure hardware, and optionally opened by fingerprint.
@@ -61,9 +67,10 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 - **Downloading** opens a one-time ticket URL in the device's browser (`openUrl`), which saves the file: on iOS
   Safari puts it in Files › Downloads, on Android the browser puts it in Downloads. No permission is needed; the URL
   needs no session token, and the ticket works once.
-- `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTPS and WSS to any host (the server
-  address is the user's), `openUrl` for `https`, the clipboard, the picker, the status bar, and the host calls
-  `deviceKey.*` (the key store, from the Android app around it).
+- `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTPS, WSS, HTTP and WS to any host (the
+  server address is the user's; the app uses http and ws only for a server added over http), `openUrl` for `https`
+  and `http` (the app opens `http` only for a download from your own panel), the clipboard, the picker, the status bar, and the host calls
+  `deviceKey.*` (the key store) and `window.*` (the screenshot block), both answered by the Android app around it.
 
 ## The Android app (android/)
 
@@ -82,7 +89,7 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
 
 Needs the Android SDK (platform 35), the NDK (only to strip the runtime's debug symbols; `-PndkVersion=` picks
 another installed one) and a JDK 17+. Gradle comes with the wrapper. Fetch the runtime once (it matches the
-installed `nsh`, 0.5.0; update both together):
+installed `nsh`, 0.5.1; update both together):
 
 ```sh
 scripts/fetch-nsh-sdk.sh
@@ -101,6 +108,8 @@ Versions are `MAJOR.MINOR.PATCH` (semantic versioning), tagged `vMAJOR.MINOR.PAT
 - **MAJOR**: big releases, or changes that break how the app is used.
 - **MINOR**: new features and patches.
 - **PATCH**: hotfixes. It counts on without padding (`0.1.9`, then `0.1.10`), since versions can't have leading zeros.
+
+A suffix such as `-A` (as in `0.2.6-A`) marks a pre-release test build.
 
 `nsh.json` holds `version` and `build`. Raise `build` by one for every release: Android only installs an update
 over the old app when its build number is higher. Changes are listed in `CHANGELOG.md`.

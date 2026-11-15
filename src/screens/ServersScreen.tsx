@@ -1,22 +1,23 @@
+import { shownAddress } from "../state/prefs";
 import { Image, Scroll, signal, Text, View } from "nsh";
 import { NavPage } from "nsh/base";
 import wordmark from "../../assets/amp-wordmark.webp";
 import app from "../../nsh.json";
-import { AmpBanner } from "../components/AmpBanner";
+import { type BannerStatus, StatusBadge } from "../components/AmpBanner";
 import { Backdrop } from "../components/backdrop";
+import { inkTint } from "../components/Icon";
 import { confirm } from "../components/Confirm";
 import { Dropdown, type DropdownItem, MoreButton } from "../components/Dropdown";
 import { PrimaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { checkServers, reachOf } from "../state/reachability";
-import { isSignedIn, locked, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
+import { isSignedIn, locked, moveServer, removeServer, servers, type SavedServer, signOutServer } from "../state/servers";
 
 /** The About dialog: what this app is, and that it is not official. */
-function showAbout() {
+export function showAbout() {
   confirm({
     title: `AMP Mobile ${app.version}`,
-    icon: "ℹ️",
     message:
       "An unofficial, independent mobile app for managing AMP 3 servers. It is not made, endorsed or supported by " +
       "CubeCoders Limited. AMP, the AMP logo and Application Management Panel are theirs.\n\n" +
@@ -39,20 +40,20 @@ export function ServersScreen() {
         <Backdrop />
         <Scroll class="flex-1">
           <View class="items-center gap-3 px-6 pt-[calc(env(safe-area-inset-top)+56px)] pb-8">
-            <Image src={wordmark} accessibilityLabel="AMP, Application Management Panel" class="h-20 w-64 object-contain" />
-            <Text class="text-sm font-semibold tracking-widest text-glow">MOBILE</Text>
+            <Image src={wordmark} accessibilityLabel="AMP, Application Management Panel" style={inkTint()} class="h-20 w-64 object-contain" />
+            <Text class="text-sm font-semibold text-series">Mobile</Text>
           </View>
 
           <View class="w-full max-w-5xl gap-3 self-center px-4 pb-[calc(env(safe-area-inset-bottom)+24px)]">
             <View class="flex-row items-baseline justify-between px-1 md:justify-center md:gap-3">
               <Text class="text-xl font-bold text-foreground">Your servers</Text>
               <If when={servers().length > 0}>
-                <Text class="text-sm text-muted-foreground">{`${servers().length} saved`}</Text>
+                <Text class="text-sm text-foreground/80">{`${servers().length} saved`}</Text>
               </If>
             </View>
 
             <If when={servers().length === 0}>
-              <View class="items-center gap-2 rounded-(--radius) border border-dashed border-input bg-card/80 px-6 py-10">
+              <View class="items-center gap-2 rounded-(--radius) border border-dashed border-input bg-card px-6 py-10">
                 <Text class="text-lg font-semibold text-card-foreground">No servers yet</Text>
                 <Text class="text-center text-sm text-muted-foreground">
                   Add your publicly reachable AMP 3 server with its address and your panel login.
@@ -71,7 +72,7 @@ export function ServersScreen() {
             </View>
 
             <View class="mt-2 w-full self-center md:max-w-md">
-              <PrimaryButton title="Add Server" icon="＋" onPress={() => nav.push({ name: "addServer" })} />
+              <PrimaryButton title="Add Server" onPress={() => nav.push({ name: "addServer" })} />
             </View>
 
             <View class="mt-8 items-center gap-2 px-6">
@@ -81,20 +82,18 @@ export function ServersScreen() {
               <View class="flex-row gap-2">
                 <View
                   role="button"
-                  testID="security"
-                  onPress={() => nav.push({ name: "security" })}
-                  class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
+                  testID="app-settings"
+                  onPress={() => nav.push({ name: "appSettings" })}
+                  class="rounded-(--radius) border border-input px-3.5 py-1.5 active:bg-accent"
                 >
-                  <Text class="text-xs text-muted-foreground">🔒</Text>
-                  <Text class="text-xs font-semibold text-muted-foreground">Security</Text>
+                  <Text class="text-xs font-semibold text-muted-foreground">Settings</Text>
                 </View>
                 <View
                   role="button"
                   testID="about"
                   onPress={showAbout}
-                  class="flex-row items-center gap-1.5 rounded-full border border-white/10 bg-card/60 px-3.5 py-1.5 active:bg-accent"
+                  class="rounded-(--radius) border border-input px-3.5 py-1.5 active:bg-accent"
                 >
-                  <Text class="text-xs text-muted-foreground">ⓘ</Text>
                   <Text class="text-xs font-semibold text-muted-foreground">About</Text>
                 </View>
               </View>
@@ -118,7 +117,6 @@ function ServerCard(props: { server: SavedServer }) {
     const choice = await confirm({
       title: `Remove ${props.server.name}?`,
       message: "It's removed from this phone and signed out. Nothing on the server changes; you can add it again any time.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "remove", label: "Remove", tone: "danger" }],
     });
@@ -126,39 +124,44 @@ function ServerCard(props: { server: SavedServer }) {
   };
 
   const items = (): DropdownItem[] => [
-    { id: "open", label: signedIn() ? "Open instances" : "Sign in", icon: signedIn() ? "🎮" : "🔑", onSelect: open },
+    { id: "open", label: signedIn() ? "Open instances" : "Sign in", onSelect: open },
+    { id: "up", label: "Move up", disabled: servers()[0]?.id === props.server.id, onSelect: () => moveServer(props.server.id, -1) },
+    { id: "down", label: "Move down", disabled: servers().at(-1)?.id === props.server.id, onSelect: () => moveServer(props.server.id, 1) },
     ...(signedIn()
-      ? [{ id: "signOut", label: "Sign out", icon: "🚪", onSelect: () => signOutServer(props.server.id) }]
+      ? [{ id: "signOut", label: "Sign out", onSelect: () => signOutServer(props.server.id) }]
       : []),
-    { id: "remove", label: "Remove server", icon: "🗑️", tone: "danger" as const, onSelect: remove },
+    { id: "remove", label: "Remove server", tone: "danger" as const, onSelect: remove },
   ];
 
+  const reach = () => reachOf(props.server);
+  const reachStatus: Record<ReturnType<typeof reachOf>, BannerStatus> = { checking: "offline", online: "online", offline: "danger" };
   return (
     <View
       role="button"
       testID={`server-${props.server.name}`}
       onPress={open}
       onLongPress={() => menuOpen.set(true)}
-      class="overflow-hidden rounded-(--radius) border border-white/10 shadow-lg active:opacity-85"
+      class="gap-3 rounded-(--radius) border border-border bg-card p-4 active:opacity-85 focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <AmpBanner
-        title={props.server.name}
-        status={signedIn() ? "online" : "offline"}
-        statusLabel={signedIn() ? "Signed in" : "Signed out"}
-        extraBadge={{
-          label: { checking: "Checking…", online: "Online", offline: "Offline" }[reachOf(props.server)],
-          status: ({ checking: "offline", online: "online", offline: "danger" } as const)[reachOf(props.server)],
-          testID: `reach-${props.server.name}`,
-        }}
-        subtitle={`${props.server.username} · ${props.server.serverUrl.replace(/^https?:\/\//, "")}`}
-      />
-      <View class="absolute top-3 right-3">
+      <View class="flex-row items-start gap-3">
+        <View class="flex-1 gap-0.5">
+          <Text class="line-clamp-1 text-lg font-semibold text-card-foreground">{props.server.name}</Text>
+          <Text class="line-clamp-1 text-sm text-muted-foreground">{`${props.server.username} · ${shownAddress(props.server.serverUrl.replace(/^https:\/\//, ""))}`}</Text>
+        </View>
         <Dropdown
           open={menuOpen()}
           onOpenChange={(o) => menuOpen.set(o)}
           title={props.server.name}
           items={items()}
           trigger={<MoreButton testID={`more-${props.server.name}`} />}
+        />
+      </View>
+      <View class="flex-row flex-wrap gap-2">
+        <StatusBadge label={signedIn() ? "Signed in" : "Signed out"} status={signedIn() ? "online" : "offline"} />
+        <StatusBadge
+          label={{ checking: "Checking…", online: "Online", offline: "Offline" }[reach()]}
+          status={reachStatus[reach()]}
+          testID={`reach-${props.server.name}`}
         />
       </View>
     </View>

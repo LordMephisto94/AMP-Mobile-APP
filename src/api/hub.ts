@@ -109,12 +109,14 @@ export class HubConnection {
     // Stopped, or opened again, while the ticket came: this attempt is out of date.
     if (this.stopped || seq !== this.openSeq) return;
 
-    // Only ever wss: the server address is HTTPS-only, and the ticket rides in the URL.
-    if (!this.options.baseUrl.startsWith("https://")) {
-      this.scheduleRetry("The live connection needs https://");
+    // wss for an https server, ws for one the user chose to reach over plain http.
+    const base = this.options.baseUrl;
+    const secure = base.startsWith("https://");
+    if (!secure && !base.startsWith("http://")) {
+      this.scheduleRetry("The live connection needs an http:// or https:// address");
       return;
     }
-    const url = `wss://${this.options.baseUrl.slice("https://".length)}${this.options.path}?access_token=${encodeURIComponent(ticket)}`;
+    const url = `${secure ? "wss" : "ws"}://${base.slice(secure ? "https://".length : "http://".length)}${this.options.path}?access_token=${encodeURIComponent(ticket)}`;
     let socket: WebSocket;
     try {
       socket = new WebSocket(url);

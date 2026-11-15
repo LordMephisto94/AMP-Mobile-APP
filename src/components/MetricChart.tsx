@@ -47,7 +47,7 @@ export function MetricChart(props: {
   };
 
   return (
-    <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+    <View class="gap-2 rounded-(--radius) border border-border bg-card p-4">
       <View class="flex-row items-end justify-between">
         <View class="gap-0.5">
           <Text class={`text-xs font-semibold tracking-wider ${props.titleClass}`}>{props.title.toUpperCase()}</Text>
@@ -73,11 +73,11 @@ export function MetricChart(props: {
           yScale={{ type: "linear", domain: top() }}
           accessibilityLabel={`${props.title} over time`}
           onHoverChange={({ index }) => hovered.set(index)}
-          crossLineClass="w-px h-full bg-white/30"
+          crossLineClass="w-px h-full bg-foreground/30"
           dotClass={props.dotClass}
           class="h-28"
         >
-          <Grid ticks={3} class="stroke-white/8" />
+          <Grid ticks={3} class="stroke-foreground/10" />
           <Area class={props.areaClass} curve={props.curve ?? "linear"} />
           <Line class={props.lineClass} curve={props.curve ?? "linear"} />
         </Plot>

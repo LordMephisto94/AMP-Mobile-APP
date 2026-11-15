@@ -1,4 +1,5 @@
 import { Clipboard, openUrl } from "nsh";
+import { confirm } from "../components/Confirm";
 
 /**
  * Links and images whose address comes from a server (release notes, a Steam profile,
@@ -7,7 +8,7 @@ import { Clipboard, openUrl } from "nsh";
  * `nsh.json` grants `openUrl` for `https` alone, so this is the app's own check in front
  * of the runtime's.
  */
-export function safeHttpsUrl(raw: string | null | undefined, hostAllowed?: (host: string) => boolean): string | null {
+export function safeHttpsUrl(raw: string | null | undefined, hostAllowed?: (host: string) => boolean, allowHttp = false): string | null {
   if (!raw || typeof raw !== "string") return null;
   let url: URL;
   try {
@@ -15,7 +16,9 @@ export function safeHttpsUrl(raw: string | null | undefined, hostAllowed?: (host
   } catch {
     return null;
   }
-  if (url.protocol !== "https:" || url.username || url.password || !url.hostname) return null;
+  // http only where the caller says so: a download from a panel the user chose to reach over http.
+  const schemeOk = url.protocol === "https:" || (allowHttp && url.protocol === "http:");
+  if (!schemeOk || url.username || url.password || !url.hostname) return null;
   if (hostAllowed && !hostAllowed(url.hostname.toLowerCase())) return null;
   return url.href;
 }
@@ -26,9 +29,18 @@ export function onDomain(host: string, domain: string): boolean {
 }
 
 /** Opens a server-supplied link in the browser, or throws when it isn't a safe one. */
-export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean): Promise<void> {
-  const url = safeHttpsUrl(raw, hostAllowed);
+export async function openSafe(raw: string | null | undefined, hostAllowed?: (host: string) => boolean, allowHttp = false): Promise<void> {
+  const url = safeHttpsUrl(raw, hostAllowed, allowHttp);
   if (!url) throw new Error("That link isn't a secure https:// address, so it wasn't opened.");
+  // A link the panel names, with no host the app expects: the user sees where it goes first.
+  if (!hostAllowed) {
+    const choice = await confirm({
+      title: "Open this link?",
+      message: `Your panel sent this link. It opens ${new URL(url).host} in your browser.`,
+      actions: [{ id: "open", label: "Open", tone: "primary" }],
+    });
+    if (choice !== "open") return;
+  }
   const { opened } = await openUrl(url);
   if (!opened) throw new Error("No browser on this device could open it.");
 }

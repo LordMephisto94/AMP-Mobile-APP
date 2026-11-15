@@ -32,7 +32,7 @@ export function Avatar(props: { client: AmpClient | null; hash?: string | null; 
   const tint = () => TINTS[[...props.name].reduce((a, c) => a + c.charCodeAt(0), 0) % TINTS.length];
   return (
     <View class={`${box()} items-center justify-center overflow-hidden rounded-full ${tint()}`}>
-      <If when={src()} else={<Text class={`font-bold text-white ${props.size === "lg" ? "text-2xl" : "text-sm"}`}>{initial()}</Text>}>
+      <If when={src()} else={<Text class={`font-bold text-foreground ${props.size === "lg" ? "text-2xl" : "text-sm"}`}>{initial()}</Text>}>
         {(url) => <Image src={url()} accessibilityLabel={props.name} class="h-full w-full object-cover" />}
       </If>
     </View>

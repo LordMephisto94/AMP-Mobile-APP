@@ -6,8 +6,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-NSH_VERSION="0.5.0"
-ZIP_SHA256="4e0c943c75c4618e84a0139394719068de341f5c4386714502a2fb1cba802d7f"
+NSH_VERSION="0.5.1"
+ZIP_SHA256="38af836d7892b8ed449e72bd023529594d90229aa2f019c900e472dc668fb0ce"
 URL="https://github.com/longbridge/nsh/releases/download/v$NSH_VERSION/nsh-embed-android.zip"
 
 installed="$(nsh --version | awk '{print $2}')"

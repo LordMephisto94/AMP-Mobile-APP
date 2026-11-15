@@ -1,10 +1,11 @@
 import { signal, Storage } from "nsh";
 import { renew, logout as apiLogout } from "../api/auth";
-import { AmpClient, AmpError } from "../api/client";
+import { AmpClient, AmpError, normalizeServerUrl } from "../api/client";
 import type { AuthResponse } from "../api/types";
-import { deviceKeysAvailable, deviceStatus, forgetKey, openWith, type PromptText, sealWith } from "../lib/deviceKeys";
+import { deviceKeysAvailable, deviceMacAvailable, deviceStatus, forgetKey, macWith, openWith, type PromptText, sealWith } from "../lib/deviceKeys";
 import {
   createVault,
+  deriveBits,
   deriveKey,
   fromB64,
   importDataKey,
@@ -25,6 +26,8 @@ import {
 const BOUND_ALIAS = "amp.vault.bound";
 const QUICK_ALIAS = "amp.vault.quick";
 const BIO_ALIAS = "amp.vault.bio";
+/** The phone's HMAC key that the PIN's key is made with: without the phone, a PIN guess can't be checked. */
+const PEPPER_ALIAS = "amp.vault.pepper";
 
 const UNLOCK_PROMPT: PromptText = { title: "Unlock AMP Mobile", subtitle: "Your saved servers", cancel: "Use PIN" };
 
@@ -47,21 +50,11 @@ export interface SavedServer {
   name: string;
   serverUrl: string;
   username: string;
-  /** Index into `SERVER_COLORS`. */
+  /** No longer used (cards stopped taking a colour); kept so saved servers still load. */
   color: number;
   /** Keep the session across launches (sealed in the vault, behind the PIN). */
   rememberMe: boolean;
 }
-
-/** Accent gradients a server card can wear, picked in turn as servers are added. */
-export const SERVER_COLORS = [
-  "bg-linear-to-br from-violet-500 to-fuchsia-500",
-  "bg-linear-to-br from-sky-500 to-indigo-500",
-  "bg-linear-to-br from-emerald-500 to-teal-600",
-  "bg-linear-to-br from-amber-500 to-orange-600",
-  "bg-linear-to-br from-rose-500 to-pink-600",
-  "bg-linear-to-br from-cyan-500 to-blue-600",
-] as const;
 
 const SERVERS_KEY = "amp.servers";
 const VAULT_KEY = "amp.vault";
@@ -89,6 +82,16 @@ export const bound = signal(false);
 export const biometricOn = signal(false);
 /** Why fingerprint unlock just turned itself off (a fingerprint was added to the phone), for the lock screen. */
 export const biometricNotice = signal<string | null>(null);
+/**
+ * Quick unlock is on: for a minute after the phone itself is unlocked, the app opens without
+ * its PIN. Off until the user turns it on, since anyone who knows the phone's own PIN or
+ * pattern (or is handed it just unlocked) would otherwise get in without the app's PIN.
+ */
+export const quickUnlockOn = signal(false);
+/** The phone's key store refused the vault key, so saved sign-ins rely on the PIN alone (the Security page says so). */
+export const keyStoreRefused = signal(false);
+/** Something to tell the user once the app is open: the saved sign-ins couldn't be read. */
+export const vaultNotice = signal<string | null>(null);
 /** Sessions the user asked to keep are waiting for a PIN to be set before they can be saved. */
 export const pinSetupNeeded = signal(false);
 /** Seconds in the background before the app locks itself. */
@@ -278,7 +281,7 @@ export async function addServer(input: {
       name: input.name.trim() || hostOf(input.serverUrl),
       serverUrl: input.serverUrl,
       username: input.username,
-      color: servers().length % SERVER_COLORS.length,
+      color: 0,
       rememberMe: input.rememberMe,
     },
   ]);
@@ -319,6 +322,70 @@ export async function signOutServer(id: string): Promise<void> {
       // Offline or already expired: the local session is gone either way.
     }
   }
+}
+
+/** Moves a server one place up (-1) or down (1) in the list. */
+export function moveServer(id: string, delta: -1 | 1): void {
+  const list = [...servers()];
+  const from = list.findIndex((s) => s.id === id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= list.length) return;
+  [list[from], list[to]] = [list[to], list[from]];
+  servers.set(list);
+  persistServers().catch(() => {});
+}
+
+export interface ServerListEntry {
+  name: string;
+  serverUrl: string;
+  username: string;
+}
+
+/** The saved servers as text to carry to another phone: names, addresses and user names, nothing secret. */
+export function serverListText(): string {
+  return JSON.stringify({ app: "AMP Mobile", version: 1, servers: servers().map((s) => ({ name: s.name, serverUrl: s.serverUrl, username: s.username })) }, null, 2);
+}
+
+/** Reads a server list written by `serverListText`: only valid addresses are kept. */
+export function parseServerList(text: string): { entries: ServerListEntry[]; error?: string } {
+  const notAList = "The clipboard doesn't hold a server list. Use Copy list on the other phone.";
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return { entries: [], error: notAList };
+  }
+  const raw = Array.isArray(data) ? data : (data as { servers?: unknown } | null)?.servers;
+  if (!Array.isArray(raw)) return { entries: [], error: notAList };
+  const entries: ServerListEntry[] = [];
+  for (const item of raw.slice(0, 50)) {
+    const e = item as Partial<ServerListEntry> | null;
+    if (typeof e?.serverUrl !== "string") continue;
+    try {
+      entries.push({ name: String(e.name ?? "").slice(0, 100), serverUrl: normalizeServerUrl(e.serverUrl), username: String(e.username ?? "").slice(0, 100) });
+    } catch {
+      // Not an address this app accepts: left out.
+    }
+  }
+  return entries.length ? { entries } : { entries: [], error: "No valid server addresses were found in the clipboard." };
+}
+
+/** Adds servers from a list, signed out; ones already saved (same address and user) are skipped. */
+export async function addServersFromList(entries: ServerListEntry[]): Promise<{ added: number; skipped: number }> {
+  let added = 0;
+  let skipped = 0;
+  const next = [...servers()];
+  for (const e of entries) {
+    if (next.some((s) => s.serverUrl.toLowerCase() === e.serverUrl.toLowerCase() && s.username.toLowerCase() === e.username.toLowerCase())) {
+      skipped++;
+      continue;
+    }
+    next.push({ id: newId(), name: e.name.trim() || hostOf(e.serverUrl), serverUrl: e.serverUrl, username: e.username, color: 0, rememberMe: false });
+    added++;
+  }
+  servers.set(next);
+  await persistServers();
+  return { added, skipped };
 }
 
 export async function removeServer(id: string): Promise<void> {
@@ -509,8 +576,9 @@ export function unlock(pin: string): Promise<UnlockResult> {
     await Storage.removeItem(LOCKOUT_KEY);
     if (epoch !== lockEpoch || vaultBlob !== blob) return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES, waitSeconds: 0, erased: false };
     await finishUnlock(blob, opened.key, opened.raw);
-    // A PIN-only vault moves to a device-bound one at the first chance.
-    if (blob.v === 1 && !locked() && (await deviceKeysAvailable()) && !locked()) await rebuildVault(pin);
+    // A PIN-only vault, or a phone-bound one without the HMAC, moves to the strongest kind this phone makes.
+    const upgrade = blob.v === 1 ? await deviceKeysAvailable() : !blob.pinBox && (await deviceMacAvailable());
+    if (upgrade && !locked()) await rebuildVault(pin);
     return { ok: true } as UnlockResult;
   });
 }
@@ -524,7 +592,7 @@ export function quickUnlock(): Promise<boolean> {
   return onePinCheckAtATime(async () => {
     const blob = vaultBlob;
     // Before the server list is read, the sessions would have no server to go to, and be lost.
-    if (!serversReady() || quickHeldBack() || !blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
+    if (!quickUnlockOn() || !serversReady() || quickHeldBack() || !blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
     const epoch = lockEpoch;
     let raw: Uint8Array;
     try {
@@ -548,7 +616,7 @@ export function quickUnlock(): Promise<boolean> {
 
 /** Whether the lock screen may try `quickUnlock`. */
 export function canQuickUnlock(): boolean {
-  return serversReady() && !quickHeldBack() && !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
+  return quickUnlockOn() && serversReady() && !quickHeldBack() && !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
 }
 
 /** Whether the lock screen may offer the fingerprint prompt. */
@@ -645,6 +713,16 @@ export async function setBiometricUnlock(on: boolean): Promise<void> {
   biometricNotice.set(null);
 }
 
+/**
+ * A key store error while opening the vault. Only a key that's gone or voided is lost for good;
+ * anything else (no answer, a busy key store) is worth another try, and must never erase the vault.
+ */
+function keyStoreFailure(e: unknown): never {
+  const why = String((e as Error)?.message ?? e);
+  if (why.startsWith("missing") || why.startsWith("invalid")) throw new Error(`device: ${why}`);
+  throw new Error("The phone's key store didn't answer. Try again.");
+}
+
 /** The vault's key from the PIN, or null for a wrong PIN; throws "device: …" when the device's key is gone. */
 async function openWithPin(blob: VaultBlob, pin: string): Promise<{ key: VaultKey; raw: Uint8Array | null } | null> {
   if (blob.v === 1) {
@@ -652,16 +730,24 @@ async function openWithPin(blob: VaultBlob, pin: string): Promise<{ key: VaultKe
     return key ? { key, raw: null } : null;
   }
   let pinBox: Sealed;
-  try {
-    pinBox = JSON.parse(atob(await openWith(BOUND_ALIAS, blob.pinWrap)));
-  } catch (e) {
-    const why = String((e as Error)?.message ?? e);
-    // Only a key that's gone or voided is lost for good; anything else (no answer, a busy
-    // key store) is worth another try, and must never erase the vault.
-    if (why.startsWith("missing") || why.startsWith("invalid")) throw new Error(`device: ${why}`);
-    throw new Error("The phone's key store didn't answer. Try again.");
+  let pinKey: VaultKey;
+  if (blob.pinBox) {
+    // The key is made from the PIN and the phone's HMAC of it, so a guess can't be checked off the phone.
+    const bits = await deriveBits(pin, fromB64(blob.salt), blob.rounds);
+    try {
+      pinKey = await importDataKey(fromB64(await macWith(PEPPER_ALIAS, toB64(bits), false)));
+    } catch (e) {
+      keyStoreFailure(e);
+    }
+    pinBox = blob.pinBox;
+  } else {
+    try {
+      pinBox = JSON.parse(atob(await openWith(BOUND_ALIAS, blob.pinWrap!)));
+    } catch (e) {
+      keyStoreFailure(e);
+    }
+    pinKey = await deriveKey(pin, fromB64(blob.salt), blob.rounds);
   }
-  const pinKey = await deriveKey(pin, fromB64(blob.salt), blob.rounds);
   let rawB64: string;
   try {
     rawB64 = await unseal<string>(pinKey, pinBox);
@@ -678,8 +764,9 @@ async function finishUnlock(blob: VaultBlob, key: VaultKey, raw: Uint8Array | nu
   try {
     saved = await unseal(key, blob.data);
   } catch {
-    // The sessions can't be read (altered on disk): start them afresh behind the same PIN.
+    // The sessions can't be read (altered on disk): start them afresh behind the same PIN, and say so.
     saved = {};
+    vaultNotice.set("The file that holds them was changed or damaged, so they were cleared. Sign in to your servers again.");
   }
   vaultKey = key;
   dataKeyRaw = raw;
@@ -689,26 +776,58 @@ async function finishUnlock(blob: VaultBlob, key: VaultKey, raw: Uint8Array | nu
   locked.set(false);
   biometricNotice.set(null);
   await persistSessions();
-  await addQuickWrap();
+  // Quick unlock is the user's choice: a vault that still carries its way in from before it was
+  // opt-in (or from a setting since turned off) loses it here.
+  if (quickUnlockOn()) await addQuickWrap();
+  else await dropQuickWrap();
   renewSessions(true);
 }
 
 /**
- * Gives a device-bound vault its quick way in, if it has none yet. The quick key only
- * works within a minute of the phone being unlocked, sealing included, so this is tried
- * at every unlock until it succeeds.
+ * Gives a device-bound vault its quick way in, if the user turned quick unlock on and it has
+ * none yet. The quick key only works within a minute of the phone being unlocked, sealing
+ * included, so this is tried at every unlock until it succeeds.
  */
 async function addQuickWrap(): Promise<void> {
   const blob = vaultBlob;
-  if (!blob || blob.v !== 2 || blob.quickWrap || blob.bioWrap || !dataKeyRaw) return;
+  if (!quickUnlockOn() || !blob || blob.v !== 2 || blob.quickWrap || blob.bioWrap || !dataKeyRaw) return;
   try {
     const quickWrap = await sealWith(QUICK_ALIAS, toB64(dataKeyRaw), "quick");
-    if (vaultBlob !== blob) return;
+    // Turned off, or the vault changed, while it was being sealed: this one is out of date.
+    if (vaultBlob !== blob || !quickUnlockOn()) return;
     vaultBlob = { ...blob, quickWrap };
     await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
   } catch {
     // Not unlocked recently enough, or no screen lock: next time.
   }
+}
+
+/** Takes the quick way in out of the vault (if it has one) and forgets its key. */
+async function dropQuickWrap(): Promise<void> {
+  const blob = vaultBlob;
+  if (!blob || blob.v !== 2 || !blob.quickWrap) return;
+  const { quickWrap: _gone, ...rest } = blob;
+  vaultBlob = rest;
+  await Storage.setItem(VAULT_KEY, JSON.stringify(rest));
+  await forgetKey(QUICK_ALIAS);
+}
+
+/**
+ * Turns quick unlock on or off. It's off unless the user asks for it: with it, the phone's own
+ * unlock opens the vault for a minute without the app PIN. Turning it off removes its way in
+ * and deletes its key. Turned on, its way in is sealed at once if the phone was unlocked in the
+ * last minute, otherwise at the next unlock. Throws with a message for the screen.
+ */
+export async function setQuickUnlock(on: boolean): Promise<void> {
+  if (on) {
+    const blob = vaultBlob;
+    if (!blob || blob.v !== 2 || locked() || !dataKeyRaw) throw new Error("Quick unlock needs the saved sign-ins locked to this phone. Set a PIN first.");
+    if (blob.bioWrap) throw new Error("Fingerprint unlock is on, and it replaces quick unlock.");
+  }
+  quickUnlockOn.set(on);
+  await persistSecurity();
+  if (on) await addQuickWrap();
+  else await dropQuickWrap();
 }
 
 /**
@@ -725,13 +844,26 @@ async function newVault(pin: string, data: unknown, keep: Uint8Array | null = nu
   const raw = keep ?? randomBytes(32);
   const key = await importDataKey(raw);
   const salt = randomBytes(16);
+  if (await deviceMacAvailable()) {
+    try {
+      const bits = await deriveBits(pin, salt);
+      const pepperedKey = await importDataKey(fromB64(await macWith(PEPPER_ALIAS, toB64(bits), true)));
+      const sealedKey = await seal(pepperedKey, toB64(raw));
+      const blob: VaultBlobV2 = { v: 2, salt: toB64(salt), rounds: PBKDF2_ROUNDS, pinBox: sealedKey, data: await seal(key, data) };
+      keyStoreRefused.set(false);
+      return { blob, key, raw };
+    } catch {
+      // The key store couldn't make the HMAC key: the older phone-bound kind below is tried next.
+    }
+  }
   const pinKey = await deriveKey(pin, salt);
   const pinBox = await seal(pinKey, toB64(raw));
   let pinWrap: string;
   try {
     pinWrap = await sealWith(BOUND_ALIAS, btoa(JSON.stringify(pinBox)), "bound");
   } catch {
-    // The key store refused: the PIN-only vault still protects the sessions.
+    // The key store refused: the PIN-only vault still protects the sessions, and the Security page says it's weaker.
+    keyStoreRefused.set(true);
     const fallback = await createVault(pin, data);
     return { blob: fallback.blob, key: fallback.key, raw: null };
   }
@@ -755,6 +887,8 @@ async function rebuildVault(pin: string): Promise<void> {
   dataKeyRaw = made.raw;
   await Storage.setItem(VAULT_KEY, JSON.stringify(made.blob));
   bound.set(made.blob.v === 2);
+  // Moved off the older phone-bound wrap: its key has nothing left to seal.
+  if (before?.v === 2 && before.pinWrap && made.blob.v === 2 && made.blob.pinBox) await forgetKey(BOUND_ALIAS);
   await addQuickWrap();
 }
 
@@ -832,14 +966,18 @@ export async function eraseVault(): Promise<void> {
   vaultBlob = null;
   vaultKey = null;
   dataKeyRaw = null;
-  forgetting = Promise.all([forgetKey(BOUND_ALIAS), forgetKey(QUICK_ALIAS), forgetKey(BIO_ALIAS)]);
+  forgetting = Promise.all([forgetKey(BOUND_ALIAS), forgetKey(PEPPER_ALIAS), forgetKey(QUICK_ALIAS), forgetKey(BIO_ALIAS)]);
   sessions.clear();
   clients.clear();
   touched();
   servers.set(servers().map((s) => ({ ...s, rememberMe: false })));
+  // A new PIN starts from the safe default: quick unlock is asked for again, not inherited.
+  quickUnlockOn.set(false);
+  keyStoreRefused.set(false);
   await Storage.removeItem(VAULT_KEY);
   await Storage.removeItem(LOCKOUT_KEY);
   await persistServers();
+  await persistSecurity();
   hasPin.set(false);
   bound.set(false);
   biometricOn.set(false);
@@ -850,15 +988,21 @@ export async function eraseVault(): Promise<void> {
 
 export function validatePin(pin: string): void {
   if (!/^\d{6,12}$/.test(pin)) throw new Error("Use 6 to 12 digits");
-  if (/^(\d)\1+$/.test(pin) || "01234567890123".includes(pin) || "98765432109876".includes(pin)) {
+  // Repeated digits or blocks (111111, 121212, 123123), doubled runs (112233) and plain runs (123456, 987654).
+  if (/^(\d{1,3})\1+$/.test(pin) || /^(\d)\1(\d)\2(\d)\3/.test(pin) || "01234567890123".includes(pin) || "98765432109876".includes(pin)) {
     throw new Error("That PIN is too easy to guess");
   }
+}
+
+/** The app's own settings, kept together so saving one never drops the other. */
+async function persistSecurity(): Promise<void> {
+  await Storage.setItem(SECURITY_KEY, JSON.stringify({ autoLockSeconds: autoLockSeconds(), quickUnlock: quickUnlockOn() }));
 }
 
 export async function setAutoLock(seconds: number): Promise<void> {
   seconds = Math.min(3600, Math.max(0, Math.floor(seconds)));
   autoLockSeconds.set(seconds);
-  await Storage.setItem(SECURITY_KEY, JSON.stringify({ autoLockSeconds: seconds }));
+  await persistSecurity();
 }
 
 // ---- Launch ----------------------------------------------------------------------------------
@@ -889,6 +1033,8 @@ export async function loadServers(): Promise<void> {
     const security = rawSecurity ? JSON.parse(rawSecurity) : null;
     const secs = Number(security?.autoLockSeconds);
     if (Number.isFinite(secs)) autoLockSeconds.set(Math.min(3600, Math.max(0, Math.floor(secs))));
+    // Quick unlock is off unless the user turned it on (and only a plain `true` counts).
+    quickUnlockOn.set(security?.quickUnlock === true);
   } catch {
     // Keep the default.
   }
@@ -907,7 +1053,7 @@ export async function loadServers(): Promise<void> {
         name: String(s.name ?? "").slice(0, 100),
         serverUrl: s.serverUrl,
         username: String(s.username ?? ""),
-        color: Math.abs(Math.floor(Number(s.color) || 0)) % SERVER_COLORS.length,
+        color: 0,
         rememberMe: !!s.rememberMe,
       });
       // An older version's plain-text token: into memory, never back to disk.

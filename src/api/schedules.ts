@@ -550,7 +550,8 @@ export function outline(steps: Step[], text: Text, depth = 0, out: OutlineLine[]
 
 /** A new step id in the web panel's own style. */
 export function newStepId(): string {
-  return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const random = [...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(36).padStart(2, "0")).join("");
+  return `s${Date.now().toString(36)}${random}`;
 }
 
 export function newTask(task: TaskDescriptor | undefined): TaskStep {

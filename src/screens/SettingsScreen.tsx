@@ -37,7 +37,6 @@ import { openSafe } from "../lib/links";
 interface Group {
   key: string;
   name: string;
-  icon: string | null;
   specs: PlatformSettingSpec[];
   actions: string[];
 }
@@ -129,8 +128,8 @@ export function SettingsScreen(props: { serverId: string }) {
       const key = spec.category || "General";
       let g = out.find((x) => x.key === key);
       if (!g) {
-        const { name, icon } = splitCategory(spec.category);
-        g = { key, name: tr(name) || "General", icon, specs: [], actions: [] };
+        const { name } = splitCategory(spec.category);
+        g = { key, name: tr(name) || "General", specs: [], actions: [] };
         out.push(g);
       }
       g.specs.push(spec);
@@ -185,7 +184,6 @@ export function SettingsScreen(props: { serverId: string }) {
       title: `Update AMP to ${u.latestVersion}?`,
       message:
         "AMP downloads it, moves every machine to it and restarts the panel. Game servers keep running, but the panel and this app lose touch for a minute or two.",
-      icon: "⬆️",
       tone: "danger",
       actions: [{ id: "go", label: "Update now", tone: "danger" }],
     });
@@ -241,7 +239,6 @@ export function SettingsScreen(props: { serverId: string }) {
     const choice = await confirm({
       title: "Sign out your other sessions?",
       message: "Every browser and device signed in as you, except this app, is signed out.",
-      icon: "🚪",
       actions: [{ id: "go", label: "Sign them out", tone: "primary" }],
     });
     if (choice !== "go") return;
@@ -300,7 +297,7 @@ export function SettingsScreen(props: { serverId: string }) {
             <Text class="pt-2 text-xs font-semibold tracking-widest text-muted-foreground">SIGNED IN ON</Text>
             <Each of={sessions() ?? []} key={(s: Session) => s.id}>
               {(s) => (
-                <View class="flex-row items-center gap-3 border-b border-white/5 py-2">
+                <View class="flex-row items-center gap-3 border-b border-border py-2">
                   <View class="flex-1">
                     <View class="flex-row flex-wrap items-center gap-1.5">
                       <Text class="text-sm font-semibold text-card-foreground">{deviceName(s().userAgent)}</Text>
@@ -423,15 +420,14 @@ export function SettingsScreen(props: { serverId: string }) {
           <If when={manifest() && "error" in manifest()! ? (manifest() as { error: string }).error : null}>{(e) => <ErrorText message={e()} />}</If>
           <Each of={groups()} key={(g: Group) => g.key}>
             {(g) => (
-              <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+              <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                 <View role="button" testID={`group-${g().name}`} onPress={() => toggleGroup(g().key)} class="flex-row items-center gap-3 px-4 py-3.5 active:bg-accent">
-                  <If when={g().icon}>{(i) => <Text class="text-lg">{i()}</Text>}</If>
                   <Text class="flex-1 text-[15px] font-semibold text-card-foreground">{g().name}</Text>
                   <If when={editsIn(g())}>{(n) => <Pill label={`${n()} edited`} tone="warning" />}</If>
                   <Text class="text-muted-foreground">{openGroups().includes(g().key) ? "▾" : "▸"}</Text>
                 </View>
                 <If when={openGroups().includes(g().key)}>
-                  <View class="gap-4 border-t border-white/10 p-4">
+                  <View class="gap-4 border-t border-border p-4">
                     <Each of={g().specs} key={(s: PlatformSettingSpec) => s.fieldName}>
                       {(s) => {
                         const blocked = () => m()?.unavailable?.[s().fieldName];
@@ -469,7 +465,7 @@ export function SettingsScreen(props: { serverId: string }) {
 
       {/* Save bar while panel settings are edited */}
       <If when={changeCount() > 0}>
-        <View class="absolute right-0 bottom-0 left-0 flex-row gap-2 border-t border-white/10 bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+        <View class="absolute right-0 bottom-0 left-0 flex-row gap-2 border-t border-border bg-card px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
           <SecondaryButton title="Discard" onPress={() => edits.set({})} />
           <View class="flex-1">
             <PrimaryButton
@@ -486,7 +482,7 @@ export function SettingsScreen(props: { serverId: string }) {
 
 function Card(props: { title: string; children?: JSX.Element }) {
   return (
-    <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+    <View class="gap-3 rounded-(--radius) border border-border bg-card p-4">
       <Text class="text-xs font-semibold tracking-widest text-muted-foreground">{props.title.toUpperCase()}</Text>
       {props.children}
     </View>

@@ -10,8 +10,6 @@ export interface PromptRequest {
   confirm: string;
   /** Hide what's typed (a password). */
   masked?: boolean;
-  /** An emoji shown in a tinted circle above the title. */
-  icon?: string;
   /** Returns an error to show, or nothing to close. */
   onSubmit: (value: string) => Promise<string | void> | string | void;
 }
@@ -97,17 +95,10 @@ export function Prompt(props: { request: PromptRequest | null; onClose: () => vo
             class="absolute top-0 left-0 items-center justify-center px-7 pb-[env(keyboard-inset-height)]"
           >
             <View
-              class={`w-full max-w-sm gap-4 rounded-3xl border border-white/10 bg-popover p-6 shadow-2xl transition-all duration-150 ease-out ${
+              class={`w-full max-w-sm gap-4 rounded-(--radius) border border-border bg-popover p-6 shadow-2xl transition-all duration-150 ease-out ${
                 shown() ? "scale-100 opacity-100" : "scale-95 opacity-0"
               }`}
             >
-              <If when={request().icon}>
-                {(icon) => (
-                  <View class="h-12 w-12 items-center justify-center self-center rounded-full bg-primary/15">
-                    <Text class="text-2xl">{icon()}</Text>
-                  </View>
-                )}
-              </If>
               <View class="gap-1.5">
                 <Text class="text-center text-lg font-semibold text-popover-foreground">{request().title}</Text>
                 <If when={request().message}>{(m) => <Text class="text-center text-sm text-muted-foreground">{m()}</Text>}</If>
@@ -141,9 +132,9 @@ export function Prompt(props: { request: PromptRequest | null; onClose: () => vo
                   role="button"
                   testID="prompt-confirm"
                   onPress={submit}
-                  class={`flex-1 items-center rounded-xl px-4 py-3 ${busy() ? "bg-muted" : "bg-linear-to-r from-hero-from to-hero-to active:opacity-80"}`}
+                  class={`flex-1 items-center rounded-(--radius) px-4 py-3 ${busy() ? "bg-muted" : "bg-primary active:opacity-80"}`}
                 >
-                  <Text class={`text-[15px] font-semibold ${busy() ? "text-muted-foreground" : "text-white"}`}>
+                  <Text class={`text-[15px] font-semibold ${busy() ? "text-muted-foreground" : "text-primary-foreground"}`}>
                     {busy() ? "Working…" : request().confirm}
                   </Text>
                 </View>

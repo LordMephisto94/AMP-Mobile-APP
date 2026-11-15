@@ -2,24 +2,21 @@ import { Image, type JSX, Text, View } from "nsh";
 import mark from "../../assets/amp-mark.png";
 import { Button, Input, NavPage } from "nsh/base";
 import { nav } from "../state/nav";
+import { Icon, type IconName } from "./Icon";
 
-/** The app's main call to action: a violet-to-pink gradient button. */
-export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean; icon?: string }) {
+/** Shown while the keyboard has the focus on a control (on platforms that move focus between controls). */
+export const FOCUS = "focus-visible:ring-2 focus-visible:ring-ring";
+
+/** The app's main call to action: a solid accent button, with the theme's readable text on it. */
+export function PrimaryButton(props: { title: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Button
       onPress={() => {
         if (!props.disabled) props.onPress();
       }}
-      class={`flex-row items-center justify-center gap-2 rounded-(--radius) px-5 py-3.5 ${
-        props.disabled ? "bg-muted" : "bg-linear-to-r from-hero-from to-hero-to shadow-md active:opacity-85"
-      }`}
+      class={`items-center justify-center rounded-(--radius) px-5 py-3.5 ${FOCUS} ${props.disabled ? "bg-muted" : "bg-primary active:opacity-85"}`}
     >
-      <If when={props.icon}>
-        {(icon) => <Text class={`text-lg ${props.disabled ? "text-muted-foreground" : "text-white"}`}>{icon()}</Text>}
-      </If>
-      <Text class={`text-base font-semibold ${props.disabled ? "text-muted-foreground" : "text-white"}`}>
-        {props.title}
-      </Text>
+      <Text class={`text-base font-semibold ${props.disabled ? "text-muted-foreground" : "text-primary-foreground"}`}>{props.title}</Text>
     </Button>
   );
 }
@@ -45,7 +42,7 @@ export function SecondaryButton(props: {
       onPress={() => {
         if (!props.disabled) props.onPress();
       }}
-      class={`flex-1 items-center rounded-(--radius) px-4 py-3 active:opacity-70 ${props.disabled ? "opacity-50" : ""} ${tone()[0]}`}
+      class={`flex-1 items-center rounded-(--radius) px-4 py-3 active:opacity-70 ${FOCUS} ${props.disabled ? "opacity-50" : ""} ${tone()[0]}`}
     >
       <Text class={`text-base font-semibold ${tone()[1]}`}>{props.title}</Text>
     </Button>
@@ -89,7 +86,7 @@ export function Field(props: {
 /** A tappable checkbox with a label. */
 export function Checkbox(props: { label: string; checked: boolean; onChange: (checked: boolean) => void; testID?: string }) {
   return (
-    <View role="checkbox" testID={props.testID} onPress={() => props.onChange(!props.checked)} class="flex-row items-center gap-3 py-1">
+    <View role="checkbox" testID={props.testID} onPress={() => props.onChange(!props.checked)} class={`flex-row items-center gap-3 rounded-md py-1 ${FOCUS}`}>
       <View
         class={`h-6 w-6 items-center justify-center rounded-md border-2 ${props.checked ? "border-primary bg-primary" : "border-input bg-card"}`}
       >
@@ -98,6 +95,50 @@ export function Checkbox(props: { label: string; checked: boolean; onChange: (ch
         </If>
       </View>
       <Text class="text-base text-foreground">{props.label}</Text>
+    </View>
+  );
+}
+
+/** An on/off control with a label and a line on what it does. */
+export function Switch(props: { label: string; hint?: string; value: boolean; onChange: (value: boolean) => void; testID?: string }) {
+  return (
+    <View
+      role="switch"
+      testID={props.testID}
+      accessibilityLabel={`${props.label}, ${props.value ? "on" : "off"}`}
+      onPress={() => props.onChange(!props.value)}
+      class={`flex-row items-center gap-3 rounded-(--radius) py-1 ${FOCUS}`}
+    >
+      <View class="flex-1 gap-0.5">
+        <Text class="text-base font-semibold text-card-foreground">{props.label}</Text>
+        <If when={props.hint}>{(h) => <Text class="text-xs text-muted-foreground">{h()}</Text>}</If>
+      </View>
+      <View class={`h-7 w-12 justify-center rounded-full border px-0.5 ${props.value ? "items-end border-primary bg-primary" : "items-start border-input bg-secondary"}`}>
+        <View class={`h-6 w-6 rounded-full ${props.value ? "bg-primary-foreground" : "bg-muted-foreground"}`} />
+      </View>
+    </View>
+  );
+}
+
+/** A row of choices where exactly one is selected (the selected one says so to screen readers). */
+export function Segmented<T extends string>(props: { value: T; options: { id: T; label: string }[]; onChange: (id: T) => void; testID: string }) {
+  return (
+    <View class="flex-row flex-wrap gap-2">
+      <Each of={props.options}>
+        {(o) => (
+          <Text
+            role="button"
+            testID={`${props.testID}-${o().id}`}
+            accessibilityLabel={`${o().label}${props.value === o().id ? ", selected" : ""}`}
+            onPress={() => props.onChange(o().id)}
+            class={`rounded-(--radius) border px-3.5 py-2 text-sm font-semibold ${FOCUS} ${
+              props.value === o().id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"
+            }`}
+          >
+            {o().label}
+          </Text>
+        )}
+      </Each>
     </View>
   );
 }
@@ -127,6 +168,20 @@ export function Pill(props: { label: string; tone: "success" | "muted" | "warnin
   );
 }
 
+/** A row that opens another page: a title, a line on what is there, and a chevron. Rows in one card are divided by a hairline. */
+export function NavRow(props: { title: string; hint?: string; icon?: IconName; onPress: () => void; testID?: string }) {
+  return (
+    <View role="button" testID={props.testID} onPress={props.onPress} class={`flex-row items-center gap-3 border-b border-border px-4 py-3.5 active:bg-accent ${FOCUS}`}>
+      <If when={props.icon}>{(i) => <Icon name={i()} tone="accent" size={22} />}</If>
+      <View class="flex-1">
+        <Text class="text-base font-semibold text-card-foreground">{props.title}</Text>
+        <If when={props.hint}>{(h) => <Text class="text-xs text-muted-foreground">{h()}</Text>}</If>
+      </View>
+      <Text class="text-xl text-muted-foreground">›</Text>
+    </View>
+  );
+}
+
 /**
  * The app's own top bar, on every platform (the system's is hidden): room for the status
  * bar, a round back button when there's somewhere to go back to, the AMP mark, the title
@@ -134,14 +189,14 @@ export function Pill(props: { label: string; tone: "success" | "muted" | "warnin
  */
 export function PageHeader(props: { title: string; subtitle?: string; right?: JSX.Element; onBack?: () => void }) {
   return (
-    <View class="flex-row items-center gap-3 border-b border-white/10 bg-card/85 px-3 pt-[calc(env(safe-area-inset-top)+8px)] pb-2.5 shadow-lg">
+    <View class="flex-row items-center gap-3 border-b border-border bg-card px-3 pt-[calc(env(safe-area-inset-top)+8px)] pb-2.5">
       <If when={nav.routes().length > 1}>
         <View
           role="button"
           accessibilityLabel="Back"
           testID="back"
           onPress={() => (props.onBack ? props.onBack() : nav.pop())}
-          class="h-10 w-10 items-center justify-center rounded-full bg-primary/15 active:bg-primary/30"
+          class={`h-10 w-10 items-center justify-center rounded-full bg-primary/15 active:bg-primary/30 ${FOCUS}`}
         >
           <Text class="-mt-0.5 text-2xl leading-none font-semibold text-primary">‹</Text>
         </View>

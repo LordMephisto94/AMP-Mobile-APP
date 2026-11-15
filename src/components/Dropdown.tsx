@@ -4,8 +4,6 @@ import { Popover } from "nsh/base";
 export interface DropdownItem {
   id: string;
   label: string;
-  /** An emoji or symbol before the label. */
-  icon?: string;
   /** `danger` items are red and set apart below a divider. */
   tone?: "default" | "danger";
   hint?: string;
@@ -17,7 +15,7 @@ export interface DropdownItem {
 }
 
 /**
- * The app's own dropdown menu: a glassy card anchored under its trigger, which fades and
+ * The app's own dropdown menu: a card anchored under its trigger, which fades and
  * scales in, instead of the system's action sheet. Pressing outside or Back closes it.
  * Controlled: pass `open` and `onOpenChange` (so a long press elsewhere can open it too).
  */
@@ -54,7 +52,7 @@ export function Dropdown(props: {
       offset={6}
       margin={12}
       popupStyle={props.matchWidth && triggerWidth() > 0 ? { minWidth: triggerWidth() } : undefined}
-      popupClass="min-w-56 overflow-hidden rounded-2xl border border-white/10 bg-popover/95 py-1.5 shadow-2xl backdrop-blur-xl transition-all duration-150 ease-out"
+      popupClass="min-w-56 overflow-hidden rounded-(--radius) border border-border bg-popover py-1.5 shadow-2xl transition-all duration-150 ease-out"
       popupStartingClass="opacity-0 scale-95 -translate-y-1"
       popupEndingClass="opacity-0 scale-95 -translate-y-1"
       trigger={
@@ -86,7 +84,7 @@ export function Dropdown(props: {
           </Scroll>
         </If>
         <If when={danger().length > 0 && normal().length > 0}>
-          <View class="mx-3 my-1.5 h-px bg-white/10" />
+          <View class="mx-3 my-1.5 h-px bg-border" />
         </If>
         <Each of={danger()} key={(i: DropdownItem) => i.id}>
           {(item) => <DropdownRow item={item()} onPress={() => pick(item())} />}
@@ -103,13 +101,10 @@ function DropdownRow(props: { item: DropdownItem; onPress: () => void }) {
       role="menuitem"
       testID={`menu-${props.item.id}`}
       onPress={props.onPress}
-      class={`mx-1.5 flex-row items-center gap-3 rounded-xl px-3 py-2.5 ${
+      class={`mx-1.5 flex-row items-center gap-3 rounded-xl px-3 py-2.5 focus-visible:ring-2 focus-visible:ring-ring ${
         props.item.disabled ? "opacity-40" : danger() ? "active:bg-destructive/15" : "active:bg-accent"
       } ${props.item.selected ? "bg-primary/15" : ""}`}
     >
-      <If when={props.item.icon}>
-        {(icon) => <Text class={`w-6 text-center text-base ${danger() ? "text-destructive" : "text-foreground"}`}>{icon()}</Text>}
-      </If>
       <View class="flex-1">
         <Text class={`text-[15px] font-medium ${danger() ? "text-destructive" : "text-popover-foreground"}`}>{props.item.label}</Text>
         <If when={props.item.hint}>{(h) => <Text class="text-xs text-muted-foreground">{h()}</Text>}</If>
@@ -129,9 +124,9 @@ export function MoreButton(props: { onPress?: () => void; testID?: string; class
       accessibilityLabel="More actions"
       testID={props.testID}
       onPress={props.onPress}
-      class={`h-9 w-9 items-center justify-center rounded-full bg-black/30 active:bg-black/50 ${props.class ?? ""}`}
+      class={`h-9 w-9 items-center justify-center rounded-full bg-secondary active:bg-accent focus-visible:ring-2 focus-visible:ring-ring ${props.class ?? ""}`}
     >
-      <Text class="text-lg leading-none text-white/90">⋯</Text>
+      <Text class="text-lg leading-none text-secondary-foreground">⋯</Text>
     </View>
   );
 }

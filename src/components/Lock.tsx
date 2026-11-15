@@ -1,4 +1,6 @@
+import { clearRevealed } from "../state/prefs";
 import { cleanup, effect, Image, type JSX, lifecycle, Overlay, signal, Text, View, windowSize } from "nsh";
+import { inkTint } from "./Icon";
 import mark from "../../assets/amp-mark.png";
 import {
   autoLockSeconds,
@@ -20,6 +22,7 @@ import {
   setupPin,
   unlock,
   validatePin,
+  vaultNotice,
 } from "../state/servers";
 import { cancelConfirm, confirm } from "./Confirm";
 
@@ -36,7 +39,7 @@ export function PinPad(props: { value: string; onChange: (v: string) => void; on
     <View class="w-full max-w-xs gap-6 self-center">
       <View class="h-4 flex-row items-center justify-center gap-3" accessibilityLabel={`${props.value.length} digits entered`}>
         <Each of={Array.from({ length: Math.max(6, props.value.length) }, (_, i) => i)}>
-          {(i) => <View class={`h-3.5 w-3.5 rounded-full ${i() < props.value.length ? "bg-primary" : "border border-white/30"}`} />}
+          {(i) => <View class={`h-3.5 w-3.5 rounded-full ${i() < props.value.length ? "bg-primary" : "border border-input"}`} />}
         </Each>
       </View>
       <View class="flex-row flex-wrap justify-between gap-y-3">
@@ -47,7 +50,7 @@ export function PinPad(props: { value: string; onChange: (v: string) => void; on
               testID={k() ? `pin-${k() === "⌫" ? "back" : k()}` : undefined}
               accessibilityLabel={k() === "⌫" ? "Delete" : k()}
               onPress={() => press(k())}
-              class={`h-16 w-[31%] items-center justify-center rounded-2xl ${k() ? "bg-white/8 active:bg-white/20" : ""} ${props.disabled ? "opacity-40" : ""}`}
+              class={`h-16 w-[31%] items-center justify-center rounded-2xl focus-visible:ring-2 focus-visible:ring-ring ${k() ? "border border-border bg-secondary active:bg-accent" : ""} ${props.disabled ? "opacity-40" : ""}`}
             >
               <Text class="text-2xl font-semibold text-foreground">{k()}</Text>
             </View>
@@ -58,9 +61,9 @@ export function PinPad(props: { value: string; onChange: (v: string) => void; on
         role="button"
         testID="pin-done"
         onPress={() => !props.disabled && props.value.length >= 6 && props.onDone()}
-        class={`items-center rounded-2xl py-3.5 ${props.value.length >= 6 && !props.disabled ? "bg-linear-to-r from-hero-from to-hero-to" : "bg-muted"}`}
+        class={`items-center rounded-(--radius) py-3.5 ${props.value.length >= 6 && !props.disabled ? "bg-primary" : "bg-muted"}`}
       >
-        <Text class={`text-base font-semibold ${props.value.length >= 6 && !props.disabled ? "text-white" : "text-muted-foreground"}`}>OK</Text>
+        <Text class={`text-base font-semibold ${props.value.length >= 6 && !props.disabled ? "text-primary-foreground" : "text-muted-foreground"}`}>OK</Text>
       </View>
     </View>
   );
@@ -139,7 +142,6 @@ function LockScreen() {
           await confirm({
             title: "Saved sign-ins cleared",
             message: "They were locked to a phone key that's no longer here (a reset, or a copy from another phone). Sign in to your servers again.",
-            icon: "🔑",
             cancelLabel: null,
             actions: [{ id: "ok", label: "OK", tone: "primary" }],
           });
@@ -163,7 +165,6 @@ function LockScreen() {
     const choice = await confirm({
       title: "Forgot your PIN?",
       message: "The PIN can't be recovered. Erasing it signs you out of every saved server; the servers stay, and you sign in again.",
-      icon: "🔑",
       tone: "danger",
       actions: [{ id: "erase", label: "Erase and sign out", tone: "danger" }],
     });
@@ -174,7 +175,7 @@ function LockScreen() {
     <FullScreen>
       <View class="w-full max-w-sm gap-8">
         <View class="items-center gap-3">
-          <Image src={mark} accessibilityLabel="AMP" class="h-14 w-14 object-contain" />
+          <Image src={mark} accessibilityLabel="AMP" style={inkTint()} class="h-14 w-14 object-contain" />
           <Text class="text-2xl font-bold text-foreground">AMP Mobile is locked</Text>
           <Text class="text-center text-sm text-muted-foreground">
             {canBiometricUnlock()
@@ -194,13 +195,12 @@ function LockScreen() {
             role="button"
             testID="lock-biometric"
             onPress={useBiometric}
-            class={`flex-row items-center justify-center gap-2 self-center rounded-full border border-white/15 bg-white/8 px-5 py-2.5 active:bg-white/20 ${busy() ? "opacity-50" : ""}`}
+            class={`flex-row items-center justify-center gap-2 self-center rounded-full border border-border bg-secondary px-5 py-2.5 active:bg-accent ${busy() ? "opacity-50" : ""}`}
           >
-            <Text class="text-lg">☝️</Text>
             <Text class="text-sm font-semibold text-foreground">Use fingerprint</Text>
           </View>
         </If>
-        <Text role="button" testID="forgot-pin" onPress={forgot} class="text-center text-sm font-semibold text-sky-400">
+        <Text role="button" testID="forgot-pin" onPress={forgot} class="text-center text-sm font-semibold text-info">
           Forgot PIN?
         </Text>
       </View>
@@ -247,7 +247,6 @@ export function PinSetup(props: { title: string; message: string; onDone: (pin: 
     <FullScreen>
       <View class="w-full max-w-sm gap-7">
         <View class="items-center gap-3">
-          <Text class="text-4xl">🔐</Text>
           <Text class="text-center text-2xl font-bold text-foreground">{first() === null ? props.title : "Enter it again"}</Text>
           <Text class="text-center text-sm text-muted-foreground">{first() === null ? props.message : "To make sure it's the one you meant."}</Text>
         </View>
@@ -270,20 +269,35 @@ export function PinSetup(props: { title: string; message: string; onDone: (pin: 
  */
 export function LockHost() {
   let leftAt = 0;
+  let lockTimer: ReturnType<typeof setTimeout> | undefined;
   // Locking cancels any dialog left open, so nothing is answered from behind the lock.
   let wasLocked = locked();
   effect(() => {
     const now = locked();
-    if (now && !wasLocked) cancelConfirm();
+    if (now && !wasLocked) {
+      cancelConfirm();
+      clearRevealed();
+    }
     wasLocked = now;
+  });
+  // The vault opened with the right PIN but its sessions couldn't be read (the file was changed): say so once.
+  effect(() => {
+    const note = vaultNotice();
+    if (!note || locked()) return;
+    vaultNotice.set(null);
+    confirm({ title: "Saved sign-ins couldn't be read", message: note, cancelLabel: null, actions: [{ id: "ok", label: "OK", tone: "primary" }] });
   });
   effect(() => {
     const state = lifecycle();
     // Turning the screen off may only make the app inactive, so any step away counts.
     if (state !== "active") leftApp();
+    if (state === "active") clearTimeout(lockTimer);
     if (state === "background") {
       leftAt = Date.now();
+      clearTimeout(lockTimer);
+      // A timer as well as the check on return, so the sessions leave memory on time even if the app stays in the background.
       if (autoLockSeconds() === 0) lockNow();
+      else lockTimer = setTimeout(() => lockNow(), autoLockSeconds() * 1000);
     } else if (state === "active" && leftAt) {
       const away = Date.now() - leftAt;
       // A clock set back while away (a negative time) locks too, rather than never.
@@ -308,7 +322,7 @@ export function LockHost() {
       </If>
       <If when={lifecycle() === "background" && !locked()}>
         <FullScreen>
-          <Image src={mark} accessibilityLabel="AMP" class="h-16 w-16 object-contain" />
+          <Image src={mark} accessibilityLabel="AMP" style={inkTint()} class="h-16 w-16 object-contain" />
         </FullScreen>
       </If>
     </>

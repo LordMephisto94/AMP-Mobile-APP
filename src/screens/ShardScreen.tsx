@@ -1,4 +1,7 @@
-import { Clipboard, Image, signal, Text, View } from "nsh";
+import { Icon } from "../components/Icon";
+import { formatMb } from "../lib/units";
+import { pressAddress, shownAddress } from "../state/prefs";
+import { Clipboard, colorScheme, Image, signal, Text, View } from "nsh";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
 import { deleteShard } from "../api/manage";
@@ -18,7 +21,7 @@ import { Dropdown } from "../components/Dropdown";
 import { powerItems } from "../components/powerMenu";
 import { confirm } from "../components/Confirm";
 import { MetricChart, type MetricPoint } from "../components/MetricChart";
-import { AppPage, ErrorText, SecondaryButton } from "../components/ui";
+import { AppPage, ErrorText, NavRow, SecondaryButton } from "../components/ui";
 import { poll } from "../lib/poll";
 import { nav } from "../state/nav";
 import { clientFor, clientLater, locked, serverById } from "../state/servers";
@@ -130,7 +133,6 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
       title: `Delete ${props.title}?`,
       message:
         "It disappears from your instances and stops running. You can restore it from the instance list until you delete it permanently.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -173,7 +175,7 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
           else={
             <AmpBanner
               title={props.title}
-              subtitle={[address()?.display, state()?.runningVersion ? `Version ${state()!.runningVersion}` : null].filter(Boolean).join(" · ") || undefined}
+              subtitle={[address() ? shownAddress(address()!.display) : null, state()?.runningVersion ? `Version ${state()!.runningVersion}` : null].filter(Boolean).join(" · ") || undefined}
               status={toneStatus(tone())}
               statusLabel={label()}
             />
@@ -187,26 +189,27 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
                 accessibilityLabel={props.title}
                 class="absolute inset-0 h-full w-full object-cover"
               />
-              <View class="absolute inset-0 bg-linear-to-b from-transparent via-black/20 to-background" />
+              <View
+                class={`absolute inset-0 bg-linear-to-b ${colorScheme() === "light" ? "from-black/10 via-black/35 to-black/80" : "from-transparent via-black/20 to-background"}`}
+              />
               <View class="absolute right-0 bottom-0 left-0 gap-2 px-5 pb-4">
                 <If when={address()}>
                   {(a) => (
                     <View
                       role="button"
                       testID="connect-address"
-                      accessibilityLabel={`Address ${a().display}. Tap to copy.`}
-                      onPress={copyAddress}
+                      accessibilityLabel={`Address ${shownAddress(a().display)}. Tap to copy.`}
+                      onPress={() => pressAddress(a().display, copyAddress)}
                       class="flex-row items-center gap-1.5 self-start rounded-full border border-white/20 bg-black/55 px-3 py-1 active:bg-black/75"
                     >
-                      <Text class="text-xs">🌐</Text>
-                      <Text class="font-mono text-sm font-semibold text-white">{a().display}</Text>
-                      <Text class="text-xs text-white/60">{copied() ? "Copied" : "⧉"}</Text>
+                      <Text class="font-mono text-sm font-semibold text-white">{shownAddress(a().display)}</Text>
+                      <Text class="text-xs text-white/80">{copied() ? "Copied" : "Copy"}</Text>
                     </View>
                   )}
                 </If>
                 <Text class="text-3xl font-bold text-white">{props.title}</Text>
                 <View class="flex-row flex-wrap items-center gap-2">
-                  <StatusBadge label={label()} status={toneStatus(tone())} />
+                  <StatusBadge label={label()} status={toneStatus(tone())} onBanner />
                   <If when={state()?.runningVersion}>{(v) => <Text class="text-sm text-white/80">Version {v()}</Text>}</If>
                 </View>
               </View>
@@ -230,126 +233,67 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               title="Controls"
               items={powerItems({ title: props.title, state: state(), busy: busy(), run: power })}
               trigger={
-                <View
-                  role="button"
-                  testID="controls"
-                  class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 px-4 py-3.5 shadow-lg active:bg-accent"
-                >
-                  <View class="h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-hero-from to-hero-to">
-                    <Text class="text-base font-bold text-white">⏻</Text>
-                  </View>
+                <View role="button" testID="controls" class="flex-row items-center gap-3 rounded-(--radius) bg-primary px-4 py-3.5 active:opacity-85 focus-visible:ring-2 focus-visible:ring-ring">
+                  <Icon name="power" tone="onAccent" size={22} />
                   <View class="flex-1">
-                    <Text class="text-base font-semibold text-card-foreground">Controls</Text>
-                    <Text class="text-xs text-muted-foreground">Start, restart, stop, sleep and update</Text>
+                    <Text class="text-base font-semibold text-primary-foreground">Controls</Text>
+                    <Text class="text-xs text-primary-foreground">Start, restart, stop, sleep and update</Text>
                   </View>
-                  <Text class="text-base text-muted-foreground">{controlsOpen() ? "▴" : "▾"}</Text>
+                  <Text class="text-base text-primary-foreground">{controlsOpen() ? "▴" : "▾"}</Text>
                 </View>
               }
             />
 
-            <View
-              role="button"
-              testID="open-files"
-              onPress={() => nav.push({ name: "files", serverId: props.serverId, id: props.id, title: props.title, path: "" })}
-              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-            >
-              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">📁</Text>
-              </View>
-              <View class="flex-1">
-                <Text class="text-base font-semibold text-card-foreground">Files</Text>
-                <Text class="text-xs text-muted-foreground">Browse, edit, upload and download</Text>
-              </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
-            </View>
-
-            <View
-              role="button"
-              testID="open-snapshots"
-              onPress={() => nav.push({ name: "snapshots", serverId: props.serverId, id: props.id, title: props.title })}
-              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-            >
-              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">🗂️</Text>
-              </View>
-              <View class="flex-1">
-                <Text class="text-base font-semibold text-card-foreground">Snapshots</Text>
-                <Text class="text-xs text-muted-foreground">Back up, restore and pin backups</Text>
-              </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
-            </View>
-
-            <View
-              role="button"
-              testID="open-schedules"
-              onPress={() => nav.push({ name: "schedules", serverId: props.serverId, id: props.id, title: props.title })}
-              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-            >
-              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">⏰</Text>
-              </View>
-              <View class="flex-1">
-                <Text class="text-base font-semibold text-card-foreground">Schedules</Text>
-                <Text class="text-xs text-muted-foreground">Restarts, backups and commands on a timer or event</Text>
-              </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
-            </View>
-
-            <View
-              role="button"
-              testID="open-settings"
-              onPress={() => nav.push({ name: "shardSettings", serverId: props.serverId, id: props.id, title: props.title })}
-              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-            >
-              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg text-violet-300">⚙</Text>
-              </View>
-              <View class="flex-1">
-                <Text class="text-base font-semibold text-card-foreground">Settings</Text>
-                <Text class="text-xs text-muted-foreground">Name, description and game settings</Text>
-              </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
-            </View>
-
-            <View
-              role="button"
-              testID="open-analytics"
-              onPress={() => nav.push({ name: "analytics", serverId: props.serverId, shardId: props.id, title: props.title })}
-              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-            >
-              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="text-lg">📊</Text>
-              </View>
-              <View class="flex-1">
-                <Text class="text-base font-semibold text-card-foreground">Player analytics</Text>
-                <Text class="text-xs text-muted-foreground">Who plays, when, and for how long</Text>
-              </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
-            </View>
-
-            <View
-              role="button"
-              testID="open-console"
-              onPress={() =>
-                nav.push({ name: "console", serverId: props.serverId, id: props.id, title: props.title, tenantId: state()?.tenantId })
-              }
-              class="flex-row items-center gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg active:bg-accent"
-            >
-              <View class="h-10 w-10 items-center justify-center rounded-lg bg-black/60">
-                <Text class="font-mono text-base font-bold text-emerald-400">{">_"}</Text>
-              </View>
-              <View class="flex-1">
-                <Text class="text-base font-semibold text-card-foreground">Console</Text>
-                <Text class="text-xs text-muted-foreground">Live output and commands</Text>
-              </View>
-              <Text class="text-xl text-muted-foreground">›</Text>
+            <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
+              <NavRow
+                testID="open-console"
+                title="Console"
+                icon="terminal"
+                hint="Live output and commands"
+                onPress={() => nav.push({ name: "console", serverId: props.serverId, id: props.id, title: props.title, tenantId: state()?.tenantId })}
+              />
+              <NavRow
+                testID="open-files"
+                title="Files"
+                icon="folder"
+                hint="Browse, edit, upload and download"
+                onPress={() => nav.push({ name: "files", serverId: props.serverId, id: props.id, title: props.title, path: "" })}
+              />
+              <NavRow
+                testID="open-snapshots"
+                title="Snapshots"
+                icon="snapshot"
+                hint="Back up, restore and pin backups"
+                onPress={() => nav.push({ name: "snapshots", serverId: props.serverId, id: props.id, title: props.title })}
+              />
+              <NavRow
+                testID="open-schedules"
+                title="Schedules"
+                icon="schedule"
+                hint="Restarts, backups and commands on a timer or event"
+                onPress={() => nav.push({ name: "schedules", serverId: props.serverId, id: props.id, title: props.title })}
+              />
+              <NavRow
+                testID="open-analytics"
+                title="Player analytics"
+                icon="analytics"
+                hint="Who plays, when, and for how long"
+                onPress={() => nav.push({ name: "analytics", serverId: props.serverId, shardId: props.id, title: props.title })}
+              />
+              <NavRow
+                testID="open-settings"
+                title="Settings"
+                icon="sliders"
+                hint="Name, description and game settings"
+                onPress={() => nav.push({ name: "shardSettings", serverId: props.serverId, id: props.id, title: props.title })}
+              />
             </View>
 
           </View>
           <View class="gap-4 lg:flex-1">
             <View class="flex-row items-center justify-between pt-2">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">PERFORMANCE</Text>
-              <View class="flex-row gap-1 rounded-lg bg-card/85 p-1">
+              <View class="flex-row gap-1 rounded-lg bg-card p-1">
                 <Each of={RANGES}>
                   {(r) => (
                     <Text
@@ -374,21 +318,21 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               title="CPU"
               points={cpu()}
               format={(v) => `${v.toFixed(v < 10 ? 1 : 0)}%`}
-              titleClass="text-sky-400"
-              lineClass="stroke-sky-400 stroke-2"
-              areaClass="fill-sky-400/15"
-              dotClass="size-2.5 rounded-full border-2 border-background bg-sky-400"
+              titleClass="text-info"
+              lineClass="stroke-info stroke-2"
+              areaClass="fill-info/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-info"
             />
             <MetricChart
               title="RAM"
               points={ram()}
-              format={(v) => `${Math.round(v).toLocaleString()} MB`}
+              format={(v) => formatMb(v)}
               domain={memoryLimit() > 0 ? [0, memoryLimit()] : undefined}
-              caption={memoryLimit() > 0 ? `of ${memoryLimit().toLocaleString()} MB` : undefined}
-              titleClass="text-violet-400"
-              lineClass="stroke-violet-400 stroke-2"
-              areaClass="fill-violet-400/15"
-              dotClass="size-2.5 rounded-full border-2 border-background bg-violet-400"
+              caption={memoryLimit() > 0 ? `of ${formatMb(memoryLimit())}` : undefined}
+              titleClass="text-series"
+              lineClass="stroke-series stroke-2"
+              areaClass="fill-series/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-series"
             />
             <MetricChart
               title="Players"
@@ -397,10 +341,10 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
               domain={maxPlayers() > 0 ? [0, maxPlayers()] : undefined}
               caption={maxPlayers() > 0 ? `of ${maxPlayers()} slots` : undefined}
               curve="stepAfter"
-              titleClass="text-emerald-400"
-              lineClass="stroke-emerald-400 stroke-2"
-              areaClass="fill-emerald-400/15"
-              dotClass="size-2.5 rounded-full border-2 border-background bg-emerald-400"
+              titleClass="text-success"
+              lineClass="stroke-success stroke-2"
+              areaClass="fill-success/15"
+              dotClass="size-2.5 rounded-full border-2 border-background bg-success"
             />
 
             <View class="mt-4 gap-2 rounded-(--radius) border border-destructive/30 bg-destructive/5 p-4">

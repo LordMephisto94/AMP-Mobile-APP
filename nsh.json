@@ -1,8 +1,8 @@
 {
   "name": "AMP Mobile",
   "id": "com.meganet.ampmobile",
-  "version": "0.2.2",
-  "build": 14,
+  "version": "0.2.6-A",
+  "build": 16,
   "icon": "assets/icon.png",
   "theme": "theme.json",
   "appearance": "dark",
@@ -16,21 +16,25 @@
           "host": "*",
           "schemes": [
             "https",
-            "wss"
+            "wss",
+            "http",
+            "ws"
           ]
         }
       ]
     },
     "openUrl": {
       "schemes": [
-        "https"
+        "https",
+        "http"
       ]
     },
     "clipboard": true,
     "picker": true,
     "statusBar": true,
     "host": [
-      "deviceKey.*"
+      "deviceKey.*",
+      "window.*"
     ]
   }
 }

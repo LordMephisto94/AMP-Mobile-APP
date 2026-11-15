@@ -23,11 +23,10 @@ export function powerItems(options: {
   const sleeping = state?.status === ApplicationState.Sleeping;
   const playersNote = players > 0 ? ` ${players} player${players === 1 ? " is" : "s are"} connected and will be disconnected.` : "";
 
-  const ask = async (action: ShardPowerAction, verb: string, message: string, icon: string, danger: boolean) => {
+  const ask = async (action: ShardPowerAction, verb: string, message: string, danger: boolean) => {
     const choice = await confirm({
       title: `${verb} ${title}?`,
       message,
-      icon,
       tone: danger ? "danger" : "default",
       actions: [{ id: action, label: verb, tone: danger ? "danger" : "primary" }],
     });
@@ -38,7 +37,6 @@ export function powerItems(options: {
     {
       id: "start",
       label: "Start",
-      icon: "▶️",
       disabled: !known || !(tone === "stopped" || tone === "error") || sleeping,
       hint: running ? "Already running" : sleeping ? "Asleep: use Wake" : undefined,
       onSelect: () => run("start"),
@@ -46,19 +44,17 @@ export function powerItems(options: {
     {
       id: "restart",
       label: "Restart",
-      icon: "🔄",
       disabled: !known || !running,
-      onSelect: () => ask("restart", "Restart", `It stops and starts again.${playersNote}`, "🔄", false),
+      onSelect: () => ask("restart", "Restart", `It stops and starts again.${playersNote}`, false),
     },
   ];
 
   if (sleeping) {
-    items.push({ id: "wake", label: "Wake", icon: "☀️", disabled: !known, onSelect: () => run("wake") });
+    items.push({ id: "wake", label: "Wake", disabled: !known, onSelect: () => run("wake") });
   } else {
     items.push({
       id: "sleep",
       label: "Sleep",
-      icon: "🌙",
       hint: "Stops until someone connects",
       disabled: !known || state?.status !== ApplicationState.RunningReady,
       onSelect: () => run("sleep"),
@@ -69,7 +65,6 @@ export function powerItems(options: {
     {
       id: "update",
       label: "Update",
-      icon: "⬆️",
       hint: "Runs the game's update",
       disabled: !known || tone === "busy" || !!state?.activeTaskId,
       onSelect: () =>
@@ -77,17 +72,15 @@ export function powerItems(options: {
           "update",
           "Update",
           `AMP runs the game's update task${running ? ", which may stop it while it updates" : ""}.${playersNote}`,
-          "⬆️",
           false,
         ),
     },
     {
       id: "stop",
       label: "Stop",
-      icon: "⏹️",
       tone: "danger",
       disabled: !known || !running,
-      onSelect: () => ask("stop", "Stop", `The game server shuts down.${playersNote}`, "⏹️", true),
+      onSelect: () => ask("stop", "Stop", `The game server shuts down.${playersNote}`, true),
     },
   );
   return items;

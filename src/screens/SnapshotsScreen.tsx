@@ -124,7 +124,6 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
       title: `Restore ${s.name || whenOf(s.createdAt)}?`,
       message:
         "The instance's files go back to how they were in this snapshot. AMP first takes a snapshot of how they are now, so you can undo it. The instance may stop while it restores.",
-      icon: "⏪",
       tone: "danger",
       actions: [{ id: "restore", label: "Restore", tone: "danger" }],
     });
@@ -139,7 +138,6 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
         children > 0
           ? "Later partial snapshots build on this one; AMP decides whether they can stay. This can't be undone."
           : "Its files are deleted from the machine. This can't be undone.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete", tone: "danger" }],
     });
@@ -149,7 +147,6 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
   const rename = (s: Snapshot) =>
     prompt.set({
       title: "Name this snapshot",
-      icon: "🏷️",
       value: s.name ?? "",
       placeholder: "e.g. Before the 1.21 update",
       confirm: "Save",
@@ -163,7 +160,6 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
   const describe = (s: Snapshot) =>
     prompt.set({
       title: "Describe this snapshot",
-      icon: "📝",
       value: s.description ?? "",
       placeholder: "What it's for",
       confirm: "Save",
@@ -267,7 +263,7 @@ export function SnapshotsScreen(props: { serverId: string; id: string; title: st
 
 function ProgressBar(props: { pct: number | null }) {
   return (
-    <View class="h-1.5 overflow-hidden rounded-full bg-white/10">
+    <View class="h-1.5 overflow-hidden rounded-full bg-border">
       <If when={props.pct !== null} else={<View class="h-full w-1/3 rounded-full bg-primary/60" />}>
         <View class="h-full rounded-full bg-primary" style={{ width: `${props.pct ?? 0}%` }} />
       </If>
@@ -301,7 +297,7 @@ function Chip(props: { label: string; on: boolean; disabled?: boolean; onPress: 
       testID={props.testID}
       onPress={() => !props.disabled && props.onPress()}
       class={`rounded-full border px-3.5 py-2 text-sm font-semibold ${
-        props.on ? "border-primary bg-primary text-primary-foreground" : "border-white/10 bg-background/60 text-muted-foreground"
+        props.on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/60 text-muted-foreground"
       } ${props.disabled ? "opacity-40" : ""}`}
     >
       {props.label}
@@ -341,7 +337,7 @@ function TakeCard(props: {
   return (
     <If
       when={open()}
-      else={<PrimaryButton title="Take a snapshot" icon="📸" disabled={props.busy} onPress={() => open.set(true)} />}
+      else={<PrimaryButton title="Take a snapshot" disabled={props.busy} onPress={() => open.set(true)} />}
     >
       <Section title="Take a snapshot">
         <Field label="Name (optional)" value={name()} onChange={(v) => name.set(v)} placeholder="e.g. Before the 1.21 update" testID="snapshot-name" />
@@ -399,27 +395,26 @@ function SnapshotRow(props: {
 
   const items = () => [
     ...(complete() && !s().archiveMissing && !props.restoring
-      ? [{ id: "restore", label: "Restore", icon: "⏪", hint: "Put the instance back to this point", tone: "danger" as const, onSelect: props.onRestore }]
+      ? [{ id: "restore", label: "Restore", hint: "Put the instance back to this point", tone: "danger" as const, onSelect: props.onRestore }]
       : []),
-    { id: "rename", label: "Rename", icon: "🏷️", onSelect: props.onRename },
-    { id: "describe", label: "Edit description", icon: "📝", onSelect: props.onDescribe },
+    { id: "rename", label: "Rename", onSelect: props.onRename },
+    { id: "describe", label: "Edit description", onSelect: props.onDescribe },
     {
       id: "pin",
       label: s().sticky ? "Unpin" : "Pin",
-      icon: "📌",
       hint: s().sticky ? "Automatic clean-up may remove it" : "Automatic clean-up won't remove it",
       onSelect: props.onPin,
     },
     // Nothing is deleted mid-capture or while a restore runs (it may be the one being restored).
-    ...(isBusy(s()) || props.restoring ? [] : [{ id: "delete", label: "Delete", icon: "🗑️", tone: "danger" as const, onSelect: props.onDelete }]),
+    ...(isBusy(s()) || props.restoring ? [] : [{ id: "delete", label: "Delete", tone: "danger" as const, onSelect: props.onDelete }]),
   ];
 
   return (
-    <View testID={`snapshot-${s().id}`} class="gap-1.5 border-b border-white/5 pb-3">
+    <View testID={`snapshot-${s().id}`} class="gap-1.5 border-b border-border pb-3">
       <View class="flex-row items-start gap-2">
         <View
           class={`mt-1.5 h-2.5 w-2.5 rounded-full ${
-            s().status === Status.Failed ? "bg-destructive" : !complete() ? "bg-warning" : s().kind === Kind.Full ? "bg-primary" : "bg-sky-400"
+            s().status === Status.Failed ? "bg-destructive" : !complete() ? "bg-warning" : s().kind === Kind.Full ? "bg-primary" : "bg-info"
           }`}
         />
         <View class="flex-1 gap-1">
@@ -430,7 +425,7 @@ function SnapshotRow(props: {
               <Pill label="On disk now" tone="success" />
             </If>
             <If when={s().sticky}>
-              <Pill label="📌 Pinned" tone="muted" />
+              <Pill label="Pinned" tone="muted" />
             </If>
             <If when={s().status === Status.Failed}>
               <Pill label="Failed" tone="danger" />

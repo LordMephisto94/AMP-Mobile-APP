@@ -1,3 +1,4 @@
+import { loadPrefs } from "./src/state/prefs";
 import { mount, Text, View } from "nsh";
 import { NavStack } from "nsh/base";
 import { ConfirmHost } from "./src/components/Confirm";
@@ -15,6 +16,7 @@ import { OverviewScreen } from "./src/screens/OverviewScreen";
 import { PlayerScreen } from "./src/screens/PlayerScreen";
 import { RoleScreen } from "./src/screens/RoleScreen";
 import { ServerFormScreen } from "./src/screens/ServerFormScreen";
+import { AppSettingsScreen } from "./src/screens/AppSettingsScreen";
 import { SecurityScreen } from "./src/screens/SecurityScreen";
 import { ServersScreen } from "./src/screens/ServersScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
@@ -35,6 +37,8 @@ function screen(route: Route) {
       return <ServersScreen />;
     case "security":
       return <SecurityScreen />;
+    case "appSettings":
+      return <AppSettingsScreen />;
     case "addServer":
       return <ServerFormScreen />;
     case "signIn":
@@ -111,5 +115,6 @@ function App() {
   );
 }
 
+loadPrefs();
 loadServers();
 mount(App);

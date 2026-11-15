@@ -108,7 +108,6 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
         message: c.suspended
           ? "They're signed out everywhere and can't sign in until you lift it."
           : "They're signed out everywhere and must set a new password when they next sign in.",
-        icon: c.suspended ? "⛔" : "🔑",
         tone: "danger",
         actions: [{ id: "go", label: "Save", tone: "danger" }],
       });
@@ -154,7 +153,6 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     prompt.set({
       title: `New password for ${name()}`,
       message: "They're signed out everywhere, SFTP included. Tick “Must change password” below to make this temporary.",
-      icon: "🔑",
       masked: true,
       confirm: "Set password",
       onSubmit: async (value) => {
@@ -173,7 +171,6 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     const choice = await confirm({
       title: `Sign ${name()} out everywhere?`,
       message: "Every session ends. They can sign straight back in.",
-      icon: "🚪",
       actions: [{ id: "go", label: "Sign out", tone: "primary" }],
     });
     if (choice !== "go") return;
@@ -189,7 +186,6 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     const choice = await confirm({
       title: `Delete ${name()}?`,
       message: "Their account, passkeys, preferences and every schedule that runs as them are removed. This can't be undone.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete user", tone: "danger" }],
     });
@@ -197,7 +193,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
     try {
       const warnings = await deleteUser(clientFor(props.serverId), props.userId!);
       if (warnings.length) {
-        await confirm({ title: "User deleted", message: `Some of their data couldn't be removed: ${warnings.join("; ")}`, icon: "⚠️", cancelLabel: null, actions: [{ id: "ok", label: "OK", tone: "primary" }] });
+        await confirm({ title: "User deleted", message: `Some of their data couldn't be removed: ${warnings.join("; ")}`, cancelLabel: null, actions: [{ id: "ok", label: "OK", tone: "primary" }] });
       }
       nav.pop();
     } catch (e) {
@@ -240,7 +236,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
               )}
             </If>
 
-            <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="gap-4 rounded-(--radius) border border-border bg-card p-4">
               <If when={adding}>
                 <Field testID="new-username" label="Username" value={userName()} onChange={(v) => userName.set(v)} hint="What they sign in with. Can't be changed later." />
                 <Field testID="new-password" label="Password" value={password()} onChange={(v) => password.set(v)} masked />
@@ -249,7 +245,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
               <Field testID="email" label="Email" value={email()} onChange={(v) => email.set(v)} placeholder="Optional" keyboardType="email-address" />
             </View>
 
-            <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="gap-2 rounded-(--radius) border border-border bg-card p-4">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">ROLES</Text>
               <If when={rolesDenied()}>
                 <Text class="text-sm text-muted-foreground">Your account can't see roles.</Text>
@@ -270,7 +266,7 @@ export function UserScreen(props: { serverId: string; userId?: string }) {
               </If>
             </View>
 
-            <View class="gap-1 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="gap-1 rounded-(--radius) border border-border bg-card p-4">
               <Text class="pb-1 text-xs font-semibold tracking-widest text-muted-foreground">SIGN-IN</Text>
               <Checkbox label="Must change password at next sign-in" checked={requireChange()} onChange={(v) => requireChange.set(v)} />
               <If when={!adding}>

@@ -109,7 +109,6 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
       const choice = await confirm({
         title: "You're in this role",
         message: "Changing it changes what you can do too, and nobody can give themselves back a permission they removed.",
-        icon: "⚠️",
         tone: "danger",
         actions: [{ id: "go", label: "Save anyway", tone: "danger" }],
       });
@@ -133,7 +132,6 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
     const choice = await confirm({
       title: `Delete ${role()?.name || "this role"}?`,
       message: "Its members lose everything it gave them. This can't be undone.",
-      icon: "🗑️",
       tone: "danger",
       actions: [{ id: "delete", label: "Delete role", tone: "danger" }],
     });
@@ -151,7 +149,6 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
     const choice = await confirm({
       title: "Discard your changes?",
       message: "The role stays as it was.",
-      icon: "✏️",
       tone: "danger",
       actions: [{ id: "discard", label: "Discard", tone: "danger" }],
     });
@@ -172,7 +169,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
               <Text class="text-sm text-warning">You're a member of this role. Taking permissions away from it takes them from you too.</Text>
             </View>
           </If>
-          <View class="gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+          <View class="gap-4 rounded-(--radius) border border-border bg-card p-4">
             <Field testID="role-name" label="Name" value={name()} onChange={(v) => name.set(v)} />
             <Field testID="role-description" label="Description" value={description()} onChange={(v) => description.set(v)} placeholder="Optional" />
           </View>
@@ -186,7 +183,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
           </If>
           <Each of={tree() ?? []} key={(n: PermissionNode) => n.id}>
             {(section) => (
-              <View class="overflow-hidden rounded-(--radius) border border-white/10 bg-card/85 shadow-lg">
+              <View class="overflow-hidden rounded-(--radius) border border-border bg-card">
                 <Text class="px-4 pt-3.5 pb-1 text-xs font-semibold tracking-widest text-muted-foreground">{label(section()).toUpperCase()}</Text>
                 <Each of={section().children} key={(n: PermissionNode) => n.id}>
                   {(n) => <PermRow node={n()} depth={0} grants={grants()} open={open()} label={label} onToggle={flip} onExpand={expand} />}
@@ -196,7 +193,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
           </Each>
 
           <If when={tree()}>
-            <View class="gap-2 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="gap-2 rounded-(--radius) border border-border bg-card p-4">
               <Text class="text-xs font-semibold tracking-widest text-muted-foreground">OTHER PERMISSIONS</Text>
               <If when={others().length === 0}>
                 <Text class="text-xs text-muted-foreground">None. Add one by its exact name, for permissions the tree doesn't show.</Text>
@@ -204,12 +201,12 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
               <Each of={others()}>
                 {(g) => (
                   <View class="flex-row items-center gap-2">
-                    <Text class={`flex-1 font-mono text-xs ${g().startsWith("-") ? "text-rose-300" : "text-sky-200"}`}>{g()}</Text>
+                    <Text class={`flex-1 font-mono text-xs ${g().startsWith("-") ? "text-destructive" : "text-info"}`}>{g()}</Text>
                     <Text
                       role="button"
                       testID={`remove-grant-${g()}`}
                       onPress={() => grants.set(grants().filter((x) => x !== g()))}
-                      class="rounded-md bg-white/10 px-2 py-0.5 text-xs text-muted-foreground"
+                      class="rounded-md bg-border px-2 py-0.5 text-xs text-muted-foreground"
                     >
                       Remove
                     </Text>
@@ -246,7 +243,7 @@ export function RoleScreen(props: { serverId: string; roleId?: string }) {
       </Screen>
 
       <If when={dirty() || adding}>
-        <View class="absolute right-0 bottom-0 left-0 flex-row gap-2 border-t border-white/10 bg-card/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+        <View class="absolute right-0 bottom-0 left-0 flex-row gap-2 border-t border-border bg-card px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
           <SecondaryButton title="Cancel" onPress={leave} />
           <View class="flex-1">
             <PrimaryButton title={busy() ? "Saving…" : adding ? "Create role" : "Save role"} onPress={save} disabled={busy()} />
@@ -284,7 +281,7 @@ function PermRow(props: {
   };
   return (
     <View>
-      <View class="flex-row items-center gap-2 border-t border-white/5 py-2.5 pr-4" style={{ paddingLeft: 16 + props.depth * 16 }}>
+      <View class="flex-row items-center gap-2 border-t border-border py-2.5 pr-4" style={{ paddingLeft: 16 + props.depth * 16 }}>
         <View
           role={hasChildren() ? "button" : undefined}
           testID={`perm-open-${tid(props.node.id)}`}
@@ -293,10 +290,10 @@ function PermRow(props: {
         >
           <Text class="w-3 text-xs text-muted-foreground">{hasChildren() ? (isOpen() ? "▾" : "▸") : ""}</Text>
           <View class="flex-1">
-            <Text class={`text-sm ${hasChildren() ? "font-semibold" : ""} ${s().state === "denied" ? "text-rose-300" : "text-card-foreground"}`}>
+            <Text class={`text-sm ${hasChildren() ? "font-semibold" : ""} ${s().state === "denied" ? "text-destructive" : "text-card-foreground"}`}>
               {props.label(props.node)}
             </Text>
-            <If when={note()}>{(t) => <Text class={`text-[11px] ${s().state === "denied" ? "text-rose-300" : "text-muted-foreground"}`}>{t()}</Text>}</If>
+            <If when={note()}>{(t) => <Text class={`text-[11px] ${s().state === "denied" ? "text-destructive" : "text-muted-foreground"}`}>{t()}</Text>}</If>
           </View>
         </View>
         <If when={s().state === "denied"}>
@@ -311,7 +308,7 @@ function PermRow(props: {
             s().state === "on" ? "bg-primary" : s().state === "inherited" ? "bg-primary/45" : s().state === "mixed" ? "bg-primary/25" : "bg-muted"
           }`}
         >
-          <View class={`h-6 w-6 rounded-full bg-white shadow ${on() ? "self-end" : s().state === "mixed" ? "self-center" : "self-start"}`} />
+          <View class={`h-6 w-6 rounded-full ${s().state === "on" || s().state === "inherited" || s().state === "mixed" ? "bg-white" : "bg-muted-foreground"} shadow ${on() ? "self-end" : s().state === "mixed" ? "self-center" : "self-start"}`} />
         </View>
       </View>
       <If when={hasChildren() && isOpen()}>

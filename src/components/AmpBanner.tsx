@@ -81,15 +81,25 @@ function drawTriangles(cx: CanvasRenderingContext2D, width: number, height: numb
   cx.fillRect(0, 0, width, height);
 }
 
-/** The status badge on the banner: a tinted box with a check or dot. */
-export function StatusBadge(props: { label: string; status: BannerStatus; testID?: string }) {
-  const style = () =>
-    ({
-      online: ["bg-emerald-900/70 border-emerald-400/40", "text-emerald-300", "✓"],
-      offline: ["bg-black/40 border-white/20", "text-white/70", "○"],
-      warning: ["bg-orange-950/70 border-orange-400/40", "text-orange-300", "!"],
-      danger: ["bg-rose-950/70 border-rose-400/40", "text-rose-300", "✕"],
-    })[props.status];
+/** Badge colours on a dark banner or hero. */
+const BANNER_BADGE = {
+  online: ["bg-emerald-900/70 border-emerald-400/40", "text-emerald-300", "✓"],
+  offline: ["bg-black/40 border-white/20", "text-white/70", "○"],
+  warning: ["bg-orange-950/70 border-orange-400/40", "text-orange-300", "!"],
+  danger: ["bg-rose-950/70 border-rose-400/40", "text-rose-300", "✕"],
+} as const;
+
+/** Badge colours on a card or the page: they follow the theme. */
+const SURFACE_BADGE = {
+  online: ["bg-card border-success/60", "text-success", "✓"],
+  offline: ["bg-card border-border", "text-muted-foreground", "○"],
+  warning: ["bg-card border-warning/60", "text-warning", "!"],
+  danger: ["bg-card border-destructive/60", "text-destructive", "✕"],
+} as const;
+
+/** The status badge: a box with a check or dot. `onBanner` is for the banner and the hero, dark in both themes. */
+export function StatusBadge(props: { label: string; status: BannerStatus; testID?: string; onBanner?: boolean }) {
+  const style = () => (props.onBanner ? BANNER_BADGE : SURFACE_BADGE)[props.status];
   return (
     <View testID={props.testID} accessibilityLabel={props.label} class={`flex-row items-center gap-1.5 rounded-md border px-2 py-1 ${style()[0]}`}>
       <Text class={`text-xs font-bold ${style()[1]}`}>{style()[2]}</Text>
@@ -121,7 +131,7 @@ export function AmpBanner(props: {
           else={
             <View class="flex-row flex-wrap items-center gap-2.5">
               <Text class="text-2xl font-light text-white">{props.title}</Text>
-              <StatusBadge label={props.statusLabel} status={props.status} />
+              <StatusBadge label={props.statusLabel} status={props.status} onBanner />
             </View>
           }
         >
@@ -132,8 +142,8 @@ export function AmpBanner(props: {
                 {props.title}
               </Text>
               <View class="flex-row flex-wrap items-center gap-2">
-                <StatusBadge label={props.statusLabel} status={props.status} />
-                <StatusBadge label={b().label} status={b().status} testID={b().testID} />
+                <StatusBadge label={props.statusLabel} status={props.status} onBanner />
+                <StatusBadge label={b().label} status={b().status} testID={b().testID} onBanner />
               </View>
             </>
           )}

@@ -10,6 +10,7 @@
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true"
         android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true">
 
         <!-- Files the app shares with other apps (as the packaged app declared it). -->

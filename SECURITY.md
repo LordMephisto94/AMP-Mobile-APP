@@ -9,7 +9,7 @@ sensitive).
 | What | Where | Protection |
 |---|---|---|
 | Passwords | Nowhere | Sent once to your panel at sign-in, then dropped |
-| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM under a random data key. On Android that key is sealed by keys in the phone's Keystore (secure hardware), which never leave it: one together with your PIN (PBKDF2-SHA-256, 600,000 rounds), and a second way in that's either quick unlock (works only within a minute of unlocking the phone) or, with fingerprint unlock on, a key that needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added. Without a key store (desktops): the PIN-derived key alone. The PIN is never stored |
+| Session tokens you keep ("Stay signed in") | `amp.vault` in the app's storage | AES-256-GCM under a random data key. On Android that key is sealed by keys in the phone's Keystore (secure hardware), which never leave it: one that your PIN's key is made with (PBKDF2-SHA-256, 600,000 rounds, then an HMAC computed inside the Keystore, so a PIN guess can only be checked on the phone), and, only if you turn one on in Security, a second way in: quick unlock (off by default; works only within a minute of unlocking the phone) or fingerprint unlock (a key that needs a fingerprint or face check (strong biometrics) for each use and is voided when a fingerprint or face is added). Without a key store (desktops): the PIN-derived key alone. The PIN is never stored |
 | Session tokens you don't keep | Memory only | Gone when the app closes or locks |
 | Server list (name, address, user name) | `amp.servers` in the app's storage | Not secret, so not encrypted |
 | Wrong-PIN count | `amp.vault.lockout` | Survives restarts |
@@ -22,26 +22,43 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
 
 - Staying signed in requires a 6–12 digit PIN. Repeated or sequential PINs (`777777`, `123456`) are refused.
 - The app opens locked, and locks again after a chosen time in the background (immediately, 30 s, 1 min or 5 min).
-- It opens with the PIN, or by itself within a minute of unlocking the phone (quick unlock). With fingerprint unlock
+  The time runs on a timer while the app is in the background, so it locks even if you never come back to it.
+- It opens with the PIN. Quick unlock (off unless you turn it on in Security) also lets it open by itself within a
+  minute of unlocking the phone, so anyone who knows your phone's PIN or pattern could get in that way: leave it off
+  if that matters. With fingerprint unlock
   on (Security; Android 11+, strong biometrics), it asks for a fingerprint or face instead, and doesn't open by
   itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
-- While the app is in the background its screen is covered, so the app switcher shows nothing.
+- While the app is in the background its screen is covered, and Android is told not to keep a picture of it for the
+  app switcher (Android 13 and newer: no app-switcher screenshot; older versions: the window is blanked as the app
+  leaves the front). Settings can also block screenshots and screen recording (Android's `FLAG_SECURE`; off by
+  default), which blanks the app switcher's picture on every Android version.
 - After 5 wrong PINs each try waits longer (30 s, 1 min, 5 min, 15 min). The 10th erases the saved sign-ins; your
   servers stay, signed out. "Forgot PIN?" does the same.
+- A vault file that fails authentication (damaged, or changed by something else) is cleared at the next unlock and the
+  app says so; your servers stay, signed out.
 
 ## Connections
 
-- **HTTPS only.** `http://` addresses are refused; so are addresses with a user name or password in them.
+- **https by default, http by choice.** A new server gets `https://` unless you pick http in the Connection choice
+  (or type `http://`). Plain http needs a tick on a warning that says what it exposes: for a Tailscale address,
+  that Tailscale encrypts the link; for a private network, that anyone on it can read the password and session; for
+  the public internet, that anyone on the path can. Addresses with a user name or password in them are refused.
 - **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
-  anything else for every request, image and WebSocket: only `https` and `wss`, links only `https`, the clipboard,
-  the file picker, and the Android app's key-store calls (`deviceKey.*`); nothing else at all (no file system,
-  processes, sockets, web views, notifications or audio).
+  anything else for every request, image and WebSocket: `https` and `wss`, plus `http` and `ws` (which the runtime
+  allows to any host, so the app only uses them for a server you added over http), links `https` (and `http` for a
+  download from your own panel's host), the clipboard, the file picker, and the Android app's key-store calls
+  (`deviceKey.*`); nothing else at all (no file system, processes, sockets, web views, notifications or audio).
+  On Android, `network_security_config.xml` permits plain http (it is off in Android by default) and trusts only the
+  system certificate store.
 - **Online check.** The home page asks each panel for its password policy (no sign-in needed), sending no token,
   and never while the app is locked.
 - **No redirects.** API calls refuse redirects, so your session token can't be forwarded to another host.
-- **Live console** connects over `wss://` only, with a one-time ticket.
-- **Size cap.** Answers over 64 MB are refused rather than read into memory.
+- **Live console** connects over `wss://` for an https server and `ws://` for one added over http, with a one-time
+  ticket.
+- **Size cap.** Answers over 64 MB are refused: one that declares a length over the cap at once, and any other (no
+  length, or a false one) as soon as it passes the cap, counted as it arrives rather than after it was all read.
+  Avatars: 2 MB at most, PNG, JPEG, WebP or GIF only.
 
 ## Content from your panel
 
@@ -160,6 +177,26 @@ with stale attempts abandoned, renewals shared per server and superseded correct
 locked meanwhile, every other save button guarded against double taps, timers that load later checking the page
 still shows, and the Java key store answering every call once.
 
+## Sixth review: an outside read of the code (November 2026)
+
+A read of the vault, key store, API client, links, lock screen, manifest and build scripts, with a search of the
+rest of the code for risky calls. Its fixes are in the changelog (0.2.6-A). What is left is under "Still open".
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 55 | An answer with no declared length (chunked) was read in full before the 64 MB cap was checked, so a hostile panel could make the app buffer far more; avatars the same | Low | Fixed: counted as it streams, refused the moment it passes the cap |
+| 56 | Quick unlock was on by default: anyone who knew the phone's own PIN or pattern could open the app without its PIN for a minute after unlocking the phone | Medium | Fixed: off unless turned on in Security; a way in left from before is removed at the next PIN unlock |
+| 57 | A reply to a prompt (a Steam password or Guard code) was typed in the clear | Low | Fixed: hidden unless shown with the Show control |
+| 58 | The app switcher's picture could capture the app: the in-app cover is drawn from the app's code and can come too late | Low | Fixed: Android told not to keep a picture (13 and newer); window blanked as the app leaves the front (older) |
+| 59 | Intents sent to the app's open launcher entry were passed on to NSH's URL-scheme and notification handlers, which the app doesn't use; the app's error text was written to the log in release builds | Info | Fixed: not passed on; logged only in debuggable builds |
+| 60 | Avatars accepted any image type, SVG included | Info | Fixed: PNG, JPEG, WebP and GIF only |
+| 61 | The PIN's sealed box was wrapped by a phone key that works without the user, so code running as the app could read the box, copy it off the phone and try PINs on a graphics card | Medium | Fixed: the PIN's key now needs an HMAC computed inside the Keystore, so a guess can only be checked on the phone; older vaults upgrade at the next PIN unlock |
+| 62 | A vault file with a huge `rounds` value froze unlocking | Info | Fixed: values over 5,000,000 are refused as a damaged file |
+| 63 | Easy PINs such as 121212, 123123 and 112233 were accepted | Low | Fixed: repeated blocks and doubled runs are refused too |
+| 64 | If the key store refused the vault key, the app quietly fell back to the weaker PIN-only vault | Low | Fixed: the Security page says so and asks for a longer PIN |
+| 65 | A link the panel names (release notes, panel address) opened without showing where it goes | Low | Fixed: the host is shown and the user confirms first |
+| 66 | A schedule's step ids used `Math.random` | Info | Fixed: secure random |
+
 ## Release signing
 
 From 0.1.7 the APKs are signed with the app's own release key (RSA 4096), kept off the repository by its owner.
@@ -172,15 +209,24 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **PIN strength where there's no key store.** On Android the vault is bound to the phone's Keystore, so a copy of
   the file is useless elsewhere. Elsewhere (desktops) the vault is only as strong as the PIN.
 - **iOS.** The Keychain and Face ID need the same work in an Xcode project, which needs a Mac.
-- **Screenshots.** Screenshots and screen recording aren't blocked (Android's `FLAG_SECURE`); the Gradle app could
-  now set it, perhaps as a setting.
+- **Screenshots.** Blocking them is a setting, off by default, and the Android app applies it once the app has read its
+  settings at launch.
 - **Certificates.** The app trusts the phone's certificate authorities; there's no certificate pinning.
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (outside
   Android's backups from 0.2.0). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting
   the servers.
-- **PIN guessing on the phone itself.** The vault's PIN-bound key works without a recent phone unlock, so code
-  running as the app on an unlocked or rooted phone could try PINs without the wrong-PIN count. Each try still costs
-  600,000 PBKDF2 rounds on the phone; a longer PIN makes this impractical.
+- **PIN guessing by code running as the app.** On a rooted phone (or under a debugger), code running as the app can
+  still ask the Keystore to check PIN guesses without the wrong-PIN count. Each guess now needs the phone (an HMAC
+  computed in the Keystore, in StrongBox where the phone has it), so it can't be run on a graphics card, but a
+  6-digit PIN is still short against a patient attacker on the phone itself. A longer PIN is the defence.
+- **The weaker vault kinds.** Where there is no key store (desktops, `nsh run`), or it refuses the key, the vault is
+  PIN-only and an offline guesser with a copy of the file needs only the PIN's strength; the Security page says when
+  the key store refused. Phone vaults made by earlier versions upgrade at the next PIN unlock, and only on a build
+  of the Android app that has the HMAC call.
+- **Hidden addresses and the copied server list.** Hiding an address changes only what is drawn: Copy still copies the
+  real one and the server list stays unencrypted in storage. The server list Settings copies (names, addresses and
+  user names, never passwords or sessions) stays on the clipboard until something replaces it, and other apps can
+  read the clipboard on some Android versions.
 - **Edits while locked.** An unsaved schedule or snapshot form is lost when the app locks (file edits are kept).
 - **Concurrent edits.** Saving a schedule replaces what's stored, so an edit made meanwhile in the web panel is
   overwritten (the web panel behaves the same way).

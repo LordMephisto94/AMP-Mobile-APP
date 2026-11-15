@@ -6,6 +6,8 @@ export type Route =
   | { name: "addServer" }
   /** The app's own lock: PIN, auto-lock, saved sign-ins. */
   | { name: "security" }
+  /** The app's own settings: theme, units, privacy, and the way to Security and About. */
+  | { name: "appSettings" }
   | { name: "signIn"; serverId: string }
   | { name: "shards"; serverId: string }
   | {

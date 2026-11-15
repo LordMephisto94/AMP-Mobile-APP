@@ -46,7 +46,9 @@ android {
     namespace = "com.meganet.ampmobile"
     compileSdk = 35
     // Only to strip the runtime's debug symbols out of the APK (the AAR ships them).
-    ndkVersion = (findProperty("ndkVersion") as String?) ?: "30.0.16248370"
+    // `-PndkVersion=none` skips it (the APK then keeps the runtime's debug symbols); `-PbuildTools=35.0.0` picks an installed version.
+    ((findProperty("ndkVersion") as String?) ?: "30.0.16248370").takeIf { it != "none" }?.let { ndkVersion = it }
+    (findProperty("buildTools") as String?)?.let { buildToolsVersion = it }
 
     defaultConfig {
         applicationId = appId

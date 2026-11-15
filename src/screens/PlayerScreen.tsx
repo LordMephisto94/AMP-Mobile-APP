@@ -1,7 +1,6 @@
 import { signal, Text, View } from "nsh";
 import {
   duration,
-  flag,
   getProfiles,
   getUserDetail,
   type MinecraftProfile,
@@ -119,7 +118,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
               <DemoNotice />
             </If>
 
-            <View class="flex-row items-center gap-4 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+            <View class="flex-row items-center gap-4 rounded-(--radius) border border-border bg-card p-4">
               <Avatar client={client()} hash={steam()?.avatarHash} name={name()} size="lg" />
               <View class="flex-1 gap-1.5">
                 <Text class="text-xl font-bold text-card-foreground">{name()}</Text>
@@ -150,9 +149,9 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
             <PeriodPicker value={period()} onChange={choosePeriod} />
 
             <View class="flex-row flex-wrap justify-between gap-y-3">
-              <Figure label="Play time" value={duration(d()!.totals.minutes)} accent="text-emerald-300" />
-              <Figure label="Sessions" value={d()!.totals.sessions.toLocaleString()} accent="text-sky-300" />
-              <Figure label="Avg session" value={duration(d()!.totals.averageSessionMinutes)} accent="text-amber-300" />
+              <Figure label="Play time" value={duration(d()!.totals.minutes)} accent="text-success" />
+              <Figure label="Sessions" value={d()!.totals.sessions.toLocaleString()} accent="text-info" />
+              <Figure label="Avg session" value={duration(d()!.totals.averageSessionMinutes)} accent="text-warning" />
               <Figure label="Longest" value={duration(d()!.totals.longestSessionMinutes)} accent="text-pink-300" />
             </View>
             <Text class="-mt-1 text-xs text-muted-foreground">
@@ -164,12 +163,11 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
                 <Each of={d()!.servers} key={(v: ServerUsage) => v.shardId}>
                   {(v) => (
                     <ShareRow
-                      icon="🎮"
                       label={serverName(v().shardId)}
                       detail={`${v().sessions} sessions`}
                       value={duration(v().minutes)}
                       percent={v().minutesPercent}
-                      barClass="bg-violet-400"
+                      barClass="bg-series"
                     />
                   )}
                 </Each>
@@ -196,7 +194,7 @@ export function PlayerScreen(props: { serverId: string; userKey: string; name?: 
 
 function Figure(props: { label: string; value: string; accent: string }) {
   return (
-    <View class="w-[48%] gap-1 rounded-(--radius) border border-white/10 bg-card/85 p-3.5 shadow-lg md:w-[23.5%]">
+    <View class="w-[48%] gap-1 rounded-(--radius) border border-border bg-card p-3.5 md:w-[23.5%]">
       <Text class={`text-[11px] font-semibold tracking-wider ${props.accent}`}>{props.label.toUpperCase()}</Text>
       <Text class="text-2xl font-bold text-card-foreground tabular-nums">{props.value}</Text>
     </View>
@@ -210,8 +208,8 @@ function SessionRow(props: { session: SessionView; server: string; showServer: b
     return Math.max(0, (end - start().getTime()) / 60_000);
   };
   return (
-    <View class="flex-row items-center gap-3 border-b border-white/5 py-1.5">
-      <Text class="text-lg">{flag(props.session.country)}</Text>
+    <View class="flex-row items-center gap-3 border-b border-border py-1.5">
+      <Text class="w-8 text-xs font-semibold text-muted-foreground">{(props.session.country ?? "").toUpperCase() || "?"}</Text>
       <View class="flex-1">
         <Text class="text-sm font-semibold text-card-foreground">{`${dayOf(start())}, ${clockOf(start())}`}</Text>
         <If when={props.showServer}>
