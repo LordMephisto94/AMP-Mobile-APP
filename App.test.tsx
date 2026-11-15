@@ -115,9 +115,9 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.1.10");
+  await app.waitFor("text:AMP Mobile 0.2.0");
   await app.press("confirm-ok");
-  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.1.10"));
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.0"));
 });
 
 test("adds a server, lists its instances, and keeps it on the home screen", async () => {
@@ -1889,24 +1889,37 @@ test("typing during a save stays unsaved, and an edit survives the app locking",
 
 // ---- The vault bound to the device's key store --------------------------------------------------
 
-/** A stand-in for the phone's key store: sealing is reversible here, and the quick key opens only while `recent` holds. */
-function fakeDeviceKeys(state: { recent: boolean; keys: Set<string> }) {
-  const seal = async (alias: string, data: string, quick: boolean) => {
-    if (quick && !state.recent) throw new Error("auth: not unlocked recently");
-    state.keys.add(alias);
-    return `${alias}:${data}`;
-  };
-  const openIt = async (alias: string, sealed: string) => {
-    if (!state.keys.has(alias)) throw new Error("missing: no such key");
-    if (alias.endsWith("quick") && !state.recent) throw new Error("auth: not unlocked recently");
-    return sealed.slice(alias.length + 1);
+/**
+ * Plays the Android app around the TSX app: its key store, where sealing is reversible, the
+ * quick key opens only while `recent` holds, and the biometric prompt answers with `finger`.
+ */
+function fakeDeviceKeys(state: { recent: boolean; keys: Set<string>; finger?: "ok" | "cancel" | "invalid"; biometric?: string; prompts?: string[] }) {
+  type Args = { alias: string; data?: string; sealed?: string; kind?: string; prompt?: { title: string } | null };
+  const ask = (a: Args) => {
+    if (!a.prompt) return;
+    state.prompts?.push(a.prompt.title);
+    if (state.finger === "cancel") throw new Error("cancel: use the PIN");
+    if (state.finger === "invalid") throw new Error("invalid: KeyPermanentlyInvalidatedException");
   };
   return {
-    "ampmobile/native": {
-      "DeviceKey.available": true,
-      "DeviceKey.seal": seal,
-      "DeviceKey.open": openIt,
-      "DeviceKey.forget": async (alias: string) => state.keys.delete(alias),
+    handlers: {
+      "deviceKey.status": () => ({ keys: true, biometric: state.biometric ?? "ready" }),
+      "deviceKey.seal": async (a: Args) => {
+        if (a.kind === "quick" && !state.recent) throw new Error("auth: not unlocked recently");
+        if (a.kind === "biometric") ask(a);
+        state.keys.add(a.alias);
+        return `${a.alias}:${a.data}`;
+      },
+      "deviceKey.open": async (a: Args) => {
+        if (!state.keys.has(a.alias)) throw new Error("missing: no such key");
+        if (a.alias.endsWith("quick") && !state.recent) throw new Error("auth: not unlocked recently");
+        if (a.alias.endsWith("bio")) {
+          if (!a.prompt) throw new Error("auth: needs the prompt");
+          ask(a);
+        }
+        return a.sealed!.slice(a.alias.length + 1);
+      },
+      "deviceKey.forget": async (a: Args) => state.keys.delete(a.alias),
     },
   };
 }
@@ -1914,7 +1927,7 @@ function fakeDeviceKeys(state: { recent: boolean; keys: Set<string> }) {
 test("on a phone with a key store, the vault is bound to it and opens on a recent phone unlock", async () => {
   const state = { recent: true, keys: new Set<string>() };
   const storage = { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) };
-  const app = await open("./App.tsx", { storage, network: unlockedHome, modules: fakeDeviceKeys(state) });
+  const app = await open("./App.tsx", { storage, network: unlockedHome, host: fakeDeviceKeys(state) });
   await app.waitFor("text:Set a PIN to stay signed in");
   await enterPin(app, "135790");
   await enterPin(app, "135790");
@@ -1961,14 +1974,14 @@ test("without a recent phone unlock the PIN is asked, and a lost phone key clear
   const first = await open("./App.tsx", {
     storage: { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) },
     network: unlockedHome,
-    modules: fakeDeviceKeys({ recent: true, keys: state.keys }),
+    host: fakeDeviceKeys({ recent: true, keys: state.keys }),
   });
   await enterPin(first, "135790");
   await enterPin(first, "135790");
   await first.waitUntil(() => JSON.parse(first.storage()["amp.vault"] ?? "{}").v === 2);
   const saved = first.storage();
 
-  const app = await open("./App.tsx", { storage: saved, network: unlockedHome, modules: fakeDeviceKeys(state) });
+  const app = await open("./App.tsx", { storage: saved, network: unlockedHome, host: fakeDeviceKeys(state) });
   await app.waitFor("text:AMP Mobile is locked");
   await app.wait(300);
   expect(app.texts()).toContain("AMP Mobile is locked"); // no quick way in
@@ -1976,7 +1989,7 @@ test("without a recent phone unlock the PIN is asked, and a lost phone key clear
   await app.waitFor("text:Signed in");
 
   // The same file on a phone without the key (a reset, a copied backup).
-  const elsewhere = await open("./App.tsx", { storage: saved, network: unlockedHome, modules: fakeDeviceKeys({ recent: true, keys: new Set() }) });
+  const elsewhere = await open("./App.tsx", { storage: saved, network: unlockedHome, host: fakeDeviceKeys({ recent: true, keys: new Set() }) });
   await elsewhere.waitFor("text:AMP Mobile is locked");
   await enterPin(elsewhere, "135790");
   await elsewhere.waitFor("text:Saved sign-ins cleared");
@@ -1987,16 +2000,16 @@ test("if the key store refuses, setting a PIN falls back to the PIN-only vault",
   const app = await open("./App.tsx", {
     storage: { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) },
     network: unlockedHome,
-    modules: {
-      "ampmobile/native": {
-        "DeviceKey.available": true,
-        "DeviceKey.seal": async () => {
+    host: {
+      handlers: {
+        "deviceKey.status": { keys: true, biometric: "unavailable" },
+        "deviceKey.seal": async () => {
           throw new Error("error: keystore unavailable");
         },
-        "DeviceKey.open": async () => {
+        "deviceKey.open": async () => {
           throw new Error("error: keystore unavailable");
         },
-        "DeviceKey.forget": async () => true,
+        "deviceKey.forget": true,
       },
     },
   });
@@ -2004,6 +2017,131 @@ test("if the key store refuses, setting a PIN falls back to the PIN-only vault",
   await enterPin(app, "135790");
   await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 1);
   await app.waitFor("text:Signed in");
+});
+
+const KEPT_SERVER = { "amp.servers": JSON.stringify([{ id: "s1", name: "Home Lab", serverUrl: SERVER, username: "admin", color: 0, rememberMe: true, token: "tok-1", expiration: "2099-01-01T00:00:00Z" }]) };
+
+/** A bound vault with the PIN 135790, made the way the app makes it. */
+async function boundVault(keys: Set<string>) {
+  const first = await open("./App.tsx", { storage: KEPT_SERVER, network: unlockedHome, host: fakeDeviceKeys({ recent: true, keys }) });
+  await enterPin(first, "135790");
+  await enterPin(first, "135790");
+  await first.waitUntil(() => JSON.parse(first.storage()["amp.vault"] ?? "{}").v === 2);
+  return first;
+}
+
+test("fingerprint unlock: turned on in Security, it opens the lock screen and replaces the quick way in", async () => {
+  const prompts: string[] = [];
+  const state = { recent: true, keys: new Set<string>(), finger: "ok" as "ok" | "cancel" | "invalid", prompts };
+  const app = await open("./App.tsx", { storage: KEPT_SERVER, network: unlockedHome, host: fakeDeviceKeys(state) });
+  await enterPin(app, "135790");
+  await enterPin(app, "135790");
+  await app.waitUntil(() => JSON.parse(app.storage()["amp.vault"] ?? "{}").v === 2);
+
+  await app.press("security");
+  await app.waitFor("text:Fingerprint unlock");
+  await app.press("biometric-toggle");
+  await app.waitFor("text:Fingerprint unlock is on.");
+  expect(prompts).toEqual(["Turn on fingerprint unlock"]);
+  const vault = JSON.parse(app.storage()["amp.vault"]!);
+  expect(vault.bioWrap.startsWith("amp.vault.bio:")).toBe(true);
+  expect(vault.quickWrap).toBeUndefined();
+
+  // "Lock now" doesn't prompt by itself; the button does.
+  await app.press("lock-now");
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.wait(300);
+  expect(prompts.length).toBe(1);
+  await app.press("lock-biometric");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+  expect(prompts).toEqual(["Turn on fingerprint unlock", "Unlock AMP Mobile"]);
+  // No quick way in comes back while it's on.
+  expect(JSON.parse(app.storage()["amp.vault"]!).quickWrap).toBeUndefined();
+
+  // Back from the background, the prompt opens by itself; "Use PIN" leaves the PIN pad, and
+  // the prompt doesn't come back on its own until the app leaves again.
+  state.finger = "cancel";
+  await app.press("autolock-0");
+  await app.setLifecycle("background");
+  await app.setLifecycle("active");
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.waitUntil(() => prompts.length === 3);
+  await app.setLifecycle("inactive");
+  await app.setLifecycle("active");
+  await app.wait(300);
+  expect(prompts.length).toBe(3);
+  await enterPin(app, "135790");
+  await app.waitUntil(() => !app.texts().includes("AMP Mobile is locked"));
+
+  // Turning it off brings the quick way in back.
+  await app.press("biometric-toggle");
+  await app.waitFor("text:Fingerprint unlock is off.");
+  await app.waitUntil(() => !!JSON.parse(app.storage()["amp.vault"]!).quickWrap);
+  expect(JSON.parse(app.storage()["amp.vault"]!).bioWrap).toBeUndefined();
+  expect(state.keys.has("amp.vault.bio")).toBe(false);
+});
+
+test("a fingerprint added to the phone turns fingerprint unlock off, and the PIN still opens the vault", async () => {
+  const keys = new Set<string>();
+  const first = await boundVault(keys);
+  await first.press("security");
+  await first.waitFor("text:Fingerprint unlock");
+  await first.press("biometric-toggle");
+  await first.waitFor("text:Fingerprint unlock is on.");
+  const saved = first.storage();
+
+  const app = await open("./App.tsx", { storage: saved, network: unlockedHome, host: fakeDeviceKeys({ recent: false, keys, finger: "invalid" }) });
+  await app.waitFor("text:AMP Mobile is locked");
+  await app.waitFor("text:Fingerprint unlock turned off because the phone's fingerprints or face changed. Enter your PIN, then turn it on again in Security.");
+  expect(JSON.parse(app.storage()["amp.vault"]!).bioWrap).toBeUndefined();
+  expect(app.count("lock-biometric")).toBe(0);
+  await enterPin(app, "135790");
+  await app.waitFor("text:Signed in");
+});
+
+test("changing the PIN keeps fingerprint unlock working", async () => {
+  const keys = new Set<string>();
+  const app = await boundVault(keys);
+  await app.press("security");
+  await app.waitFor("text:Fingerprint unlock");
+  await app.press("biometric-toggle");
+  await app.waitFor("text:Fingerprint unlock is on.");
+  await app.press("change-pin");
+  await enterPin(app, "135790");
+  await enterPin(app, "246801");
+  await enterPin(app, "246801");
+  await app.waitFor("text:PIN changed.");
+  const saved = app.storage();
+  expect(JSON.parse(saved["amp.vault"]!).bioWrap).toBeTruthy();
+
+  const again = await open("./App.tsx", { storage: saved, network: unlockedHome, host: fakeDeviceKeys({ recent: false, keys, finger: "ok" }) });
+  await again.waitUntil(() => !again.texts().includes("AMP Mobile is locked"));
+  await again.waitFor("text:Signed in");
+});
+
+test("a key store that doesn't answer never erases the vault", async () => {
+  const keys = new Set<string>();
+  const saved = (await boundVault(keys)).storage();
+  const app = await open("./App.tsx", {
+    storage: saved,
+    network: unlockedHome,
+    host: {
+      handlers: {
+        "deviceKey.status": { keys: true, biometric: "ready" },
+        "deviceKey.open": async () => {
+          throw new Error("error: keystore busy");
+        },
+        "deviceKey.seal": async () => {
+          throw new Error("error: keystore busy");
+        },
+        "deviceKey.forget": true,
+      },
+    },
+  });
+  await app.waitFor("text:AMP Mobile is locked");
+  await enterPin(app, "135790");
+  await app.waitFor("text:The phone's key store didn't answer. Try again.");
+  expect(app.storage()["amp.vault"]).toBe(saved["amp.vault"]);
 });
 
 test("an account held for a password change sets a new one and signs in", async () => {

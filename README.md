@@ -60,18 +60,39 @@ nsh test    # headless tests (App.test.tsx), network stubbed
 - **Downloading** opens a one-time ticket URL in the device's browser (`openUrl`), which saves the file: on iOS
   Safari puts it in Files › Downloads, on Android the browser puts it in Downloads. No permission is needed; the URL
   needs no session token, and the ticket works once.
-- `nsh.json` declares no `capabilities`, so a standalone app may use the network (any host: the server address is the
-  user's), the picker and `openUrl`. If capabilities are ever declared, everything unlisted is denied, so include at
-  least: `"network": { "hosts": ["*"] }`, `"picker": true`, `"openUrl": { "schemes": ["https", "http"] }`,
-  `"statusBar": true`.
+- `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTPS and WSS to any host (the server
+  address is the user's), `openUrl` for `https`, the clipboard, the picker, the status bar, and the host calls
+  `deviceKey.*` (the key store, from the Android app around it).
 
 
-## Building with the Rust crate
+## The Android app (android/)
 
-`native/` is a Rust crate (the Android Keystore, through JNI). Building needs Rust from rustup with
-`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android`, and the Android NDK
-(`ANDROID_NDK_HOME`, e.g. `~/Android/Sdk/ndk/30.0.16248370`). `.cargo/config.toml` optimizes dependencies in
-development builds, which the tests need for the vault's crypto to run fast enough.
+From 0.2.0 the Android app is a small Gradle project that runs the TSX app in NSH's `NshView` (`nsh.aar`), instead
+of an APK made by `nsh package`. It owns its manifest, which is what the fingerprint prompt needs
+(`USE_BIOMETRIC`, which `nsh package` can't declare). The TSX app is unchanged and still runs anywhere NSH does.
+
+- `MainActivity.java` sets the view up as NSH's packaged app did (edge to edge, the app's own limits) and keeps the
+  launcher entry's old name (`com.longbridge.nsh.AppActivity`, an alias), so home-screen icons keep working.
+- `DeviceKeys.java` is the phone's key store and the fingerprint prompt, answered over NSH's host channel
+  (`host.call("deviceKey.…")`, wrapped in `src/lib/deviceKeys.ts`). Without a host (tests, `nsh run`, desktops)
+  there are no device keys and the vault uses the PIN alone; the tests play the host with `open`'s `host.handlers`.
+- The app's id, version and build come from `nsh.json`. Gradle runs `nsh build --release` and puts the bytecode in
+  the APK's `assets/nsh`, with `app.json` naming the app's id, so NSH keeps the app's storage where the packaged
+  app kept it and updates keep saved servers.
+
+Needs the Android SDK (platform 35), the NDK (only to strip the runtime's debug symbols; `-PndkVersion=` picks
+another installed one) and a JDK 17+. Gradle comes with the wrapper. Fetch the runtime once (it matches the
+installed `nsh`, 0.5.0; update both together):
+
+```sh
+scripts/fetch-nsh-sdk.sh
+```
+
+A debug build for an emulator (debug-signed, so it can't update a release install):
+
+```sh
+cd android && ./gradlew assembleDebug -Pabis=x86_64
+```
 
 ## Versions
 
@@ -92,7 +113,7 @@ and the only way past that is uninstalling the app, which deletes its saved serv
 the key file and its password somewhere safe (a password manager, plus an offline copy).** A lost key means no more
 updates for anyone who installed the app.
 
-Build both release APKs (asks for the key's password; `.nsh/out/` gets the versioned files):
+Build both release APKs with Gradle (asks for the key's password; `.nsh/out/` gets the versioned files):
 
 ```sh
 scripts/build-release.sh

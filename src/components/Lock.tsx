@@ -2,6 +2,10 @@ import { cleanup, effect, Image, type JSX, lifecycle, Overlay, signal, Text, Vie
 import mark from "../../assets/amp-mark.png";
 import {
   autoLockSeconds,
+  autoUnlockAllowed,
+  biometricNotice,
+  biometricUnlock,
+  canBiometricUnlock,
   canQuickUnlock,
   declinePin,
   eraseVault,
@@ -81,6 +85,31 @@ function LockScreen() {
   const busy = signal(false);
 
   const tick = async () => wait.set(await lockoutRemaining());
+
+  const useBiometric = async () => {
+    if (busy()) return;
+    busy.set(true);
+    try {
+      const outcome = await biometricUnlock();
+      if (outcome.result === "failed") message.set(outcome.message ?? null);
+      else if (outcome.result === "ok") message.set(null);
+    } catch {
+      message.set("Fingerprint unlock didn't work. Enter your PIN.");
+    } finally {
+      busy.set(false);
+    }
+  };
+  // With fingerprint unlock on, the prompt opens by itself once each time the lock shows or
+  // the app comes back from the background. Not again after "Use PIN" (the prompt makes the
+  // app briefly inactive, which mustn't count), and not straight after "Lock now".
+  let asked = false;
+  effect(() => {
+    const state = lifecycle();
+    if (state === "background") asked = false;
+    if (state !== "active" || asked || !canBiometricUnlock() || !autoUnlockAllowed()) return;
+    asked = true;
+    useBiometric();
+  });
   // Straight in when the phone was unlocked within the last minute (fingerprint, face or
   // its own PIN): tried when the lock shows and whenever the app comes back to the front.
   effect(() => {
@@ -148,14 +177,29 @@ function LockScreen() {
           <Image src={mark} accessibilityLabel="AMP" class="h-14 w-14 object-contain" />
           <Text class="text-2xl font-bold text-foreground">AMP Mobile is locked</Text>
           <Text class="text-center text-sm text-muted-foreground">
-            {canQuickUnlock() ? "Enter your PIN, or unlock your phone and come straight back." : "Enter your PIN to open your saved servers."}
+            {canBiometricUnlock()
+              ? "Use your fingerprint or face, or enter your PIN."
+              : canQuickUnlock()
+                ? "Enter your PIN, or unlock your phone and come straight back."
+                : "Enter your PIN to open your saved servers."}
           </Text>
         </View>
-        <If when={message()}>{(m) => <Text testID="lock-message" class="text-center text-sm text-destructive">{m()}</Text>}</If>
+        <If when={message() ?? biometricNotice()}>{(m) => <Text testID="lock-message" class="text-center text-sm text-destructive">{m()}</Text>}</If>
         <If when={wait() > 0}>
           <Text class="text-center text-sm text-warning">{`Try again in ${wait()} s`}</Text>
         </If>
         <PinPad value={pin()} onChange={(v) => pin.set(v)} onDone={submit} disabled={busy() || wait() > 0} />
+        <If when={canBiometricUnlock()}>
+          <View
+            role="button"
+            testID="lock-biometric"
+            onPress={useBiometric}
+            class={`flex-row items-center justify-center gap-2 self-center rounded-full border border-white/15 bg-white/8 px-5 py-2.5 active:bg-white/20 ${busy() ? "opacity-50" : ""}`}
+          >
+            <Text class="text-lg">☝️</Text>
+            <Text class="text-sm font-semibold text-foreground">Use fingerprint</Text>
+          </View>
+        </If>
         <Text role="button" testID="forgot-pin" onPress={forgot} class="text-center text-sm font-semibold text-sky-400">
           Forgot PIN?
         </Text>

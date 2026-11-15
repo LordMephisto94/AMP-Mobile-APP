@@ -1,0 +1,6 @@
+.gradle/
+build/
+app/build/
+local.properties
+# The NSH runtime (scripts/fetch-nsh-sdk.sh puts it here; about 70 MB).
+nsh-sdk/

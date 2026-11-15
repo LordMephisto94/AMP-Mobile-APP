@@ -38,6 +38,8 @@ export interface VaultBlobV2 {
   rounds: number;
   pinWrap: string;
   quickWrap?: string;
+  /** The data key sealed by the biometric key: fingerprint unlock (then there's no quickWrap). */
+  bioWrap?: string;
   data: Sealed;
 }
 
@@ -124,6 +126,12 @@ export function isVaultBlob(value: unknown): value is VaultBlob {
   // A vault claiming fewer rounds than the app uses would make guessing cheaper: refuse it.
   if (!v || typeof v.salt !== "string" || typeof v.rounds !== "number" || v.rounds < PBKDF2_ROUNDS || !v.data?.iv) return false;
   if (v.v === 1) return !!v.check?.iv;
-  if (v.v === 2) return typeof v.pinWrap === "string" && (v.quickWrap === undefined || typeof v.quickWrap === "string");
+  if (v.v === 2) {
+    return (
+      typeof v.pinWrap === "string" &&
+      (v.quickWrap === undefined || typeof v.quickWrap === "string") &&
+      (v.bioWrap === undefined || typeof v.bioWrap === "string")
+    );
+  }
   return false;
 }

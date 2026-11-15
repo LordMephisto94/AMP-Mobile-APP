@@ -1,8 +1,21 @@
-import { signal, Text, View } from "nsh";
+import { effect, lifecycle, signal, Text, View } from "nsh";
 import { confirm } from "../components/Confirm";
 import { FullScreen, PinPad, PinSetup } from "../components/Lock";
 import { AppPage, Pill, SecondaryButton } from "../components/ui";
-import { autoLockSeconds, bound, changePin, eraseVault, hasPin, lockNow, servers, setAutoLock, setupPin } from "../state/servers";
+import {
+  autoLockSeconds,
+  biometricChoice,
+  biometricOn,
+  bound,
+  changePin,
+  eraseVault,
+  hasPin,
+  lockNow,
+  servers,
+  setAutoLock,
+  setBiometricUnlock,
+  setupPin,
+} from "../state/servers";
 
 const AUTO_LOCK = [
   { seconds: 0, label: "Immediately" },
@@ -20,6 +33,32 @@ export function SecurityScreen() {
   const error = signal<string | null>(null);
   const notice = signal<string | null>(null);
   const kept = () => servers().filter((s) => s.rememberMe).length;
+  /** What the phone offers for fingerprint unlock; asked again on return (one may have been set up meanwhile). */
+  const bio = signal<"ready" | "notEnrolled" | "unavailable" | "notBound" | null>(null);
+  const bioBusy = signal(false);
+  const bioError = signal<string | null>(null);
+  effect(() => {
+    if (lifecycle() !== "active" || !hasPin()) return;
+    bound();
+    biometricChoice()
+      .then((c) => bio.set(c))
+      .catch(() => bio.set("unavailable"));
+  });
+
+  const toggleBiometric = async () => {
+    if (bioBusy()) return;
+    bioBusy.set(true);
+    bioError.set(null);
+    try {
+      const turnOn = !biometricOn();
+      await setBiometricUnlock(turnOn);
+      notice.set(turnOn ? "Fingerprint unlock is on." : "Fingerprint unlock is off.");
+    } catch (e) {
+      bioError.set((e as Error).message);
+    } finally {
+      bioBusy.set(false);
+    }
+  };
 
   const erase = async () => {
     const choice = await confirm({
@@ -55,7 +94,9 @@ export function SecurityScreen() {
             <Text class="text-sm text-muted-foreground">
               {hasPin()
                 ? bound()
-                  ? `Saved sign-ins (${kept()}) are encrypted with AES-256 and locked to this phone's secure hardware: they need your PIN, or a phone unlock in the last minute, and can't be opened on any other device. Ten wrong PINs erase them.`
+                  ? `Saved sign-ins (${kept()}) are encrypted with AES-256 and locked to this phone's secure hardware: they need your PIN, ${
+                      biometricOn() ? "or your fingerprint or face" : "or a phone unlock in the last minute"
+                    }, and can't be opened on any other device. Ten wrong PINs erase them.`
                   : `Saved sign-ins (${kept()}) are encrypted with AES-256 under a key made from your PIN. The PIN itself is never stored. Ten wrong PINs erase them.`
                 : "Without a PIN, nothing is kept: you sign in again each time the app starts. Set one to stay signed in."}
             </Text>
@@ -76,6 +117,37 @@ export function SecurityScreen() {
               </View>
             </If>
           </View>
+
+          <If when={hasPin() && (biometricOn() || (bio() !== null && bio() !== "unavailable"))}>
+            <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">
+              <View class="flex-row items-center gap-3">
+                <View class="flex-1 gap-1">
+                  <Text class="text-base font-semibold text-card-foreground">Fingerprint unlock</Text>
+                  <Text class="text-sm text-muted-foreground">
+                    {biometricOn()
+                      ? "The app asks for your fingerprint or face when it opens. The PIN always works too."
+                      : bio() === "notEnrolled"
+                        ? "Add a fingerprint or face in your phone's settings first."
+                        : bio() === "notBound"
+                          ? "Unlock the app with your PIN once more first, so the saved sign-ins move to this phone's secure hardware."
+                          : "Open the app with your fingerprint or face instead of the PIN. Without it, the app opens by itself for a minute after you unlock your phone."}
+                  </Text>
+                </View>
+                <View
+                  role="switch"
+                  testID="biometric-toggle"
+                  accessibilityLabel="Fingerprint unlock"
+                  onPress={() => (biometricOn() || bio() === "ready") && toggleBiometric()}
+                  class={`h-7 w-12 justify-center rounded-full px-0.5 ${biometricOn() ? "items-end bg-primary" : "items-start bg-white/15"} ${
+                    bioBusy() || (!biometricOn() && bio() !== "ready") ? "opacity-50" : ""
+                  }`}
+                >
+                  <View class="h-6 w-6 rounded-full bg-white" />
+                </View>
+              </View>
+              <If when={bioError()}>{(m) => <Text testID="biometric-error" class="text-sm text-destructive">{m()}</Text>}</If>
+            </View>
+          </If>
 
           <If when={hasPin()}>
             <View class="gap-3 rounded-(--radius) border border-white/10 bg-card/85 p-4 shadow-lg">

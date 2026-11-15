@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0
+
+- Fingerprint unlock: turn it on in Security, and the app asks for your fingerprint or face when it opens (Android
+  11 and newer, with a fingerprint or face set up on the phone). It replaces opening by itself within a minute of
+  unlocking the phone; the PIN always works too. Adding a fingerprint or face to the phone turns it off (enter the
+  PIN, then turn it on again). Changing the PIN keeps it on.
+- The Android app is now built with Gradle around NSH's runtime instead of `nsh package`, so the app declares its
+  own permissions: the fingerprint permission is added, and the unused notifications permission is gone. The phone's
+  key store moved from Rust to Java with the same keys and format, so saved sign-ins and servers carry over.
+- The app is left out of Android's cloud backups (its saved sign-ins can't be opened on another phone anyway).
+- A key store that doesn't answer no longer erases the saved sign-ins at unlock; only a key that's really gone does.
+- The lock screen no longer tries to open the vault before the server list is read (which could lose saved
+  sign-ins).
+
 ## 0.1.10
 
 A third security audit, covering races and edge cases (details in SECURITY.md, findings 31 to 40).

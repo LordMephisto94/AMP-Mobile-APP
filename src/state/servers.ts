@@ -2,7 +2,7 @@ import { signal, Storage } from "nsh";
 import { renew, logout as apiLogout } from "../api/auth";
 import { AmpClient, AmpError } from "../api/client";
 import type { AuthResponse } from "../api/types";
-import { DeviceKey } from "ampmobile/native";
+import { deviceKeysAvailable, deviceStatus, forgetKey, openWith, type PromptText, sealWith } from "../lib/deviceKeys";
 import {
   createVault,
   deriveKey,
@@ -21,18 +21,12 @@ import {
   type VaultKey,
 } from "./vaultCrypto";
 
-/** The device key store's keys for the vault: one used with the PIN, one for quick unlock. */
+/** The device key store's keys for the vault: one used with the PIN, one for quick unlock, one for fingerprint unlock. */
 const BOUND_ALIAS = "amp.vault.bound";
 const QUICK_ALIAS = "amp.vault.quick";
+const BIO_ALIAS = "amp.vault.bio";
 
-/** Whether this device keeps keys for the vault (Android 12+); never throws. */
-function deviceAvailable(): boolean {
-  try {
-    return DeviceKey.available();
-  } catch {
-    return false;
-  }
-}
+const UNLOCK_PROMPT: PromptText = { title: "Unlock AMP Mobile", subtitle: "Your saved servers", cancel: "Use PIN" };
 
 /**
  * Saved AMP servers and their sessions.
@@ -90,6 +84,10 @@ export const hasPin = signal(false);
 export const locked = signal(false);
 /** The vault is bound to this phone's key store (copies elsewhere can't be opened). */
 export const bound = signal(false);
+/** Fingerprint or face unlock is on: the vault has a way in sealed by a biometric key. */
+export const biometricOn = signal(false);
+/** Why fingerprint unlock just turned itself off (a fingerprint was added to the phone), for the lock screen. */
+export const biometricNotice = signal<string | null>(null);
 /** Sessions the user asked to keep are waiting for a PIN to be set before they can be saved. */
 export const pinSetupNeeded = signal(false);
 /** Seconds in the background before the app locks itself. */
@@ -451,6 +449,7 @@ export async function setupPin(pin: string): Promise<void> {
   await Storage.removeItem(LOCKOUT_KEY);
   hasPin.set(true);
   bound.set(made.blob.v === 2);
+  biometricOn.set(false);
   pinSetupNeeded.set(false);
 }
 
@@ -501,7 +500,7 @@ export function unlock(pin: string): Promise<UnlockResult> {
     if (epoch !== lockEpoch || vaultBlob !== blob) return { ok: false, wrong: false, triesLeft: MAX_PIN_TRIES, waitSeconds: 0, erased: false };
     await finishUnlock(blob, opened.key, opened.raw);
     // A PIN-only vault moves to a device-bound one at the first chance.
-    if (blob.v === 1 && deviceAvailable() && !locked()) await rebuildVault(pin);
+    if (blob.v === 1 && !locked() && (await deviceKeysAvailable()) && !locked()) await rebuildVault(pin);
     return { ok: true } as UnlockResult;
   });
 }
@@ -514,16 +513,17 @@ export function unlock(pin: string): Promise<UnlockResult> {
 export function quickUnlock(): Promise<boolean> {
   return onePinCheckAtATime(async () => {
     const blob = vaultBlob;
-    if (quickHeldBack() || !blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
+    // Before the server list is read, the sessions would have no server to go to, and be lost.
+    if (!serversReady() || quickHeldBack() || !blob || blob.v !== 2 || !blob.quickWrap || !locked()) return false;
     const epoch = lockEpoch;
     let raw: Uint8Array;
     try {
-      raw = fromB64(await DeviceKey.open(QUICK_ALIAS, blob.quickWrap));
+      raw = fromB64(await openWith(QUICK_ALIAS, blob.quickWrap));
     } catch (e) {
       const why = String((e as Error)?.message ?? e);
       // Not unlocked recently: just ask for the PIN. A key that's gone or invalidated
       // (the phone's lock was changed): drop the quick way in; the PIN still works.
-      if (!why.startsWith("auth") && vaultBlob === blob && epoch === lockEpoch) {
+      if ((why.startsWith("missing") || why.startsWith("invalid")) && vaultBlob === blob && epoch === lockEpoch) {
         const { quickWrap: _gone, ...rest } = blob;
         vaultBlob = rest;
         await Storage.setItem(VAULT_KEY, JSON.stringify(rest));
@@ -538,7 +538,95 @@ export function quickUnlock(): Promise<boolean> {
 
 /** Whether the lock screen may try `quickUnlock`. */
 export function canQuickUnlock(): boolean {
-  return !quickHeldBack() && !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
+  return serversReady() && !quickHeldBack() && !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.quickWrap;
+}
+
+/** Whether the lock screen may offer the fingerprint prompt. */
+export function canBiometricUnlock(): boolean {
+  return serversReady() && biometricOn() && !!vaultBlob && vaultBlob.v === 2 && !!vaultBlob.bioWrap;
+}
+
+/**
+ * Opens the vault with a fingerprint or face: the phone's prompt unlocks the biometric key
+ * for one use. "ok", "cancelled" (closed, or "Use PIN"), or "failed" with the reason.
+ */
+export function biometricUnlock(): Promise<{ result: "ok" | "cancelled" | "failed"; message?: string }> {
+  return onePinCheckAtATime(async () => {
+    const blob = vaultBlob;
+    if (!serversReady() || !blob || blob.v !== 2 || !blob.bioWrap || !locked()) return { result: "cancelled" as const };
+    const epoch = lockEpoch;
+    let raw: Uint8Array;
+    try {
+      raw = fromB64(await openWith(BIO_ALIAS, blob.bioWrap, UNLOCK_PROMPT));
+    } catch (e) {
+      const why = String((e as Error)?.message ?? e);
+      if (why.startsWith("cancel") || why.startsWith("busy")) return { result: "cancelled" as const };
+      if ((why.startsWith("invalid") || why.startsWith("missing")) && vaultBlob === blob && epoch === lockEpoch) {
+        // A fingerprint or face was added to the phone (or the key is gone): that voids the
+        // key for good. The PIN still opens the vault; the user turns this on again after.
+        await dropBiometric(blob);
+        const notice = "Fingerprint unlock turned off because the phone's fingerprints or face changed. Enter your PIN, then turn it on again in Security.";
+        biometricNotice.set(notice);
+        return { result: "failed" as const, message: notice };
+      }
+      if (why.startsWith("lockout")) return { result: "failed" as const, message: "Too many tries. Enter your PIN." };
+      return { result: "failed" as const, message: "Fingerprint unlock didn't work. Enter your PIN." };
+    }
+    if (epoch !== lockEpoch || vaultBlob !== blob) return { result: "cancelled" as const };
+    await finishUnlock(blob, await importDataKey(raw), raw);
+    biometricNotice.set(null);
+    return { result: "ok" as const };
+  });
+}
+
+/** Takes the biometric way in out of `blob` (if it's still the vault) and forgets its key. */
+async function dropBiometric(blob: VaultBlobV2): Promise<void> {
+  const { bioWrap: _gone, ...rest } = blob;
+  vaultBlob = rest;
+  biometricOn.set(false);
+  await Storage.setItem(VAULT_KEY, JSON.stringify(rest));
+  await forgetKey(BIO_ALIAS);
+}
+
+/** Whether this phone can turn fingerprint unlock on now: "ready", "notEnrolled", "unavailable" or "notBound". */
+export async function biometricChoice(): Promise<"ready" | "notEnrolled" | "unavailable" | "notBound"> {
+  const status = await deviceStatus();
+  if (status.biometric !== "ready") return status.biometric;
+  return vaultBlob?.v === 2 ? "ready" : "notBound";
+}
+
+/**
+ * Turns fingerprint unlock on (the prompt asks for a fingerprint or face first) or off.
+ * While it's on, the lock screen asks for a fingerprint instead of opening by itself after
+ * the phone is unlocked. Throws with a message for the screen.
+ */
+export async function setBiometricUnlock(on: boolean): Promise<void> {
+  const blob = vaultBlob;
+  if (!blob || blob.v !== 2 || locked() || !dataKeyRaw) throw new Error("Fingerprint unlock needs the saved sign-ins locked to this phone. Set a PIN first.");
+  if (!on) {
+    if (blob.bioWrap) await dropBiometric(blob);
+    biometricOn.set(false);
+    await addQuickWrap();
+    return;
+  }
+  const epoch = lockEpoch;
+  let bioWrap: string;
+  try {
+    bioWrap = await sealWith(BIO_ALIAS, toB64(dataKeyRaw), "biometric", { title: "Turn on fingerprint unlock", subtitle: "Confirm it's you", cancel: "Cancel" });
+  } catch (e) {
+    const why = String((e as Error)?.message ?? e);
+    if (why.startsWith("cancel")) throw new Error("Not turned on.");
+    if (why.startsWith("lockout")) throw new Error("Too many tries. Try again later.");
+    throw new Error("This phone couldn't turn fingerprint unlock on.");
+  }
+  // Locked, erased or re-made meanwhile: what was sealed belongs to a vault that's gone.
+  if (epoch !== lockEpoch || vaultBlob !== blob) throw new Error("The app locked meanwhile. Try again.");
+  // The quick way in would open the app without a fingerprint: it goes while this is on.
+  const { quickWrap: _quick, ...rest } = blob;
+  vaultBlob = { ...rest, bioWrap };
+  await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
+  biometricOn.set(true);
+  biometricNotice.set(null);
 }
 
 /** The vault's key from the PIN, or null for a wrong PIN; throws "device: …" when the device's key is gone. */
@@ -549,9 +637,13 @@ async function openWithPin(blob: VaultBlob, pin: string): Promise<{ key: VaultKe
   }
   let pinBox: Sealed;
   try {
-    pinBox = JSON.parse(atob(await DeviceKey.open(BOUND_ALIAS, blob.pinWrap)));
+    pinBox = JSON.parse(atob(await openWith(BOUND_ALIAS, blob.pinWrap)));
   } catch (e) {
-    throw new Error(`device: ${String((e as Error)?.message ?? e)}`);
+    const why = String((e as Error)?.message ?? e);
+    // Only a key that's gone or voided is lost for good; anything else (no answer, a busy
+    // key store) is worth another try, and must never erase the vault.
+    if (why.startsWith("missing") || why.startsWith("invalid")) throw new Error(`device: ${why}`);
+    throw new Error("The phone's key store didn't answer. Try again.");
   }
   const pinKey = await deriveKey(pin, fromB64(blob.salt), blob.rounds);
   let rawB64: string;
@@ -579,6 +671,7 @@ async function finishUnlock(blob: VaultBlob, key: VaultKey, raw: Uint8Array | nu
     if (serverById(id) && typeof s?.token === "string" && typeof s?.expiration === "string") applySession(id, s);
   }
   locked.set(false);
+  biometricNotice.set(null);
   await persistSessions();
   await addQuickWrap();
   renewSessions(true);
@@ -591,9 +684,9 @@ async function finishUnlock(blob: VaultBlob, key: VaultKey, raw: Uint8Array | nu
  */
 async function addQuickWrap(): Promise<void> {
   const blob = vaultBlob;
-  if (!blob || blob.v !== 2 || blob.quickWrap || !dataKeyRaw) return;
+  if (!blob || blob.v !== 2 || blob.quickWrap || blob.bioWrap || !dataKeyRaw) return;
   try {
-    const quickWrap = await DeviceKey.seal(QUICK_ALIAS, toB64(dataKeyRaw), true);
+    const quickWrap = await sealWith(QUICK_ALIAS, toB64(dataKeyRaw), "quick");
     if (vaultBlob !== blob) return;
     vaultBlob = { ...blob, quickWrap };
     await Storage.setItem(VAULT_KEY, JSON.stringify(vaultBlob));
@@ -602,21 +695,25 @@ async function addQuickWrap(): Promise<void> {
   }
 }
 
-/** A new vault for `pin`: bound to the device where it can be, PIN-only otherwise. */
-async function newVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; key: VaultKey; raw: Uint8Array | null }> {
-  if (!deviceAvailable()) {
+/**
+ * A new vault for `pin`: bound to the device where it can be, PIN-only otherwise. `keep`:
+ * the data key of the vault it replaces (a new PIN), so the ways in sealed around that key
+ * (fingerprint unlock) stay good.
+ */
+async function newVault(pin: string, data: unknown, keep: Uint8Array | null = null): Promise<{ blob: VaultBlob; key: VaultKey; raw: Uint8Array | null }> {
+  if (!(await deviceKeysAvailable())) {
     const { blob, key } = await createVault(pin, data);
     return { blob, key, raw: null };
   }
   await forgetting;
-  const raw = randomBytes(32);
+  const raw = keep ?? randomBytes(32);
   const key = await importDataKey(raw);
   const salt = randomBytes(16);
   const pinKey = await deriveKey(pin, salt);
   const pinBox = await seal(pinKey, toB64(raw));
   let pinWrap: string;
   try {
-    pinWrap = await DeviceKey.seal(BOUND_ALIAS, btoa(JSON.stringify(pinBox)), false);
+    pinWrap = await sealWith(BOUND_ALIAS, btoa(JSON.stringify(pinBox)), "bound");
   } catch {
     // The key store refused: the PIN-only vault still protects the sessions.
     const fallback = await createVault(pin, data);
@@ -630,9 +727,13 @@ async function newVault(pin: string, data: unknown): Promise<{ blob: VaultBlob; 
 async function rebuildVault(pin: string): Promise<void> {
   const epoch = lockEpoch;
   const before = vaultBlob;
-  const made = await newVault(pin, rememberedSessions());
+  // A device-bound vault keeps its data key, so fingerprint unlock survives a new PIN.
+  const keep = before?.v === 2 && before.bioWrap ? dataKeyRaw : null;
+  const made = await newVault(pin, rememberedSessions(), keep);
   // Locked or erased while the new vault was made: the old one stands (and no key stays in memory).
   if (epoch !== lockEpoch || vaultBlob !== before) return;
+  if (keep && made.raw === keep && made.blob.v === 2 && before?.v === 2 && before.bioWrap) made.blob.bioWrap = before.bioWrap;
+  biometricOn.set(made.blob.v === 2 && !!made.blob.bioWrap);
   vaultBlob = made.blob;
   vaultKey = made.key;
   dataKeyRaw = made.raw;
@@ -646,6 +747,11 @@ async function rebuildVault(pin: string): Promise<void> {
  * at once. It waits until the user has left the app and come back.
  */
 const quickHeldBack = signal(false);
+
+/** Whether the lock screen may open a way in by itself (not straight after "Lock now"). */
+export function autoUnlockAllowed(): boolean {
+  return !quickHeldBack();
+}
 
 /**
  * The app lost the front (the screen turned off, the app switcher, another app): quick
@@ -710,9 +816,7 @@ export async function eraseVault(): Promise<void> {
   vaultBlob = null;
   vaultKey = null;
   dataKeyRaw = null;
-  if (deviceAvailable()) {
-    forgetting = Promise.all([DeviceKey.forget(BOUND_ALIAS).catch(() => {}), DeviceKey.forget(QUICK_ALIAS).catch(() => {})]);
-  }
+  forgetting = Promise.all([forgetKey(BOUND_ALIAS), forgetKey(QUICK_ALIAS), forgetKey(BIO_ALIAS)]);
   sessions.clear();
   clients.clear();
   touched();
@@ -722,6 +826,8 @@ export async function eraseVault(): Promise<void> {
   await persistServers();
   hasPin.set(false);
   bound.set(false);
+  biometricOn.set(false);
+  biometricNotice.set(null);
   locked.set(false);
   pinSetupNeeded.set(false);
 }
@@ -755,6 +861,7 @@ export async function loadServers(): Promise<void> {
       vaultBlob = parsedVault;
       hasPin.set(true);
       bound.set(parsedVault.v === 2);
+      biometricOn.set(parsedVault.v === 2 && !!parsedVault.bioWrap);
       locked.set(true);
     }
   } catch {
