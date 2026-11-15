@@ -8,3 +8,5 @@ docs/
 .env.*
 *.env
 !release.env.example
+# Third-party Claude Code skills, kept on this machine only
+.claude/skills/
