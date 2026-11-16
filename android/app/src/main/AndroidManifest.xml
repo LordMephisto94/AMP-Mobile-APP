@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Faster crash checks: a foreground service, woken by idle-allowed alarms, awake only while it checks. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:label="AMP Mobile"
@@ -30,6 +34,23 @@
             android:name=".CrashWatchJob"
             android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="false" />
+
+        <!-- Faster crash checks (CrashWatchService): every 1, 2 or 5 minutes while the user has them on. -->
+        <service
+            android:name=".CrashWatchService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Checks the user's own game servers every few minutes and alerts when one crashes" />
+        </service>
+        <receiver android:name=".CrashWatchService$Tick" android:exported="false" />
+        <!-- Only the system sends BOOT_COMPLETED; the receiver checks the action too. -->
+        <receiver android:name=".CrashWatchService$Boot" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"

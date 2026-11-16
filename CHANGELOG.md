@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
+- Faster crash checks: on the Crash alerts card in Security, "How often" can be 15 (as before), 5, 2 or 1 minutes. The
+  faster choices run from a service with a quiet "Watching for crashes" notification, which Android requires (you can
+  hide it in the phone's notification settings). They use more battery and data, and after the phone has sat idle a
+  long while Android may space them out; the 15-minute check keeps running underneath. They come back on by
+  themselves after the phone restarts.
 - Builds with Gradle 9.9.1 and the Android Gradle plugin 9.5.1 (from Dependabot's
   LordMephisto94/AMP-Mobile-APP#2 and #3). The APK is unchanged: same contents, size and signing key.
 

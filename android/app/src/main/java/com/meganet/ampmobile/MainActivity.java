@@ -45,6 +45,7 @@ public final class MainActivity extends Activity {
         crashWatch = new CrashWatch.Host(this);
         crashWatch.register(view);
         CrashWatch.resume(this);
+        CrashWatch.syncFast(this);
         setContentView(view);
         // Nothing else from the launching intent is passed on to NSH (no URL-scheme or notification
         // handlers): the app declares neither, and the launcher entry is open to every app.

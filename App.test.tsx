@@ -131,7 +131,7 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.4.2");
+  await app.waitFor("text:AMP Mobile 0.5.0");
   await app.press("confirm-ok");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
@@ -3012,11 +3012,15 @@ test("names from the panel never pick up JavaScript's built-in keys", () => {
 // ---- Crash alerts --------------------------------------------------------------------------
 
 /** The Android app's crash alerts, played by the test: what it keeps, and the permission. */
-function fakeCrashWatch(state: { permission: string; askAnswer?: string; watched: Map<string, { token: string; url: string }>; paused?: string[]; cleared?: number }) {
+function fakeCrashWatch(state: { permission: string; askAnswer?: string; watched: Map<string, { token: string; url: string }>; paused?: string[]; cleared?: number; fast?: number }) {
   type Args = { serverId: string; url?: string; name?: string; token?: string; expiration?: string };
   return {
     handlers: {
-      "crashWatch.status": () => ({ permission: state.permission, watched: [...state.watched.keys()], paused: state.paused ?? [] }),
+      "crashWatch.status": () => ({ permission: state.permission, watched: [...state.watched.keys()], paused: state.paused ?? [], fastMinutes: state.fast ?? 0 }),
+      "crashWatch.setFast": (a: { minutes: number }) => {
+        state.fast = a.minutes;
+        return true;
+      },
       "crashWatch.requestPermission": () => {
         if (state.permission === "default") state.permission = state.askAnswer ?? "granted";
         return state.permission;
@@ -3391,4 +3395,21 @@ test("settings: the units chosen are saved, read back and used", async () => {
   expect(JSON.parse(app.storage()["amp.prefs"]!)).toEqual({ sizeUnits: "decimal", speedUnits: "bits" });
   await app.press("size-binary");
   await app.press("speed-bytes");
+});
+
+test("crash alerts: how often is chosen on the card, and only shows once a server is watched", async () => {
+  const state = { permission: "granted", watched: new Map<string, { token: string; url: string }>(), fast: 0 };
+  const app = await openSignedIn({ network: unlockedHome, host: fakeCrashWatch(state) });
+  await app.press("security");
+  await app.waitFor("id:crash-alerts");
+  expect(app.count("crash-often-1")).toBe(0);
+  await app.press("crash-alerts-Home Lab");
+  await app.press("confirm-on");
+  await app.waitFor("crash-often-1");
+  expect(app.texts().some((t) => t.startsWith("About every 15 minutes"))).toBe(true);
+  await app.press("crash-often-1");
+  await app.waitUntil(() => state.fast === 1);
+  await app.waitUntil(() => app.texts().some((t) => t.startsWith("Every minute while the phone is in use")));
+  await app.press("crash-often-0");
+  await app.waitUntil(() => state.fast === 0);
 });

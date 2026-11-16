@@ -66,6 +66,8 @@ final class CrashWatch {
     private static final String PREFS = "amp.watch";
     private static final String SERVERS = "servers";
     private static final String ASKED = "askedPermission";
+    /** Faster checks: minutes between them (1, 2 or 5), 0 for off (the 15-minute job alone). */
+    private static final String FAST = "fastMinutes";
     private static final String KEY_ALIAS = "amp.watch.v1";
     private static final String TRANSFORM = "AES/GCM/NoPadding";
 
@@ -145,6 +147,16 @@ final class CrashWatch {
             view.handle("crashWatch.remove", (data, reply) -> {
                 String id = text(args(data), "serverId");
                 work(reply, () -> reply.resolve(remove(activity, id)));
+            });
+            view.handle("crashWatch.setFast", (data, reply) -> {
+                Object m = args(data).get("minutes");
+                int minutes = m instanceof Number ? ((Number) m).intValue() : 0;
+                if (minutes != 0 && minutes != 1 && minutes != 2 && minutes != 5) {
+                    reply.reject("error: 0, 1, 2 or 5 minutes");
+                    return;
+                }
+                setFast(activity, minutes);
+                reply.resolve(true);
             });
             view.handle("crashWatch.clear", (data, reply) -> work(reply, () -> {
                 clear(activity);
@@ -228,6 +240,7 @@ final class CrashWatch {
         }
         out.put("watched", watched);
         out.put("paused", paused);
+        out.put("fastMinutes", fastMinutes(c));
         return out;
     }
 
@@ -255,6 +268,7 @@ final class CrashWatch {
             save(c, all);
         }
         schedule(c, true);
+        syncFast(c);
     }
 
     /** A fresh token for a watched server (a sign-in, a renewal, an unlock). False when it isn't watched. */
@@ -292,15 +306,19 @@ final class CrashWatch {
             save(c, all);
             empty = all.length() == 0;
         }
-        if (empty) unschedule(c);
+        if (empty) {
+            unschedule(c);
+            CrashWatchService.stop(c);
+        }
         return true;
     }
 
     static void clear(Context c) {
         synchronized (LOCK) {
-            prefs(c).edit().remove(SERVERS).apply();
+            prefs(c).edit().remove(SERVERS).remove(FAST).apply();
         }
         unschedule(c);
+        CrashWatchService.stop(c);
         try {
             KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
             ks.load(null);
@@ -308,6 +326,28 @@ final class CrashWatch {
         } catch (Exception e) {
             Log.w(TAG, "crash alerts: key not deleted: " + e.getMessage());
         }
+    }
+
+    static int fastMinutes(Context c) {
+        return prefs(c).getInt(FAST, 0);
+    }
+
+    static int watchedCount(Context c) {
+        synchronized (LOCK) {
+            return load(c).length();
+        }
+    }
+
+    /** Turns faster checks on (1, 2 or 5 minutes) or off; the service follows. From the app's screen. */
+    static void setFast(Context c, int minutes) {
+        prefs(c).edit().putInt(FAST, minutes).apply();
+        syncFast(c);
+    }
+
+    /** Runs the faster checks' service while it's on and some server is watched, and stops it otherwise. */
+    static void syncFast(Context c) {
+        if (fastMinutes(c) > 0 && watchedCount(c) > 0) CrashWatchService.start(c);
+        else CrashWatchService.stop(c);
     }
 
     // ---- Scheduling -----------------------------------------------------------------------------

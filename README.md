@@ -87,6 +87,10 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
   and hands it tokens over `host.call("crashWatch.…")` (`src/lib/crashWatch.ts`); a pressed alert comes back as the
   event `crashWatch.open`. To try it on an emulator, force a check:
   `adb shell cmd jobscheduler run -f com.meganet.ampmobile 4101`.
+- `CrashWatchService.java` is the faster checks (every 1, 2 or 5 minutes, chosen on Security's Crash alerts card): a
+  foreground service of the `specialUse` type with a quiet "Watching for crashes" notification. A timer runs each
+  check while the phone is awake and an idle-allowed alarm wakes it when asleep; a guard stops both running one. It
+  comes back after a restart of the phone (`BOOT_COMPLETED`), and the 15-minute job keeps running underneath.
 - The app's id, version and build come from `nsh.json`. Gradle runs `nsh build --release` and puts the bytecode in
   the APK's `assets/nsh`, with `app.json` naming the app's id, so NSH keeps the app's storage where the packaged
   app kept it and updates keep saved servers.

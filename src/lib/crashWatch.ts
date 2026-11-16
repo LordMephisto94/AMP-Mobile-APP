@@ -21,9 +21,13 @@ export interface CrashWatchState {
   watched: string[];
   /** Of those, the ones AMP signed out: alerts wait for the next sign-in. */
   paused: string[];
+  /** Faster checks: minutes between them (1, 2 or 5), or 0 for the 15-minute background job alone. */
+  fastMinutes: number;
 }
 
-export const crashWatch = signal<CrashWatchState>({ available: false, permission: "default", watched: [], paused: [] });
+const NONE: CrashWatchState = { available: false, permission: "default", watched: [], paused: [], fastMinutes: 0 };
+
+export const crashWatch = signal<CrashWatchState>(NONE);
 
 /** A pressed alert, waiting for the app to be unlocked to open it. */
 export const alertOpened = signal<{ serverId: string; shardId: string | null; title: string | null } | null>(null);
@@ -46,9 +50,10 @@ export async function refreshCrashWatch(): Promise<void> {
       permission: p === "granted" || p === "denied" ? p : "default",
       watched: strings(s.watched),
       paused: strings(s.paused),
+      fastMinutes: [1, 2, 5].includes(Number(s.fastMinutes)) ? Number(s.fastMinutes) : 0,
     });
   } catch {
-    crashWatch.set({ available: false, permission: "default", watched: [], paused: [] });
+    crashWatch.set(NONE);
   }
 }
 
@@ -89,6 +94,15 @@ export async function handOverToken(serverId: string, session: { token: string; 
   } catch {
     // The next sign-in or renewal hands it over again.
   }
+}
+
+/**
+ * Faster checks: every 1, 2 or 5 minutes from a service with its own status bar notification,
+ * or 0 for the 15-minute background job alone. Throws when the phone refuses.
+ */
+export async function setFastChecks(minutes: 0 | 1 | 2 | 5): Promise<void> {
+  await call("setFast", { minutes });
+  await refreshCrashWatch();
 }
 
 /** Turns crash alerts off for a server, and forgets its token. */

@@ -76,7 +76,9 @@ While it's on:
 - **Size cap.** Answers are counted as they arrive and cut off past 64 MB (avatars past 2 MB), so a server can't make
   the app hold an endless answer.
 - **Crash alerts** check only the servers they're turned on for, from the Android app, with the same rules: no
-  redirects, and the session sent to that server alone.
+  redirects, and the session sent to that server alone. Faster checks (every 1, 2 or 5 minutes) run from a foreground
+  service with its own notification; it isn't exported, and its alarm and restart receivers act only on the app's own
+  alarm and the system's boot broadcast.
 
 ## Content from your panel
 

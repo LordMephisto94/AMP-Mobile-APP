@@ -1,11 +1,13 @@
 import { effect, lifecycle, signal, Text, View } from "nsh";
 import { confirm } from "./Confirm";
 import { Icon } from "./Icon";
+import { ChoiceChip } from "./ui";
 import {
   crashWatch,
   openAlertSettings,
   refreshCrashWatch,
   requestAlertPermission,
+  setFastChecks,
   unwatchServer,
   watchServer,
 } from "../lib/crashWatch";
@@ -65,6 +67,22 @@ export function CrashAlertsCard() {
     }
   };
 
+  const OFTEN = [
+    { minutes: 0, label: "15\u00a0min" },
+    { minutes: 5, label: "5\u00a0min" },
+    { minutes: 2, label: "2\u00a0min" },
+    { minutes: 1, label: "1\u00a0min" },
+  ] as const;
+  const chooseOften = async (minutes: 0 | 1 | 2 | 5) => {
+    if (minutes === crashWatch().fastMinutes) return;
+    error.set(null);
+    try {
+      await setFastChecks(minutes);
+    } catch (e) {
+      error.set(`That couldn't be changed: ${String((e as Error)?.message ?? e).replace(/^\w+:\s*/, "")}`);
+    }
+  };
+
   /** Why a server's switch can't be turned on, or what state its alerts are in. */
   const note = (server: SavedServer): string => {
     const state = crashWatch();
@@ -85,7 +103,7 @@ export function CrashAlertsCard() {
         </View>
         <Text class="text-sm text-muted-foreground">
           A notification when an instance stops, fails to start or restarts with no one behind it: no person or schedule acted on it in AMP's
-          activity log. Checked about every 15 minutes, while the app is closed too.
+          activity log. Checked while the app is closed too.
         </Text>
         <If when={crashWatch().permission === "denied"}>
           <View class="flex-row items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
@@ -123,6 +141,28 @@ export function CrashAlertsCard() {
             );
           }}
         </Each>
+        <If when={crashWatch().watched.length > 0}>
+          <View class="gap-2 border-t border-white/5 pt-3">
+            <Text class="text-sm font-semibold text-card-foreground">How often</Text>
+            <View class="flex-row flex-wrap gap-2">
+              <Each of={OFTEN}>
+                {(o) => (
+                  <ChoiceChip
+                    testID={`crash-often-${o().minutes}`}
+                    label={o().label}
+                    on={crashWatch().fastMinutes === o().minutes}
+                    onPress={() => chooseOften(o().minutes)}
+                  />
+                )}
+              </Each>
+            </View>
+            <Text class="text-xs text-muted-foreground">
+              {crashWatch().fastMinutes === 0
+                ? "About every 15 minutes, as Android allows for background work; longer while the phone sits idle."
+                : `Every ${crashWatch().fastMinutes === 1 ? "minute" : `${crashWatch().fastMinutes} minutes`} while the phone is in use, with a "Watching for crashes" notification Android requires (you can hide it in the phone's notification settings). Uses more battery and data. After the phone has sat idle a long while, Android may space the checks out.`}
+            </Text>
+          </View>
+        </If>
         <If when={error()}>{(m) => <Text testID="crash-alerts-error" class="text-sm text-destructive">{m()}</Text>}</If>
       </View>
     </If>
