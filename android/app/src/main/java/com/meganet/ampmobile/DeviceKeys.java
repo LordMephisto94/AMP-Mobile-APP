@@ -191,13 +191,13 @@ final class DeviceKeys {
         });
     }
 
-    /** An HMAC key in the key store: in StrongBox and usable only while the phone is unlocked where the phone allows, else a plain one. */
+    /** An HMAC key in the key store: in StrongBox where the phone has it, else a plain one. */
     private static SecretKey makeMacKey(String alias) throws Exception {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
                 return generateMacKey(alias, true);
             } catch (Exception hardwareRefused) {
-                // No StrongBox or no screen lock: the plain key below still never leaves the key store.
+                // No StrongBox: the plain key below still never leaves the key store.
             }
         }
         return generateMacKey(alias, false);
@@ -205,7 +205,9 @@ final class DeviceKeys {
 
     private static SecretKey generateMacKey(String alias, boolean hardened) throws Exception {
         KeyGenParameterSpec.Builder b = new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN).setDigests(KeyProperties.DIGEST_SHA256);
-        if (hardened) b.setUnlockedDeviceRequired(true).setIsStrongBoxBacked(true);
+        // StrongBox only: "unlocked device required" was left off, since a key with it may be voided when the
+        // phone's screen lock is removed, and losing this key loses every saved sign-in.
+        if (hardened) b.setIsStrongBoxBacked(true);
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, PROVIDER);
         generator.init(b.build());
         return generator.generateKey();

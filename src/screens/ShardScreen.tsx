@@ -1,3 +1,4 @@
+import { formatMb } from "../lib/units";
 import { Clipboard, Image, signal, Text, View } from "nsh";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
@@ -384,9 +385,9 @@ export function ShardScreen(props: { serverId: string; id: string; title: string
             <MetricChart
               title="RAM"
               points={ram()}
-              format={(v) => `${Math.round(v).toLocaleString()} MB`}
+              format={(v) => formatMb(v)}
               domain={memoryLimit() > 0 ? [0, memoryLimit()] : undefined}
-              caption={memoryLimit() > 0 ? `of ${memoryLimit().toLocaleString()} MB` : undefined}
+              caption={memoryLimit() > 0 ? `of ${formatMb(memoryLimit())}` : undefined}
               titleClass="text-violet-400"
               lineClass="stroke-violet-400 stroke-2"
               areaClass="fill-violet-400/15"

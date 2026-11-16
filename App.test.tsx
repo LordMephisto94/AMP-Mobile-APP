@@ -131,7 +131,7 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.4.1");
+  await app.waitFor("text:AMP Mobile 0.4.2");
   await app.press("confirm-ok");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
@@ -189,7 +189,7 @@ test("opens a remembered server straight to its instances", async () => {
   await app.waitFor("text:Minecraft SMP");
   // State 25 (RunningReady) reads as Running, with CPU and RAM on the card.
   await app.waitFor("text:Running");
-  expect(app.texts()).toContain("2,678 MB");
+  expect(app.texts()).toContain("2.6 GB");
 
   await app.press("shard-Minecraft SMP");
   await app.waitFor("text:PERFORMANCE");

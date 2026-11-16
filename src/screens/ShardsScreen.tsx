@@ -1,3 +1,4 @@
+import { formatMb } from "../lib/units";
 import { Clipboard, Image, signal, Text, View } from "nsh";
 import { artworkUrl } from "../api/artwork";
 import { AmpError } from "../api/client";
@@ -349,7 +350,7 @@ function ShardCard(props: {
             <MeterRow label="CPU" value={`${cpu().toFixed(cpu() < 10 ? 1 : 0)}%`} fraction={cpu() / 100} barClass="bg-sky-400" />
             <MeterRow
               label="RAM"
-              value={`${memory().toLocaleString()} MB`}
+              value={formatMb(memory())}
               fraction={memoryLimit() > 0 ? memory() / memoryLimit() : 0}
               barClass="bg-violet-400"
             />

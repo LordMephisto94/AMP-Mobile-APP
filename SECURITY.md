@@ -1,6 +1,6 @@
 # Security
 
-This file covers how AMP Mobile protects your panel access, what ten audits (November 2026) found and fixed,
+This file covers how AMP Mobile protects your panel access, what eleven audits (November 2026) found and fixed,
 and what's still open. To report a problem, open an issue (or contact the owner privately if it's
 sensitive).
 
@@ -302,6 +302,25 @@ were ported by hand onto 0.3.1, with its tests:
 
 Not taken: blocking screenshots (they stay allowed; Hide personal details covers it), its http/https choice (the app's
 own plain-HTTP rules are stricter about `.ts.net` names) and its icons and redesign.
+
+## Eleventh audit: the ported hardening (November 2026, 0.4.2)
+
+Covers what 0.4.0 brought over from PR LordMephisto94/AMP-Mobile-APP#1 and the 0.4.1 notification icon.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 75 | The PIN's HMAC key was made "usable only while the phone is unlocked". The gain is small (the app is only used unlocked), but if the phone's screen lock is removed such a key may be voided, and a voided key erases every saved sign-in | Low | Fixed for new keys: StrongBox where the phone has it, without that flag. A key made by 0.4.0 or 0.4.1 keeps it |
+| 76 | Instance cards and the RAM graph still wrote memory as raw MB, ignoring the size units in Settings | Info | Fixed |
+
+Checked and found sound: the vault upgrade can't race a session save (an older key's write is dropped, and the old key is
+deleted only after the new vault is on disk); a key store that doesn't answer never erases the vault or counts a wrong
+PIN; quick unlock turned on or off while the app locks or fingerprint unlock changes leaves no stale way in; the lock
+timer and the check on return never both lock; panel links are confirmed, and the dialog is cancelled by locking;
+answers and avatars are capped while they stream; an imported server list keeps only addresses the app accepts, 50 at
+most, signed out.
+
+Known: a vault is moved to the HMAC kind only at a PIN unlock (fingerprint unlock has no PIN to derive it from), so
+someone who only ever uses their fingerprint stays on the older phone-bound kind until they next enter the PIN.
 
 ## Release signing
 

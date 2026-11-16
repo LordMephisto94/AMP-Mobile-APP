@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+- An eleventh audit (SECURITY.md, findings 75 and 76):
+  - The PIN's key-store key no longer requires the phone to be unlocked, so removing the phone's screen lock can't
+    erase your saved sign-ins.
+  - Instance cards and the RAM graph follow the size units chosen in Settings.
+
 ## 0.4.1
 
 - Crash alerts show the AMP mark in the status bar and on the notification, in the app's purple, instead of a warning
