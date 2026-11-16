@@ -399,7 +399,7 @@ function FileRow(props: {
   onMenuOpenChange: (open: boolean) => void;
   items: DropdownItem[];
 }) {
-  const icon = () => (props.entry.isDirectory ? "folder" : isArchive(props.entry) ? "archive" : isTextFile(props.entry) ? "file-text" : "package");
+  const icon = (): IconName => (props.entry.isDirectory ? "folder" : isArchive(props.entry) ? "archive" : isTextFile(props.entry) ? "file-text" : "package");
   return (
     <View
       role="button"
@@ -408,7 +408,7 @@ function FileRow(props: {
       onLongPress={() => props.onMenuOpenChange(true)}
       class="flex-row items-center gap-3 border-b border-white/5 px-3 py-3 active:bg-accent"
     >
-      <Text class="text-xl">{icon()}</Text>
+      <Icon name={icon()} size={22} tone={props.entry.isDirectory ? "primary" : "muted"} />
       <View class="flex-1 gap-0.5">
         <Text class="text-sm font-medium text-card-foreground">{props.entry.name}</Text>
         <Text class="text-xs text-muted-foreground">

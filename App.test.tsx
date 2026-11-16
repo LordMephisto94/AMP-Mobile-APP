@@ -131,7 +131,7 @@ test("starts with an Add Server button and no servers, and says it is unofficial
   expect(app.texts()).toContain("Add Server");
   expect(app.texts()).toContain("Unofficial app. Not made by or affiliated with CubeCoders, the makers of AMP.");
   await app.press("about");
-  await app.waitFor("text:AMP Mobile 0.5.0");
+  await app.waitFor("text:AMP Mobile 0.5.1");
   await app.press("confirm-ok");
   await app.waitUntil(() => !app.texts().includes("AMP Mobile 0.2.6"));
 });
@@ -504,6 +504,8 @@ test("browses, edits, creates, uploads and deletes files", async () => {
   await app.press("open-files");
   await app.waitFor("text:server.properties");
   expect(app.texts()).toContain("AMP"); // eula.txt is AMP-managed
+  // Each row draws its icon, never the icon's name as text.
+  for (const name of ["folder", "archive", "file-text", "package"]) expect(app.texts()).not.toContain(name);
 
   // Folders open as their own page.
   await app.press("file-world");

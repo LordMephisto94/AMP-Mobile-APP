@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Files: folders and files show their icons again, instead of the icon's name ("folder", "package") as faint text.
+
 ## 0.5.0
 
 - Faster crash checks: on the Crash alerts card in Security, "How often" can be 15 (as before), 5, 2 or 1 minutes. The
