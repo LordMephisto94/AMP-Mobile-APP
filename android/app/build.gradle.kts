@@ -16,7 +16,7 @@ val nshAar = rootProject.file("nsh-sdk/nsh.aar")
 // The TSX app, compiled to bytecode by `nsh build`, goes in the APK's assets/nsh.
 val bundleOut = layout.buildDirectory.dir("generated/nsh-assets")
 
-val nshBundle by tasks.registering {
+val nshBundle = tasks.register("nshBundle") {
     description = "Builds the TSX app into assets/nsh with `nsh build --release`."
     val nsh = (findProperty("nsh") as String?) ?: "nsh"
     inputs.files(fileTree(File(appRoot, "src")), File(appRoot, "App.tsx"), File(appRoot, "nsh.json"), File(appRoot, "theme.json"))
@@ -85,7 +85,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    sourceSets["main"].assets.srcDir(bundleOut)
+    // A plain path: the Android plugin (9+) takes no Provider here. The folder is filled by nshBundle before preBuild.
+    sourceSets["main"].assets.directories.add(bundleOut.get().asFile.path)
 
     packaging {
         // Stored uncompressed and page-aligned, as `nsh package` did (extractNativeLibs=false).
