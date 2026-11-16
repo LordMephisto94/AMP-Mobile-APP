@@ -79,6 +79,9 @@ mkdir -p .nsh/out
 cp "$APK" ".nsh/out/AMP-Mobile-v$VERSION.apk"
 (cd android && ./gradlew --no-daemon -q assembleRelease -Pabis=arm64-v8a,armeabi-v7a,x86_64)
 cp "$APK" ".nsh/out/AMP-Mobile-v$VERSION-all-abis.apk"
+# The Play Store bundle (Play makes each phone's APK from it), with the phone ABIs only.
+(cd android && ./gradlew --no-daemon -q bundleRelease -Pabis=arm64-v8a,armeabi-v7a)
+cp android/app/build/outputs/bundle/release/app-release.aab ".nsh/out/AMP-Mobile-v$VERSION.aab"
 
 echo "Built (signed with $ALIAS):"
-ls -l .nsh/out/AMP-Mobile-v"$VERSION"*.apk
+ls -l .nsh/out/AMP-Mobile-v"$VERSION"*.apk .nsh/out/AMP-Mobile-v"$VERSION".aab

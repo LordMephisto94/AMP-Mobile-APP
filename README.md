@@ -129,7 +129,7 @@ and the only way past that is uninstalling the app, which deletes its saved serv
 the key file and its password somewhere safe (a password manager, plus an offline copy).** A lost key means no more
 updates for anyone who installed the app.
 
-Build both release APKs with Gradle (`.nsh/out/` gets the versioned files):
+Build both release APKs and the Play Store bundle (`.aab`) with Gradle (`.nsh/out/` gets the versioned files):
 
 ```sh
 scripts/build-release.sh
