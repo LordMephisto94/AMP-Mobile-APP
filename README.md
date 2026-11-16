@@ -53,8 +53,9 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
   your fingerprint. Passwords are never stored. SECURITY.md has the details.
 - AMP 3 calls instances **shards** and nodes **spires**. The spec mixes `/api/Shards` and `/api/shards`: use paths
   exactly as written.
-- The app ID (`nsh.json`'s `id`) is `com.meganet.ampmobile`. Changing it makes Android and iOS treat the app as a
-  different one, so saved servers wouldn't carry over.
+- The app ID (`nsh.json`'s `id`) is `com.meganet.AMP3App` (`com.meganet.ampmobile` before 0.5.2; the Java code keeps
+  that as its package). Changing it makes Android and iOS treat the app as a different one, so saved servers don't
+  carry over.
 - `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTP(S) and WS(S) to any host (the server
   address is the user's), `openUrl` for `https` and `http`, the clipboard, the picker, the status bar, and the host
   calls `deviceKey.*` (the key store) and `crashWatch.*` (crash alerts), both answered by the Android app around it.
@@ -86,7 +87,7 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
   network, that reads watched servers' instance states and activity log and posts notifications. The app turns it on
   and hands it tokens over `host.call("crashWatch.…")` (`src/lib/crashWatch.ts`); a pressed alert comes back as the
   event `crashWatch.open`. To try it on an emulator, force a check:
-  `adb shell cmd jobscheduler run -f com.meganet.ampmobile 4101`.
+  `adb shell cmd jobscheduler run -f com.meganet.AMP3App 4101`.
 - `CrashWatchService.java` is the faster checks (every 1, 2 or 5 minutes, chosen on Security's Crash alerts card): a
   foreground service of the `specialUse` type with a quiet "Watching for crashes" notification. A timer runs each
   check while the phone is awake and an idle-allowed alarm wakes it when asleep; a guard stops both running one. It

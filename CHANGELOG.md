@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+- New app ID: `com.meganet.AMP3App` (was `com.meganet.ampmobile`). Android treats it as a different app: it installs
+  next to the old one rather than updating it, and starts with no saved servers or PIN. Add your servers again, then
+  uninstall the old app.
+
 ## 0.5.1
 
 - Files: folders and files show their icons again, instead of the icon's name ("folder", "package") as faint text.
