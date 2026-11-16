@@ -154,3 +154,11 @@ bac44fe4b557bb334bedbd20bc1c39df3f202438c4d3c340e299b9406d5e6dbb
 
 Builds before 0.1.7 were signed with a debug key, so moving from one of those to a release-signed build needs an
 uninstall first.
+
+## Thanks
+
+- [MinVT-dev](https://github.com/MinVT-dev), for the hardening and features in
+  [LordMephisto94/AMP-Mobile-APP#1](https://github.com/LordMephisto94/AMP-Mobile-APP/pull/1), brought into 0.4.0: the
+  PIN key made with a key-store HMAC, quick unlock off by default, the background lock timer, capped reads, the link
+  confirmation, masked console replies, the damaged-vault notice, the Settings page's units and server list, and
+  server reordering.
