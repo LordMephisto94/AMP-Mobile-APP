@@ -21,14 +21,14 @@ encrypted rather than stored as they are (and the vault can't be opened on anoth
 
 ## The app lock
 
-- Staying signed in requires a 6–12 digit PIN. Easy PINs are refused: repeats and repeated blocks (`777777`, `121212`,
-  `123123`), doubled runs (`112233`) and plain runs (`123456`, `987654`).
+- Staying signed in requires a PIN of 6 to 12 digits. Easy PINs are refused: repeats and repeated blocks (`777777`,
+  `121212`, `123123`), doubled runs (`112233`) and plain runs (`123456`, `987654`).
 - The app opens locked, and locks again after a chosen time in the background (immediately, 30 s, 1 min or 5 min), on
   a timer, so the sessions leave memory on time even if the app stays in the background.
-- It opens with the PIN. With quick unlock turned on (Security; off by default), it also opens by itself within a
-  minute of unlocking the phone. With fingerprint unlock
-  on (Security; Android 11+, strong biometrics), it asks for a fingerprint or face instead, and doesn't open by
-  itself; the PIN always works too. "Lock now" doesn't reopen by itself until you leave the app and come back.
+- It opens with the PIN. With quick unlock turned on (Security; off by default), it also opens by itself within a minute
+  of unlocking the phone. With fingerprint unlock on (Security; Android 11+, strong biometrics), it asks for a
+  fingerprint or face instead, and doesn't open by itself; the PIN always works too. "Lock now" doesn't reopen by itself
+  until you leave the app and come back.
 - While locked, no session is in memory and none of your pages are drawn behind the lock screen.
 - While the app is in the background its screen is covered, and on Android 13+ the app switcher keeps no picture of it.
 - A vault whose sessions were changed or damaged on disk opens with the right PIN, clears them and says so.
@@ -51,9 +51,8 @@ While it's on:
 
 ## Connections
 
-- **HTTPS by default; plain HTTP only when typed, and warned about.** HTTPS is assumed when no scheme is typed. A
-  plain `http://` address (and `ws://` for its console) is taken only when typed so, and how the app treats it
-  depends on where it leads:
+- **Plain HTTP.** HTTPS is assumed when no scheme is typed. A plain `http://` address (and `ws://` for its console) is
+  taken only when typed so, and how the app treats it depends on where it leads:
   - **Tailscale addresses** (100.64.0.0/10, fd7a:115c:a1e0::/48): its WireGuard tunnel encrypts the connection, so
     there's no warning; the server card says "HTTP over Tailscale".
   - **Tailscale names** (`*.ts.net`): a confirmation before every sign-in, as the name is inside the tunnel only
@@ -65,24 +64,29 @@ While it's on:
   refused.
 - **Enforced twice.** The app checks every address, and `nsh.json` declares capabilities so NSH's runtime refuses
   anything else for every request, image and WebSocket. NSH's capabilities can't name an address range, so they
-  allow `http`/`ws` to any host; the warnings above are the app's own. `https`/`wss` are as before, and links open
-  only over `https` (or `http` for a plain-HTTP panel's own downloads, pinned to its host). Also allowed: the clipboard,
-  the file picker, and the Android app's key-store calls (`deviceKey.*`); nothing else at all (no file system,
-  processes, sockets, web views, notifications or audio).
+  allow `http`/`ws` to any host; the warnings above are the app's own. Links open only over `https` (or `http` for a
+  plain-HTTP panel's own downloads, pinned to its host). Also allowed: the clipboard, the file picker, and calls to
+  the Android app around it for the key store (`deviceKey.*`) and crash alerts (`crashWatch.*`); nothing else (no
+  file system, processes, sockets, web views or audio). Crash alerts' notifications are posted by the Android app,
+  not by the TSX app.
 - **Online check.** The home page asks each panel for its password policy (no sign-in needed), sending no token,
   and never while the app is locked.
 - **No redirects.** API calls refuse redirects, so your session token can't be forwarded to another host.
-- **Live console** connects over `wss://` only, with a one-time ticket.
-- **Size cap.** Answers over 64 MB are refused rather than read into memory.
+- **Live console** connects over `wss://` (`ws://` for a plain-HTTP panel), with a one-time ticket.
+- **Size cap.** Answers are counted as they arrive and cut off past 64 MB (avatars past 2 MB), so a server can't make
+  the app hold an endless answer.
+- **Crash alerts** check only the servers they're turned on for, from the Android app, with the same rules: no
+  redirects, and the session sent to that server alone.
 
 ## Content from your panel
 
 AMP Mobile shows what your panel sends as plain text (there is no web view and no HTML), so a panel can't run
 code in the app. Links and images the panel names are checked before use:
 
-- Release notes and the panel address open only if they're `https`. Steam profiles open only on
-  `steamcommunity.com`, and downloads only on your own panel's host.
-- Template artwork given as an address loads only if it's `https`.
+- Release notes and the panel address open only if they're `https`, and only after you confirm where they lead. Steam
+  profiles open only on `steamcommunity.com`, and downloads only on your own panel's host.
+- Template artwork given as an address loads only if it's `https`. Player avatars load only as PNG, JPEG, WebP or GIF
+  (never SVG, which can carry markup).
 - Error pages from proxies are stripped of markup and cut short.
 - One-time tickets and tokens are cut out of error messages before they're shown.
 
@@ -312,10 +316,10 @@ Covers what 0.4.0 brought over from PR LordMephisto94/AMP-Mobile-APP#1 and the 0
 | 75 | The PIN's HMAC key was made "usable only while the phone is unlocked". The gain is small (the app is only used unlocked), but if the phone's screen lock is removed such a key may be voided, and a voided key erases every saved sign-in | Low | Fixed for new keys: StrongBox where the phone has it, without that flag. A key made by 0.4.0 or 0.4.1 keeps it |
 | 76 | Instance cards and the RAM graph still wrote memory as raw MB, ignoring the size units in Settings | Info | Fixed |
 
-Checked and found sound: the vault upgrade can't race a session save (an older key's write is dropped, and the old key is
-deleted only after the new vault is on disk); a key store that doesn't answer never erases the vault or counts a wrong
-PIN; quick unlock turned on or off while the app locks or fingerprint unlock changes leaves no stale way in; the lock
-timer and the check on return never both lock; panel links are confirmed, and the dialog is cancelled by locking;
+Checked and found sound: the vault upgrade can't race a session save (an older key's write is dropped, and the old key
+is deleted only after the new vault is on disk); a key store that doesn't answer never erases the vault or counts a
+wrong PIN; quick unlock turned on or off while the app locks or fingerprint unlock changes leaves no stale way in; the
+lock timer and the check on return never both lock; panel links are confirmed, and the dialog is cancelled by locking;
 answers and avatars are capped while they stream; an imported server list keeps only addresses the app accepts, 50 at
 most, signed out.
 
@@ -346,9 +350,12 @@ replaces the app and reads its data. Earlier builds used a development key. The 
 - **Server list at rest.** Panel addresses and user names aren't secret, so they're stored unencrypted (outside
   Android's backups from 0.2.0). They could be moved into the vault, at the cost of "Forgot PIN" also forgetting
   the servers.
-- **PIN guessing on the phone itself.** The vault's PIN-bound key works without a recent phone unlock, so code
-  running as the app on an unlocked or rooted phone could try PINs without the wrong-PIN count. Each try still costs
-  600,000 PBKDF2 rounds on the phone; a longer PIN makes this impractical.
+- **PIN guessing on the phone itself.** Code running as the app on a rooted phone could try PINs without the
+  wrong-PIN count. Each try must go through the phone's key store (the HMAC key can't be copied off) after 600,000
+  PBKDF2 rounds, so it's slow, and a longer PIN makes it impractical. Vaults still on the older phone-bound kind
+  (fingerprint-only users who haven't entered the PIN since 0.4.0) are weaker here.
+- **Crash alerts' session.** For servers with crash alerts on, a copy of the session opens without the PIN, by design
+  (finding 64). It's sealed by its own key-store key and only reads instance states and the activity log.
 - **Hidden fields on older phones.** Before Android 12 views can't be blurred: hidden text still shows as dots, but
   the text in a form field (sign-in user name, a new user's details) shows as typed.
 - **Edits while locked.** An unsaved schedule or snapshot form is lost when the app locks (file edits are kept).

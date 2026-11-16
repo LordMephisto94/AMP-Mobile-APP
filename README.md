@@ -1,6 +1,7 @@
 # AMP Mobile
 
-A mobile app for managing a publicly exposed AMP 3 server, built with [NSH (Native Shell)](https://nsh.dev) in TSX.
+An unofficial Android app for managing AMP 3 panels (CubeCoders' Application Management Panel) over the internet, the
+local network or Tailscale, built with [NSH (Native Shell)](https://nsh.dev) in TSX.
 
 ## Run
 
@@ -48,11 +49,15 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
   `nsh.json`'s capabilities and the Android app allow plain HTTP generally, since neither can name an address range.
 - NSH `Storage` is a plain JSON file in the app's private directory (the Android app is left out of Android's
   backups). The server list holds no secrets; sessions kept with "Stay signed in" are sealed in a vault
-  (`amp.vault`) that needs the app PIN, locked to the phone's secure hardware, and optionally opened by fingerprint.
-  Passwords are never stored. SECURITY.md has the details.
+  (`amp.vault`) that opens with the app PIN (checked through the phone's secure hardware) or, if you turn it on,
+  your fingerprint. Passwords are never stored. SECURITY.md has the details.
 - AMP 3 calls instances **shards** and nodes **spires**. The spec mixes `/api/Shards` and `/api/shards`: use paths
   exactly as written.
-- The app ID (`nsh.json`'s `id`) is `com.meganet.ampmobile`. Changing it makes Android and iOS treat the app as a different one, so saved servers wouldn't carry over.
+- The app ID (`nsh.json`'s `id`) is `com.meganet.ampmobile`. Changing it makes Android and iOS treat the app as a
+  different one, so saved servers wouldn't carry over.
+- `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTP(S) and WS(S) to any host (the server
+  address is the user's), `openUrl` for `https` and `http`, the clipboard, the picker, the status bar, and the host
+  calls `deviceKey.*` (the key store) and `crashWatch.*` (crash alerts), both answered by the Android app around it.
 
 ## Files on iPhone and Android
 
@@ -64,9 +69,6 @@ nsh test    # headless tests (App.test.tsx), network and the Android key store s
 - **Downloading** opens a one-time ticket URL in the device's browser (`openUrl`), which saves the file: on iOS
   Safari puts it in Files › Downloads, on Android the browser puts it in Downloads. No permission is needed; the URL
   needs no session token, and the ticket works once.
-- `nsh.json` declares `capabilities`, so everything unlisted is denied: HTTPS and WSS to any host (the server
-  address is the user's), `openUrl` for `https`, the clipboard, the picker, the status bar, and the host calls
-  `deviceKey.*` (the key store, answered by the Android app around it).
 
 ## The Android app (android/)
 
@@ -76,8 +78,9 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
 
 - `MainActivity.java` sets the view up as NSH's packaged app did (edge to edge, the app's own limits) and keeps the
   launcher entry's old name (`com.longbridge.nsh.AppActivity`, an alias), so home-screen icons keep working.
-- `DeviceKeys.java` is the phone's key store (sealing keys, and the HMAC key the PIN's key is made with) and the fingerprint prompt, answered over NSH's host channel
-  (`host.call("deviceKey.…")`, wrapped in `src/lib/deviceKeys.ts`). Without a host (tests, `nsh run`, desktops)
+- `DeviceKeys.java` is the phone's key store (sealing keys, and the HMAC key the PIN's key is made with) and the
+  fingerprint prompt, answered over NSH's host channel (`host.call("deviceKey.…")`, wrapped in
+  `src/lib/deviceKeys.ts`). Without a host (tests, `nsh run`, desktops)
   there are no device keys and the vault uses the PIN alone; the tests play the host with `open`'s `host.handlers`.
 - `CrashWatch.java` and `CrashWatchJob.java` are crash alerts: a JobScheduler job, about every 15 minutes with a
   network, that reads watched servers' instance states and activity log and posts notifications. The app turns it on
@@ -90,8 +93,8 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
 
 Needs the Android SDK (platform 35 and Build-Tools 36, which the Android Gradle plugin 9 fetches itself if missing),
 the NDK (only to strip the runtime's debug symbols; `-PndkVersion=` picks another installed one) and a JDK 17+.
-Gradle (9.9.1) comes with the wrapper; built-in Kotlin is off (`android.builtInKotlin=false`), as the app has none. Fetch the runtime once (it matches the
-installed `nsh`, 0.5.0; update both together):
+Gradle (9.9.1) comes with the wrapper; built-in Kotlin is off (`android.builtInKotlin=false`), as the app has none.
+Fetch the runtime once (it matches the installed `nsh`, 0.5.0; update both together):
 
 ```sh
 scripts/fetch-nsh-sdk.sh
@@ -129,7 +132,8 @@ scripts/build-release.sh
 ```
 
 It asks for the key's password, unless it finds one: `AMP_KEYSTORE_PASSWORD` in the environment, or a private env
-file, `~/.config/amp-mobile/release.env` (or `AMP_RELEASE_ENV`, or `.env.release` or `.env` in the repository, which git ignores).
+file, `~/.config/amp-mobile/release.env` (or `AMP_RELEASE_ENV`, or `.env.release` or `.env` in the repository, which
+git ignores).
 Set one up from the example:
 
 ```sh

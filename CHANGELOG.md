@@ -30,7 +30,7 @@ Hardening and features from a contributor's PR (LordMephisto94/AMP-Mobile-APP#1,
 - If the saved sign-ins were damaged, the app says so instead of quietly signing you out.
 - A link from your panel asks before it opens in the browser.
 - A reply to a console prompt (a Steam Guard code, say) is hidden while you type it, with Show and Hide.
-- Large or endless server answers are cut off as they arrive; player avatars are only ordinary pictures.
+- Large or endless server answers are cut off as they arrive; player avatars load only as PNG, JPEG, WebP or GIF.
 - New Settings page (home screen): sizes in 1024s (as AMP) or 1000s, network speeds in bytes or bits, and copying
   your server list to another phone (names, addresses and user names; never passwords) or adding one from the
   clipboard.
