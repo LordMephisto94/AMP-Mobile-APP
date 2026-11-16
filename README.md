@@ -88,8 +88,9 @@ of an APK made by `nsh package`. It owns its manifest, which is what the fingerp
   the APK's `assets/nsh`, with `app.json` naming the app's id, so NSH keeps the app's storage where the packaged
   app kept it and updates keep saved servers.
 
-Needs the Android SDK (platform 35), the NDK (only to strip the runtime's debug symbols; `-PndkVersion=` picks
-another installed one) and a JDK 17+. Gradle comes with the wrapper. Fetch the runtime once (it matches the
+Needs the Android SDK (platform 35 and Build-Tools 36, which the Android Gradle plugin 9 fetches itself if missing),
+the NDK (only to strip the runtime's debug symbols; `-PndkVersion=` picks another installed one) and a JDK 17+.
+Gradle (9.9.1) comes with the wrapper; built-in Kotlin is off (`android.builtInKotlin=false`), as the app has none. Fetch the runtime once (it matches the
 installed `nsh`, 0.5.0; update both together):
 
 ```sh

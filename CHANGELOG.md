@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Builds with Gradle 9.9.1 and the Android Gradle plugin 9.5.1 (from Dependabot's
+  LordMephisto94/AMP-Mobile-APP#2 and #3). The APK is unchanged: same contents, size and signing key.
+
 ## 0.4.2
 
 - An eleventh audit (SECURITY.md, findings 75 and 76):
