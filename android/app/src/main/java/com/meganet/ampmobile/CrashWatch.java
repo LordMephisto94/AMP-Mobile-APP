@@ -607,7 +607,8 @@ final class CrashWatch {
     private static Notification.Builder builder(Context c, String channel, String title, String body) {
         channels(c);
         return new Notification.Builder(c, channel)
-                .setSmallIcon(R.drawable.ic_stat_crash)
+                .setSmallIcon(R.drawable.ic_stat_amp)
+                .setColor(0xFF7C3AED) // The theme's primary purple, for the icon and app name where Android shows them
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new Notification.BigTextStyle().bigText(body))

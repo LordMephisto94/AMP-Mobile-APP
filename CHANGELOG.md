@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Crash alerts show the AMP mark in the status bar and on the notification, in the app's purple, instead of a warning
+  triangle that looked like an Android system error.
+
 ## 0.4.0
 
 Hardening and features from a contributor's PR (LordMephisto94/AMP-Mobile-APP#1, MinVT-dev), brought over by hand:
