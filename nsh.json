@@ -1,8 +1,8 @@
 {
   "name": "AMP Mobile",
   "id": "com.meganet.AMP3App",
-  "version": "0.5.2",
-  "build": 26,
+  "version": "0.5.3",
+  "build": 27,
   "icon": "assets/icon.png",
   "theme": "theme.json",
   "appearance": "dark",

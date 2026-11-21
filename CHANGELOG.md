@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3
+
+- Crash alerts no longer fire when AMP renews an instance's message bus credential. The agent reconnecting could
+  re-report a running server with a new launch time, or as stopped for a moment. Now:
+  - "Restarted on its own" needs AMP's process ID to change, and isn't sent when the only activity around it is
+    AMP's own upkeep (message bus credentials, a state reconcile).
+  - A stop is read again 20 seconds later before it's alerted; a server back up on the same process was a blip.
+
 ## 0.5.2
 
 - New app ID: `com.meganet.AMP3App` (was `com.meganet.ampmobile`). Android treats it as a different app: it installs

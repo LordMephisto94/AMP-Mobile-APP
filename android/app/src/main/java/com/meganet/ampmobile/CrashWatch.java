@@ -79,6 +79,8 @@ final class CrashWatch {
     private static final long RENEW_WITHIN_MS = 24 * 3600_000L;
     /** The activity log is read from a little before the last check, for clocks that disagree. */
     private static final long SKEW_MS = 5 * 60_000L;
+    /** How long a stop is given to show itself as a blip before it's alerted. */
+    private static final long RECHECK_MS = 20_000L;
     private static final int TIMEOUT_MS = 20_000;
     private static final int MAX_BODY = 4 * 1024 * 1024;
     /** A run stops starting new requests after this, well inside the system's 10 minutes for a job. */
@@ -418,6 +420,8 @@ final class CrashWatch {
         final String error;
         /** Whether a person or schedule acted on it: null when the activity log can't be read. */
         Boolean intended;
+        /** The log shows only AMP's own upkeep around it (message bus credentials, a state reconcile), nothing that launched or stopped the game. */
+        boolean upkeepOnly;
 
         Alert(String shardId, String shardName, Kind kind, String error) {
             this.shardId = shardId;
@@ -501,16 +505,46 @@ final class CrashWatch {
             }
             int status = s.optInt("status", -1);
             String launched = s.isNull("startedAt") ? "" : s.optString("startedAt", "");
-            JSONObject now = new JSONObject().put("s", status).put("t", launched);
+            String pid = pidOf(s);
+            JSONObject now = new JSONObject().put("s", status).put("t", launched).put("p", pid);
             after.put(shardId, now);
             if (seen == null) continue; // First sight: nothing to compare with.
-            Kind kind = judge(seen.optInt("s", -1), seen.optString("t", ""), status, launched);
+            Kind kind = judge(seen.optInt("s", -1), seen.optString("t", ""), seen.optString("p", ""), status, launched, pid);
             if (kind != null) alerts.add(new Alert(shardId, shardName, kind, s.isNull("lastErrorMessage") ? null : s.optString("lastErrorMessage", null)));
+        }
+
+        // A stop is read again a little later: an agent reconnecting (after AMP renews its message bus
+        // credential, say) can report a running server as stopped for a moment.
+        if (hasKind(alerts, Kind.STOPPED) && System.currentTimeMillis() + RECHECK_MS < deadline) {
+            Thread.sleep(RECHECK_MS);
+            for (int i = alerts.size() - 1; i >= 0; i--) {
+                Alert a = alerts.get(i);
+                if (a.kind != Kind.STOPPED) continue;
+                JSONObject seen = before.optJSONObject(a.shardId);
+                JSONObject again;
+                try {
+                    Response r = get(url, "/api/Shards/" + enc(a.shardId) + "/state", token);
+                    again = r.code == 200 ? r.object() : null;
+                } catch (IOException e) {
+                    again = null;
+                }
+                if (again == null || !again.has("status") || seen == null) continue;
+                int status = again.optInt("status", -1);
+                String launched = again.isNull("startedAt") ? "" : again.optString("startedAt", "");
+                String pid = pidOf(again);
+                after.put(a.shardId, new JSONObject().put("s", status).put("t", launched).put("p", pid));
+                Kind kind = judge(seen.optInt("s", -1), seen.optString("t", ""), seen.optString("p", ""), status, launched, pid);
+                if (kind == null) alerts.remove(i); // Running as before: it never went down.
+                else if (kind != a.kind) alerts.set(i, new Alert(a.shardId, a.shardName, kind, a.error));
+            }
         }
 
         long from = Math.max(0, since - SKEW_MS);
         for (Alert a : alerts) {
-            if (a.kind != Kind.FAILED) a.intended = someoneActed(url, token, a.shardId, from);
+            if (a.kind == Kind.FAILED) continue;
+            LogRead log = readLog(url, token, a.shardId, from);
+            a.intended = log.intended;
+            a.upkeepOnly = log.upkeep && !log.lifecycle;
         }
 
         synchronized (LOCK) {
@@ -529,6 +563,8 @@ final class CrashWatch {
 
         for (Alert a : alerts) {
             if (Boolean.TRUE.equals(a.intended)) continue;
+            // A "restart" with only AMP's upkeep around it is the agent re-reporting, not the game restarting.
+            if (a.kind == Kind.RESTARTED && a.upkeepOnly) continue;
             notifyCrash(c, id, name, a);
         }
     }
@@ -538,39 +574,88 @@ final class CrashWatch {
      * restart from a running state (judged later against the activity log), or nothing.
      * A stop seen half way ("Stopping", "Preparing to sleep") is someone's stop, not a crash.
      */
-    private static Kind judge(int was, String wasLaunched, int is, String launched) {
+    private static Kind judge(int was, String wasLaunched, String wasPid, int is, String launched, String pid) {
         if (is == FAILED_STARTUP && was != FAILED_STARTUP) return Kind.FAILED;
         boolean wasUp = was == RUNNING_NOT_READY || was == RUNNING_READY || (was > STOPPED && was < RUNNING_NOT_READY);
         if (!wasUp) return null;
         if (is == STOPPED) return Kind.STOPPED;
         boolean isUp = is == RUNNING_NOT_READY || is == RUNNING_READY || (is > STOPPED && is < RUNNING_NOT_READY);
-        if (isUp && (was == RUNNING_READY || was == RUNNING_NOT_READY) && !launched.isEmpty() && !launched.equals(wasLaunched)) return Kind.RESTARTED;
+        if (!isUp || !(was == RUNNING_READY || was == RUNNING_NOT_READY)) return null;
+        // The same process is the same run, whatever launch time the agent reports after reconnecting.
+        boolean pidsKnown = !pid.isEmpty() && !wasPid.isEmpty();
+        if (pidsKnown) return pid.equals(wasPid) ? null : Kind.RESTARTED;
+        if (!launched.isEmpty() && !launched.equals(wasLaunched)) return Kind.RESTARTED;
         return null;
     }
 
-    /** Whether a person or a schedule acted on the instance since `fromMs`; null when the log can't be read. */
-    private static Boolean someoneActed(String url, String token, String shardId, long fromMs) {
+    /** The process id AMP reports for a running server, as text; empty when it gives none (0 or missing). */
+    private static String pidOf(JSONObject state) {
+        if (state.isNull("processId")) return "";
+        String pid = state.optString("processId", "").trim();
+        return pid.isEmpty() || "0".equals(pid) ? "" : pid;
+    }
+
+    private static boolean hasKind(List<Alert> alerts, Kind kind) {
+        for (Alert a : alerts) if (a.kind == kind) return true;
+        return false;
+    }
+
+    /** What the activity log says about an instance since a time. */
+    private static final class LogRead {
+        /** A person or a schedule acted on it; null when the log can't be read. */
+        Boolean intended;
+        /** Something launched or stopped the game itself. */
+        boolean lifecycle;
+        /** AMP's own upkeep happened (message bus credentials, a state reconcile). */
+        boolean upkeep;
+    }
+
+    /** Actions where the game's process was started or stopped (the panel's audit action names). */
+    private static final java.util.Set<String> LIFECYCLE = new java.util.HashSet<>(java.util.Arrays.asList(
+            "ShardNativeStopped", "ShardNativeKilled", "ShardNativeLaunched", "ShardStartedInPlace", "ShardStartInPlaceLost",
+            "ShardStartRequested", "ShardRestartRequested", "ShardStopRequested", "ShardStoppedOverDiskLimit",
+            "ShardStoppedOverLicence", "ShardsStoppedForRemoval", "ShardUtilityAgentRetired", "ShardStartedAfterMove",
+            "ShardMigrationStarted", "ShardMigrationCompleted", "ShardLaunchRefused", "ShardNativeLaunchRefused",
+            "ApplicationUpdateStarted", "SpireBootStartCompleted", "AmpUpdateRelaunch"));
+
+    /** AMP's routine upkeep that reconnects an agent without touching the game. */
+    private static final java.util.Set<String> UPKEEP = new java.util.HashSet<>(java.util.Arrays.asList(
+            "ShardBusCredentialRenewed", "ShardBusRetiredKeyRevoked", "ShardBusUnknownKeyRevoked", "ShardBusRenewalRefused",
+            "ShardStateReconciled", "BusTemplateReconciled", "BusRevocationsPruned"));
+
+    private static LogRead readLog(String url, String token, String shardId, long fromMs) {
+        LogRead out = new LogRead();
         try {
             String query = "/api/Audit?targetId=" + enc(shardId) + "&from=" + enc(Instant.ofEpochMilli(fromMs).toString()) + "&pageSize=100&page=";
             int seen = 0;
             // A busy instance can log more than a page of the system's own events in one interval.
             for (int pageNo = 1; pageNo <= 5; pageNo++) {
                 Response r = get(url, query + pageNo, token);
-                if (r.code != 200) return null;
+                if (r.code != 200) return out;
                 JSONObject page = r.object();
                 JSONArray items = page == null ? null : page.optJSONArray("items");
-                if (items == null) return null;
+                if (items == null) return out;
                 for (int i = 0; i < items.length(); i++) {
                     JSONObject e = items.optJSONObject(i);
+                    if (e == null) continue;
                     // AuditOrigin: 0 is the system on its own; anything else has a person or a schedule behind it.
-                    if (e != null && e.optInt("origin", 0) != 0) return true;
+                    if (e.optInt("origin", 0) != 0) {
+                        out.intended = true;
+                        return out;
+                    }
+                    String action = e.optString("action", "");
+                    if (LIFECYCLE.contains(action)) out.lifecycle = true;
+                    if (UPKEEP.contains(action)) out.upkeep = true;
                 }
                 seen += items.length();
-                if (items.length() == 0 || seen >= page.optInt("total", 0)) return false;
+                if (items.length() == 0 || seen >= page.optInt("total", 0)) {
+                    out.intended = false;
+                    return out;
+                }
             }
-            return null; // More than five pages: can't tell.
+            return out; // More than five pages: can't tell.
         } catch (Exception e) {
-            return null;
+            return out;
         }
     }
 
